@@ -146,6 +146,8 @@ export function summarizeTrace(spans) {
   const output = chats.reduce((sum, { attrs }) => sum + Number(attrs["gen_ai.usage.output_tokens"] ?? 0), 0);
   const tokenInfo = chats.some(({ attrs }) => attrs["gen_ai.usage.input_tokens"] != null)
     ? `${input}/${output} in/out (reported chat spans)` : "unavailable";
+  const opaque = tools.find(({ span, attrs }) =>
+    /^[a-f0-9]{32,}\//.test(String(attrs["gen_ai.tool.name"] ?? span.name.replace(/^execute_tool ?/, ""))));
   const web = tools.find(({ span, attrs, branch }) =>
     branch && /(?:^|[/ _.-])web_search(?:$|[/ _.-])/.test(String(attrs["gen_ai.tool.name"] ?? span.name)));
   const mcp = tools.find(({ span, attrs, branch }) =>
@@ -157,6 +159,7 @@ export function summarizeTrace(spans) {
     `Agent spans: ${agents.length} | Subagents: ${subagents.length} | Peak concurrent subagents: ${peak}`,
     `Tool calls: ${tools.length} | Failed tool calls: ${tools.filter(({ span, attrs }) => Number(span.status?.code) === 2 || attrs["error.type"]).length} | Chat calls: ${chats.length} | Tokens: ${tokenInfo}`,
     `Demo evidence: ${complete ? "PASS" : "MISSING"} | overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_search: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`,
+    ...(opaque ? [`Opaque tool metadata keys: ${safe(Object.keys(opaque.attrs).join(","), 500)} | span fields: ${safe(Object.keys(opaque.span).join(","), 400)}`] : []),
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",
     "Times are UTC; durations and overlap derive from span timestamps, not JSONL file order.",

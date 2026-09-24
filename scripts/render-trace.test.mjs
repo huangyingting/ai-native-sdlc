@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { loadSpans, renderTrace } from "./render-trace.mjs";
+import { loadSpans, renderTrace, summarizeTrace } from "./render-trace.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
 const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId = "trace-a") => ({
@@ -35,10 +35,30 @@ test("reports no invented subagents and isolates parent identifiers by trace", (
   assert.match(result, /execute_tool view/);
 });
 
+test("accepts the CLI's direct JSONL span records with hrtime and attribute objects", () => {
+  const direct = (id, parent, name, start, end, attributes = {}) => JSON.stringify({
+    type: "span", traceId: "direct-trace", spanId: id, parentSpanId: parent, name,
+    kind: 0, startTime: [1700000000, start], endTime: [1700000000, end],
+    attributes, status: { code: 1 },
+  });
+  const result = summarizeTrace(loadSpans([
+    direct("web", "aws", "execute_tool web_search", 250000000, 350000000),
+    direct("mcp", "azure", "execute_tool microsoft-learn/microsoft_docs_search", 260000000, 360000000,
+      { "gen_ai.tool.name": "microsoft-learn/microsoft_docs_search" }),
+    direct("azure", "root", "invoke_agent Azure", 200000000, 700000000),
+    direct("aws", "root", "invoke_agent AWS", 100000000, 600000000),
+    direct("root", "", "invoke_agent parent", 0, 900000000),
+  ].join("\n")));
+  assert.equal(result.complete, true);
+  assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
+  assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
+  assert.match(result.summary, /Peak concurrent subagents: 2/);
+});
+
 test("fails clearly on missing or malformed traces", () => {
   assert.throws(() => loadSpans(""), /Missing or empty/);
   assert.throws(() => loadSpans("{broken"), /Invalid JSON/);
   assert.throws(() => loadSpans("null"), /Invalid OTLP entry/);
-  assert.throws(() => loadSpans(line()), /No OTLP/);
+  assert.throws(() => loadSpans(line()), /No trace spans/);
   assert.throws(() => renderTrace(loadSpans(line(span("x", "", "unrelated", 1, 2)))), /no invoke_agent/);
 });

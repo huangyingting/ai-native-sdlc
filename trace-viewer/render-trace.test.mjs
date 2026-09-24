@@ -67,6 +67,8 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
+  assert.match(renderTrace(loadSpans(line(span("x", "", "execute_tool microsoft-learn-microsoft_docs_search", 1, 2)))),
+    /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
   assert.match(result.summary, /Required: gpt-6-luna \(PASS\)/);
   const graph = renderGraph(result.events);

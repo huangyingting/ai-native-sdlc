@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 const configured = JSON.parse(readFileSync(new URL("../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
 const hash = (name) => createHash("sha256").update(name).digest("hex");
 const mcpNames = new Map(Object.entries(configured).flatMap(([server, config]) =>
-  config.tools.map((tool) => [`${hash(server)}/${hash(tool).slice(0, 35)}`, `${server}/${tool}`])));
+  config.tools.flatMap((tool) => [
+    [`${hash(server)}/${hash(tool).slice(0, 35)}`, `${server}/${tool}`],
+    [`${server}-${tool}`, `${server}/${tool}`],
+  ])));
 
 function value(attribute) {
   const data = attribute?.value;
@@ -35,6 +38,7 @@ function operation(span, attrs) {
 function toolName(span, attrs) {
   const observed = [attrs["gen_ai.tool.name"], span.name.replace(/^execute_tool ?/, "")];
   for (const candidate of observed) {
+    if (mcpNames.has(candidate)) return mcpNames.get(candidate);
     const digest = String(candidate ?? "").match(/[a-f0-9]{64}\/[a-f0-9]{35}/)?.[0];
     if (digest && mcpNames.has(digest)) return mcpNames.get(digest);
   }

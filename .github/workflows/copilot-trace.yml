@@ -2,6 +2,11 @@ name: Copilot CLI call-chain demo
 
 on:
   workflow_dispatch:
+    inputs:
+      include_messages:
+        description: "Include limited request/response excerpts in the public HTML artifact"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -9,15 +14,15 @@ permissions:
 
 jobs:
   trace:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       COPILOT_OTEL_ENABLED: "true"
       COPILOT_OTEL_EXPORTER_TYPE: file
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install Copilot CLI
@@ -26,9 +31,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
+          OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ inputs.include_messages && 'true' || 'false' }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
-          copilot -p "Use fleet to launch two subagents concurrently for an Amazon S3 versus Azure Blob Storage comparison. AWS subagent: MUST call built-in web_fetch on these official docs pages: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html, https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html, https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html, and https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-management.html. Azure subagent: MUST call microsoft-learn MCP microsoft_docs_search for Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control; optionally call microsoft_docs_fetch. Each cites source URLs. After both finish, compare the features concisely and note non-equivalences. Do not edit files or run shell commands." \
+          copilot --model gpt-6-luna -p "Use fleet to invoke the repository's aws-storage and azure-storage custom agents concurrently. Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. The AWS agent must web_fetch official AWS docs; the Azure agent must call Microsoft Learn MCP microsoft_docs_search. Have each cite sources; synthesize a concise comparison noting non-equivalences. Do not edit files or run shell commands." \
             --fleet --allow-tool='read,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
             --allow-url='https://docs.aws.amazon.com' \
             --deny-tool=write --deny-tool=shell
@@ -36,12 +42,14 @@ jobs:
         if: always()
         env:
           REQUIRE_DEMO_EVIDENCE: "true"
+          REQUIRE_MODEL: gpt-6-luna
+          TRACE_INCLUDE_MESSAGES: ${{ inputs.include_messages && 'true' || 'false' }}
           TRACE_HTML_PATH: ${{ runner.temp }}/copilot-trace.html
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
-        run: node scripts/render-trace.mjs "$COPILOT_OTEL_FILE_EXPORTER_PATH"
+        run: node trace-viewer/render-trace.mjs "$COPILOT_OTEL_FILE_EXPORTER_PATH"
       - name: Attach HTML trace viewer
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: copilot-trace-viewer
           path: ${{ runner.temp }}/copilot-trace.html

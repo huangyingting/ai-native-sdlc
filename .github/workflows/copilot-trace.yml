@@ -14,7 +14,6 @@ jobs:
     env:
       COPILOT_OTEL_ENABLED: "true"
       COPILOT_OTEL_EXPORTER_TYPE: file
-      COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +25,12 @@ jobs:
       - name: Run parallel read-only analysis
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
           copilot -p "Use fleet to delegate these two independent read-only tasks concurrently: (1) read this repository's README and use web_search to check current GitHub Actions GITHUB_TOKEN Copilot CLI guidance; (2) read the README and use web_search to check current Copilot CLI OpenTelemetry tracing guidance. Each subagent should report one concrete finding and its public source. Synthesize their findings briefly. Do not edit files or run shell commands." \
             --fleet --allow-tool=read --deny-tool=write --deny-tool=shell
       - name: Render call chain
         if: always()
+        env:
+          COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: node scripts/render-trace.mjs "$COPILOT_OTEL_FILE_EXPORTER_PATH"

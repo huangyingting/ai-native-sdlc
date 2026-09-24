@@ -28,8 +28,9 @@ jobs:
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
-          copilot -p "Use fleet to launch two subagents concurrently for an Amazon S3 versus Azure Blob Storage comparison. AWS subagent: MUST call the built-in GitHub MCP server's web_search tool to research Amazon S3 versioning, encryption, lifecycle/storage classes, and access control using public AWS documentation; discover the tool if necessary. Azure subagent: MUST call the microsoft-learn MCP server's microsoft_docs_search to research Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control; optionally call microsoft_docs_fetch. Each reports source URLs. After both finish, compare features concisely, noting non-equivalences. Do not edit files or run shell commands." \
-            --fleet --allow-tool='read,github-mcp-server(web_search),microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
+          copilot -p "Use fleet to launch two subagents concurrently for an Amazon S3 versus Azure Blob Storage comparison. AWS subagent: MUST call built-in web_fetch on these official docs pages: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html, https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html, https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html, and https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-management.html. Azure subagent: MUST call microsoft-learn MCP microsoft_docs_search for Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control; optionally call microsoft_docs_fetch. Each cites source URLs. After both finish, compare the features concisely and note non-equivalences. Do not edit files or run shell commands." \
+            --fleet --allow-tool='read,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
+            --allow-url='https://docs.aws.amazon.com' \
             --deny-tool=write --deny-tool=shell
       - name: Render call chain
         if: always()

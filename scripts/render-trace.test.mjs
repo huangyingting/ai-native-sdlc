@@ -45,7 +45,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
     attributes, status: { code: 1 },
   });
   const result = summarizeTrace(loadSpans([
-    direct("web", "aws", `execute_tool ${id("github-mcp-server", "web_search")}`, 250000000, 350000000),
+    direct("web", "aws", "execute_tool web_fetch", 250000000, 350000000),
     direct("mcp", "azure", `execute_tool ${id("microsoft-learn", "microsoft_docs_search")}`, 260000000, 360000000,
       { "gen_ai.tool.name": id("microsoft-learn", "microsoft_docs_search") }),
     direct("azure", "root", "invoke_agent Azure", 200000000, 700000000),
@@ -54,7 +54,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   ].join("\n")));
   assert.equal(result.complete, true);
   assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
-  assert.match(result.summary, /execute_tool github-mcp-server\/web_search/);
+  assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
 });

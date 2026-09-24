@@ -3,9 +3,8 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const configured = JSON.parse(readFileSync(new URL("../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
-const knownServers = { ...configured, "github-mcp-server": { tools: ["web_search"] } };
 const hash = (name) => createHash("sha256").update(name).digest("hex");
-const mcpNames = new Map(Object.entries(knownServers).flatMap(([server, config]) =>
+const mcpNames = new Map(Object.entries(configured).flatMap(([server, config]) =>
   config.tools.map((tool) => [`${hash(server)}/${hash(tool).slice(0, 40)}`, `${server}/${tool}`])));
 
 function value(attribute) {
@@ -159,7 +158,7 @@ export function summarizeTrace(spans) {
   const tokenInfo = chats.some(({ attrs }) => attrs["gen_ai.usage.input_tokens"] != null)
     ? `${input}/${output} in/out (reported chat spans)` : "unavailable";
   const web = tools.find(({ span, attrs, branch }) =>
-    branch && toolName(span, attrs) === "github-mcp-server/web_search");
+    branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const mcp = tools.find(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search");
   const complete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
@@ -168,7 +167,8 @@ export function summarizeTrace(spans) {
     "",
     `Agent spans: ${agents.length} | Subagents: ${subagents.length} | Peak concurrent subagents: ${peak}`,
     `Tool calls: ${tools.length} | Failed tool calls: ${tools.filter(({ span, attrs }) => Number(span.status?.code) === 2 || attrs["error.type"]).length} | Chat calls: ${chats.length} | Tokens: ${tokenInfo}`,
-    `Demo evidence: ${complete ? "PASS" : "MISSING"} | overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_search: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`,
+    `Demo evidence: ${complete ? "PASS" : "MISSING"} | overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`,
+    "AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token.",
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",
     "Times are UTC; durations and overlap derive from span timestamps, not JSONL file order.",
@@ -191,7 +191,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.summary);
     console.log(result.summary);
     if (process.env.REQUIRE_DEMO_EVIDENCE === "true" && !result.complete) {
-      console.error("Demo evidence missing: require overlapping subagents and web_search and microsoft_docs_search on separate branches.");
+      console.error("Demo evidence missing: require overlapping subagents and web_fetch and microsoft_docs_search on separate branches.");
       process.exitCode = 1;
     }
   } catch (error) {

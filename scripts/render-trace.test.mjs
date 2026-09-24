@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
-import { loadSpans, renderTrace, summarizeTrace } from "./render-trace.mjs";
+import { loadSpans, renderTrace, renderHtml, summarizeTrace } from "./render-trace.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
 const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId = "trace-a") => ({
@@ -49,16 +49,21 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   const result = summarizeTrace(loadSpans([
     direct("web", "aws", "execute_tool web_fetch", 250000000, 350000000),
     direct("mcp", "azure", `execute_tool ${id("microsoft-learn", "microsoft_docs_search")}`, 260000000, 360000000,
-      { "gen_ai.tool.name": id("microsoft-learn", "microsoft_docs_search") }),
+      { "gen_ai.tool.name": `${id("microsoft-learn", "microsoft_docs_search")}\u200b` }),
     direct("azure", "root", "invoke_agent Azure", 200000000, 700000000),
     direct("aws", "root", "invoke_agent AWS", 100000000, 600000000),
-    direct("root", "", "invoke_agent parent", 0, 900000000),
+    direct("root", "", "invoke_agent parent", 0, 900000000, { "gen_ai.input.messages": "private prompt must never be rendered" }),
   ].join("\n")));
   assert.equal(result.complete, true);
   assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
+  const html = renderHtml(result);
+  assert.match(html, /scoutTheme/);
+  assert.match(html, /--cp-bg: #f7f4ef/);
+  assert.match(html, /microsoft-learn\/microsoft_docs_search/);
+  assert.doesNotMatch(html, /private prompt must never be rendered/);
 });
 
 test("fails clearly on missing or malformed traces", () => {

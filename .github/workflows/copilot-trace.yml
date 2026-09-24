@@ -36,5 +36,13 @@ jobs:
         if: always()
         env:
           REQUIRE_DEMO_EVIDENCE: "true"
+          TRACE_HTML_PATH: ${{ runner.temp }}/copilot-trace.html
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: node scripts/render-trace.mjs "$COPILOT_OTEL_FILE_EXPORTER_PATH"
+      - name: Attach HTML trace viewer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-trace-viewer
+          path: ${{ runner.temp }}/copilot-trace.html
+          if-no-files-found: warn

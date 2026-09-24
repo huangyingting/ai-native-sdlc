@@ -1,4 +1,4 @@
-import { readFileSync, appendFileSync } from "node:fs";
+import { readFileSync, appendFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -33,8 +33,12 @@ function operation(span, attrs) {
 }
 
 function toolName(span, attrs) {
-  const observed = String(attrs["gen_ai.tool.name"] ?? span.name.replace(/^execute_tool ?/, ""));
-  return mcpNames.get(observed) ?? observed;
+  const observed = [attrs["gen_ai.tool.name"], span.name.replace(/^execute_tool ?/, "")];
+  for (const candidate of observed) {
+    const digest = String(candidate ?? "").match(/[a-f0-9]{64}\/[a-f0-9]{35}/)?.[0];
+    if (digest && mcpNames.has(digest)) return mcpNames.get(digest);
+  }
+  return String(observed[0] ?? observed[1]);
 }
 
 function timestamp(nanos) {
@@ -106,6 +110,7 @@ export function summarizeTrace(spans) {
   const tools = [];
   const chats = [];
   const lines = [];
+  const events = [];
   function visit(node, depth, insideAgent, branch) {
     const { span, attrs } = node;
     const kind = operation(span, attrs);
@@ -132,7 +137,13 @@ export function summarizeTrace(spans) {
         : "";
       const cost = kind === "chat" && attrs["gen_ai.usage.cost"] != null
         ? ` cost=${safe(attrs["gen_ai.usage.cost"])}` : "";
-      lines.push(`${"  ".repeat(depth)}${kind} ${safe(label || "(unnamed)")} @ ${timestamp(span.startTimeUnixNano)} (${elapsed(span)})${tokens}${cost}${status}`);
+      const text = `${kind} ${safe(label || "(unnamed)")} @ ${timestamp(span.startTimeUnixNano)} (${elapsed(span)})${tokens}${cost}${status}`;
+      lines.push(`${"  ".repeat(depth)}${text}`);
+      events.push({
+        kind, depth, text,
+        start: Number(BigInt(span.startTimeUnixNano) / 1_000_000n),
+        end: Number(BigInt(span.endTimeUnixNano) / 1_000_000n),
+      });
     }
     for (const child of node.children.sort(sort)) {
       visit(child, depth + (kind && ["invoke_agent", "execute_tool", "chat"].includes(kind) ? 1 : 0), insideAgent || isAgent, currentBranch);
@@ -178,18 +189,153 @@ export function summarizeTrace(spans) {
     "```",
     "",
   ];
-  return { summary: summary.join("\n"), complete: Boolean(complete) };
+  return {
+    summary: summary.join("\n"), complete: Boolean(complete), events,
+    counts: { agents: agents.length, subagents: subagents.length, peak, tools: tools.length, chats: chats.length },
+  };
 }
 
 export function renderTrace(spans) {
   return summarizeTrace(spans).summary;
 }
 
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (char) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+export function renderHtml({ events, counts, complete }) {
+  const start = Math.min(...events.map((event) => event.start));
+  const total = Math.max(1, Math.max(...events.map((event) => event.end)) - start);
+  const rows = events.map((event) => {
+    const left = ((event.start - start) / total) * 100;
+    const width = Math.min(100 - left, Math.max(0.4, ((event.end - event.start) / total) * 100));
+    return `<div class="row" style="--depth:${event.depth}">
+      <div class="event">${escapeHtml(event.text)}</div>
+      <div class="track"><span class="bar ${event.kind}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div>
+    </div>`;
+  }).join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Copilot CLI invocation chain</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+body { margin: 0; padding: 32px; font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--cp-bg); color: var(--cp-text); }
+main { max-width: 1200px; margin: auto; }
+h1 { margin: 0 0 8px; }
+p { color: var(--cp-text-muted); }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+.stat { min-width: 120px; padding: 16px; border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); }
+.stat strong { display: block; font-size: 24px; }
+.stat span { color: var(--cp-text-muted); }
+.panel { border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); padding: 16px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--cp-text-muted); margin-bottom: 16px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 0.625rem; margin-right: 4px; background: var(--cp-accent); }
+.swatch.tool { background: var(--cp-success); }
+.swatch.chat { background: var(--cp-link); }
+.row { display: grid; grid-template-columns: minmax(280px, 3fr) minmax(180px, 2fr); gap: 12px; border-top: 1px solid var(--cp-border); align-items: center; padding: 8px 0; }
+.event { padding-left: calc(var(--depth) * 20px); overflow-wrap: anywhere; font-family: Consolas, "Courier New", Courier, monospace; font-size: 12px; }
+.track { position: relative; height: 14px; border-radius: 0.625rem; background: var(--cp-surface-soft); }
+.bar { position: absolute; height: 100%; border-radius: 0.625rem; background: var(--cp-accent); }
+.bar.execute_tool { background: var(--cp-success); }
+.bar.chat { background: var(--cp-link); }
+.badge { color: var(--cp-success); }
+.badge.missing { color: var(--cp-danger); }
+@media (max-width: 700px) { body { padding: 16px; } .row { grid-template-columns: 1fr; } .track { margin-left: calc(var(--depth) * 20px); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Copilot CLI invocation chain</h1>
+  <p>Observed spans only · UTC timestamps · relative timeline · <strong class="badge ${complete ? "" : "missing"}">${complete ? "Demo evidence verified" : "Demo evidence incomplete"}</strong></p>
+  <div class="stats">
+    <div class="stat"><strong>${counts.agents}</strong><span>Agent spans</span></div>
+    <div class="stat"><strong>${counts.subagents}</strong><span>Subagents</span></div>
+    <div class="stat"><strong>${counts.peak}</strong><span>Peak parallel</span></div>
+    <div class="stat"><strong>${counts.tools}</strong><span>Tool calls</span></div>
+    <div class="stat"><strong>${counts.chats}</strong><span>Model calls</span></div>
+  </div>
+  <section class="panel" aria-label="Invocation timeline">
+    <div class="legend"><span><i class="swatch"></i>Agent</span><span><i class="swatch tool"></i>Tool</span><span><i class="swatch chat"></i>Model</span></div>
+    ${rows}
+  </section>
+  <p>Generated from selected trace metadata only; prompts, tool arguments, responses, and raw OTLP are not included.</p>
+</main>
+</body>
+</html>`;
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     const result = summarizeTrace(loadSpans(readFileSync(process.argv[2], "utf8")));
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.summary);
-    console.log(result.summary);
+    if (process.env.TRACE_HTML_PATH) writeFileSync(process.env.TRACE_HTML_PATH, renderHtml(result));
+    const artifactLink = process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+      ? `\n[Download the HTML trace viewer](https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)\n`
+      : "";
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.summary + artifactLink);
+    console.log(result.summary + artifactLink);
     if (process.env.REQUIRE_DEMO_EVIDENCE === "true" && !result.complete) {
       console.error("Demo evidence missing: require overlapping subagents and web_fetch and microsoft_docs_search on separate branches.");
       process.exitCode = 1;

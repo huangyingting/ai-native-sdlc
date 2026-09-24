@@ -29,6 +29,8 @@ function elapsed(span) {
 export function loadSpans(jsonl) {
   if (!jsonl?.trim()) throw new Error("Missing or empty OTLP JSONL trace");
   const spans = [];
+  let firstKeys = "";
+  let nestedKeys = "";
   for (const [index, line] of jsonl.trim().split(/\r?\n/).entries()) {
     let entry;
     try {
@@ -38,6 +40,11 @@ export function loadSpans(jsonl) {
     }
     if (!entry || typeof entry !== "object") {
       throw new Error(`Invalid OTLP entry on trace line ${index + 1}`);
+    }
+    if (!firstKeys) {
+      firstKeys = Object.keys(entry).map(safe).join(",");
+      const nested = entry.data ?? entry.payload ?? entry;
+      nestedKeys = Object.keys(nested).map(safe).join(",");
     }
     for (const resource of entry.resourceSpans ?? []) {
       for (const scope of resource.scopeSpans ?? []) {
@@ -50,7 +57,9 @@ export function loadSpans(jsonl) {
       }
     }
   }
-  if (!spans.length) throw new Error("No OTLP resourceSpans[].scopeSpans[].spans[] found");
+  if (!spans.length) {
+    throw new Error(`No OTLP resourceSpans[].scopeSpans[].spans[] found (record keys: ${firstKeys}; nested keys: ${nestedKeys})`);
+  }
   return spans;
 }
 

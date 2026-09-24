@@ -78,6 +78,14 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   const html = renderHtml(result);
   assert.match(html, /scoutTheme/);
   assert.match(html, /--cp-bg: #f7f4ef/);
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /data-tab="overview"/);
+  assert.match(html, /data-tab="graph"/);
+  assert.match(html, /data-tab="timeline"/);
+  assert.match(html, /data-tab="messages"/);
+  assert.match(html, /Request and response inspector/);
+  assert.match(html, /id="timeline-filter"/);
+  assert.match(html, /activateMessage/);
   assert.match(html, /microsoft-learn\/microsoft_docs_search/);
   assert.match(html, /S3 versioning &lt;verified&gt;/);
   assert.match(html, /\[REDACTED TOKEN\]/);

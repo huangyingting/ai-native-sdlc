@@ -317,20 +317,36 @@ export function renderGraph(events) {
 
 export function renderHtml({ events, counts, complete, includeMessages, messageCount }) {
   const start = Math.min(...events.map((event) => event.start));
-  const total = Math.max(1, Math.max(...events.map((event) => event.end)) - start);
+  const end = Math.max(...events.map((event) => event.end));
+  const total = Math.max(1, end - start);
   const rows = events.map((event) => {
     const left = ((event.start - start) / total) * 100;
     const width = Math.min(100 - left, Math.max(0.4, ((event.end - event.start) / total) * 100));
-    const messages = event.request || event.response
-      ? `<details class="messages"><summary>Request / response</summary>
-          ${event.request ? `<div><strong>Request</strong><pre>${escapeHtml(event.request)}</pre></div>` : ""}
-          ${event.response ? `<div><strong>Response</strong><pre>${escapeHtml(event.response)}</pre></div>` : ""}
-        </details>` : "";
-    return `<div class="row" style="--depth:${event.depth}">
-      <div><div class="event">${escapeHtml(event.text)}</div>${messages}</div>
+    return `<div class="row" style="--depth:${event.depth}" data-filter="${escapeHtml(`${event.kind} ${event.name}`.toLowerCase())}">
+      <div class="event">${escapeHtml(event.text)}</div>
       <div class="track"><span class="bar ${event.kind}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div>
     </div>`;
   }).join("\n");
+  const messageEvents = events.filter((event) => event.request || event.response);
+  const messageIndex = messageEvents.map((event, index) =>
+    `<button class="message-item${index === 0 ? " active" : ""}" type="button" data-message="${index}" role="option" aria-selected="${index === 0}">
+      <span class="message-kind ${event.kind}">${event.kind === "chat" ? "MODEL" : "TOOL"}</span>
+      <strong>${escapeHtml(event.name)}</strong>
+      <span>${new Date(event.start).toISOString().slice(11, 23)} UTC</span>
+    </button>`).join("\n");
+  const messageDetails = messageEvents.map((event, index) =>
+    `<article class="message-detail${index === 0 ? " active" : ""}" data-message-panel="${index}" ${index === 0 ? "" : "hidden"}>
+      <div class="detail-header"><div><span class="message-kind ${event.kind}">${event.kind === "chat" ? "MODEL" : "TOOL"}</span><h2>${escapeHtml(event.name)}</h2></div>
+        <span class="duration">${Math.max(0, event.end - event.start).toLocaleString()} ms</span></div>
+      <div class="payload-grid">
+        <section><h3>Request</h3><pre>${escapeHtml(event.request ?? "No request content recorded.")}</pre></section>
+        <section><h3>Response</h3><pre>${escapeHtml(event.response ?? "No response content recorded.")}</pre></section>
+      </div>
+    </article>`).join("\n");
+  const agentNames = [...new Set(events.filter((event) => event.kind === "invoke_agent").map((event) => event.name))];
+  const modelNames = [...new Set(events.filter((event) => event.kind === "chat").map((event) => event.name))];
+  const toolNames = [...new Set(events.filter((event) => event.kind === "execute_tool").map((event) => event.name))];
+  const chips = (items, className) => items.map((item) => `<span class="chip ${className}">${escapeHtml(item)}</span>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -399,22 +415,48 @@ html[data-theme="dark"] {
   --cp-highlight: rgba(253, 142, 161, 0.12);
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 44px 28px; font-family: "Segoe UI Variable", "Segoe UI", Aptos, Calibri, sans-serif; background: var(--cp-bg); color: var(--cp-text); line-height: 1.5; }
-main { max-width: 1280px; margin: auto; }
-h1 { font-family: "Segoe UI Variable Display", "Segoe UI", Aptos, Calibri, sans-serif; font-size: clamp(28px, 3vw, 40px); font-weight: 650; letter-spacing: -0.025em; margin: 6px 0 4px; line-height: 1.15; }
-h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.015em; margin: 0; }
-p { color: var(--cp-text-muted); margin: 8px 0; }
-.eyebrow { color: var(--cp-accent); font-size: 11px; letter-spacing: 0.14em; font-weight: 700; }
-.heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+body { margin: 0; min-width: 320px; font-family: "Segoe UI Variable", "Segoe UI", Aptos, Calibri, sans-serif; background: var(--cp-bg); color: var(--cp-text); line-height: 1.5; }
+button, input { font: inherit; }
+button { color: inherit; }
+.app-shell { min-height: 100vh; }
+.topbar { background: var(--cp-bg-elevated); border-bottom: 1px solid var(--cp-border); }
+.topbar-inner { max-width: 1440px; margin: auto; padding: 28px 32px 24px; }
+main { max-width: 1440px; margin: auto; padding: 24px 32px 48px; }
+h1 { font-family: "Segoe UI Variable Display", "Segoe UI", Aptos, Calibri, sans-serif; font-size: clamp(26px, 3vw, 36px); font-weight: 650; letter-spacing: -0.025em; margin: 5px 0 3px; line-height: 1.15; }
+h2 { font-size: 17px; font-weight: 650; letter-spacing: -0.015em; margin: 0; }
+h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cp-text-muted); margin: 0 0 8px; }
+p { color: var(--cp-text-muted); margin: 6px 0; }
+.eyebrow { color: var(--cp-accent); font-size: 10px; letter-spacing: 0.16em; font-weight: 700; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--cp-success); color: var(--cp-success); border-radius: 0.625rem; padding: 6px 12px; font-size: 12px; font-weight: 650; }
 .badge.missing { color: var(--cp-danger); border-color: var(--cp-danger); }
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0 0 24px; }
-.stat { padding: 16px 20px; border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); }
-.stat strong { display: block; font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 1440px; margin: auto; padding: 0 32px; }
+.tab { position: relative; border: 0; background: transparent; padding: 13px 14px 12px; color: var(--cp-text-muted); cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tab:hover { color: var(--cp-text); }
+.tab[aria-selected="true"] { color: var(--cp-accent); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: var(--cp-accent); }
+.tab-count { margin-left: 5px; color: var(--cp-text-soft); font-size: 11px; }
+.tab-panel[hidden] { display: none; }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0 0 20px; }
+.stat { padding: 18px 20px; border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); box-shadow: 0 0 2px var(--cp-border), 0 1px 2px var(--cp-border); }
+.stat strong { display: block; font-size: 27px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .stat span { color: var(--cp-text-muted); font-size: 12px; }
-.panel { border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); margin-bottom: 20px; overflow: hidden; }
+.panel { border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); margin-bottom: 20px; overflow: hidden; box-shadow: 0 0 2px var(--cp-border), 0 1px 2px var(--cp-border); }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--cp-border); }
 .panel-heading p { font-size: 12px; margin: 0; }
+.overview-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 20px; }
+.overview-body { padding: 22px; }
+.status-list { display: grid; gap: 12px; margin-top: 18px; }
+.status-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.status-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--cp-success); color: var(--cp-success); border-radius: 50%; font-size: 11px; font-weight: 700; }
+.status-row span:last-child { color: var(--cp-text-muted); font-size: 12px; }
+.inventory { padding: 20px 22px; }
+.inventory-group + .inventory-group { border-top: 1px solid var(--cp-border); margin-top: 18px; padding-top: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.chip { display: inline-flex; border: 1px solid var(--cp-border); border-radius: 0.625rem; padding: 5px 9px; font-family: Consolas, "Courier New", Courier, monospace; font-size: 10px; color: var(--cp-text-soft); background: var(--cp-surface-soft); }
+.chip.agent { border-color: var(--cp-accent); }
+.chip.model { border-color: var(--cp-link); }
+.chip.tool { border-color: var(--cp-success); }
 .legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: var(--cp-text-muted); font-size: 12px; }
 .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 0.625rem; margin-right: 5px; background: var(--cp-accent); }
 .swatch.tool { background: var(--cp-success); }
@@ -428,47 +470,173 @@ p { color: var(--cp-text-muted); margin: 8px 0; }
 .graph-node.chat circle { fill: var(--cp-link); }
 .graph-node text { fill: var(--cp-text); font-size: 12px; font-weight: 600; }
 .graph-node .graph-meta { fill: var(--cp-text-muted); font-size: 10px; font-weight: 500; letter-spacing: 0.04em; }
+.toolbar { display: flex; align-items: center; gap: 10px; }
+.search { width: min(300px, 55vw); border: 1px solid var(--cp-border); border-radius: 0.625rem; padding: 7px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); font-size: 12px; outline: none; }
+.search:focus { border-color: var(--cp-accent); }
 .timeline { padding: 0 22px 16px; }
 .row { display: grid; grid-template-columns: minmax(320px, 3fr) minmax(200px, 2fr); gap: 20px; border-top: 1px solid var(--cp-border); align-items: center; padding: 9px 0; }
+.row.filtered { display: none; }
 .event { padding-left: calc(var(--depth) * 18px); overflow-wrap: anywhere; font-family: Consolas, "Courier New", Courier, monospace; font-size: 11px; color: var(--cp-text-soft); }
-.messages { margin: 8px 0 0 calc(var(--depth) * 18px); padding: 8px 12px; border: 1px solid var(--cp-border); border-radius: 0.625rem; background: var(--cp-bg-elevated); font-size: 12px; }
-.messages summary { cursor: pointer; color: var(--cp-accent); font-weight: 600; }
-.messages strong { display: block; font-size: 11px; color: var(--cp-text-muted); margin: 10px 0 3px; }
-.messages pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: Consolas, "Courier New", Courier, monospace; font-size: 11px; }
 .track { position: relative; height: 10px; border-radius: 0.625rem; background: var(--cp-surface-soft); }
 .bar { position: absolute; height: 100%; border-radius: 0.625rem; background: var(--cp-accent); }
 .bar.execute_tool { background: var(--cp-success); }
 .bar.chat { background: var(--cp-link); }
-.note { font-size: 12px; margin: 0 2px 24px; }
-@media (max-width: 900px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 700px) { body { padding: 20px 12px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: 1fr; gap: 6px; } .track { margin-left: calc(var(--depth) * 18px); } .panel-heading { flex-wrap: wrap; } }
+.messages-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 580px; }
+.message-sidebar { border-right: 1px solid var(--cp-border); background: var(--cp-bg-elevated); }
+.message-sidebar-head { padding: 16px; border-bottom: 1px solid var(--cp-border); }
+.message-list { max-height: 660px; overflow: auto; padding: 8px; }
+.message-item { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; align-items: center; border: 1px solid transparent; border-radius: 0.625rem; background: transparent; padding: 10px; text-align: left; cursor: pointer; }
+.message-item:hover { background: var(--cp-surface-soft); }
+.message-item.active { background: var(--cp-accent-soft); border-color: var(--cp-accent); }
+.message-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.message-item > span:last-child { grid-column: 2; color: var(--cp-text-muted); font-size: 10px; }
+.message-kind { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; border-radius: 0.625rem; padding: 3px 5px; background: var(--cp-accent-soft); color: var(--cp-accent); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; }
+.message-kind.chat { color: var(--cp-link); border: 1px solid var(--cp-link); background: transparent; }
+.message-kind.execute_tool { color: var(--cp-success); border: 1px solid var(--cp-success); background: transparent; }
+.message-stage { min-width: 0; }
+.message-detail { padding: 24px; }
+.detail-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 1px solid var(--cp-border); padding-bottom: 18px; margin-bottom: 20px; }
+.detail-header h2 { margin-top: 7px; }
+.duration { color: var(--cp-text-muted); font-family: Consolas, "Courier New", Courier, monospace; font-size: 11px; }
+.payload-grid { display: grid; gap: 18px; }
+.payload-grid section { min-width: 0; }
+.payload-grid pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 310px; overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--cp-border); border-radius: 0.625rem; background: var(--cp-surface-soft); color: var(--cp-text-soft); font-family: Consolas, "Courier New", Courier, monospace; font-size: 11px; line-height: 1.55; }
+.empty-state { display: grid; min-height: 340px; place-items: center; padding: 32px; text-align: center; }
+.empty-state strong { display: block; margin-bottom: 4px; }
+.note { font-size: 11px; margin: 16px 2px 0; }
+@media (max-width: 1000px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .overview-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .topbar-inner, main { padding-left: 16px; padding-right: 16px; } .tabs { padding: 0 16px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: 1fr; gap: 6px; } .track { margin-left: calc(var(--depth) * 18px); } .panel-heading { align-items: flex-start; flex-wrap: wrap; } .messages-layout { grid-template-columns: 1fr; } .message-sidebar { border-right: 0; border-bottom: 1px solid var(--cp-border); } .message-list { display: flex; max-height: none; overflow-x: auto; } .message-item { min-width: 230px; } }
 </style>
 </head>
 <body>
-<main>
-  <header class="heading">
-    <div><div class="eyebrow">COPILOT CLI / OBSERVABILITY</div><h1>Agent invocation trace</h1><p>Observed parent, subagent, model, and tool relationships</p></div>
-    <span class="badge ${complete ? "" : "missing"}">${complete ? "Demo evidence verified" : "Demo evidence incomplete"}</span>
-  </header>
-  <div class="stats">
-    <div class="stat"><strong>${counts.agents}</strong><span>Agent spans</span></div>
-    <div class="stat"><strong>${counts.subagents}</strong><span>Subagents</span></div>
-    <div class="stat"><strong>${counts.peak}</strong><span>Peak parallel</span></div>
-    <div class="stat"><strong>${counts.tools}</strong><span>Tool calls</span></div>
-    <div class="stat"><strong>${counts.chats}</strong><span>Model calls</span></div>
-  </div>
-  <section class="panel" aria-label="Invocation dependency graph">
-    <div class="panel-heading"><div><h2>Invocation graph</h2><p>Edges follow observed agent ancestry; repeated tool and model calls are grouped.</p></div>
-      <div class="legend"><span><i class="swatch"></i>Agent</span><span><i class="swatch tool"></i>Tool</span><span><i class="swatch chat"></i>Model</span></div>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="heading">
+        <div><div class="eyebrow">COPILOT CLI / OBSERVABILITY</div><h1>Agent invocation trace</h1><p>Execution topology, timing, and captured exchanges</p></div>
+        <span class="badge ${complete ? "" : "missing"}">${complete ? "Demo evidence verified" : "Demo evidence incomplete"}</span>
+      </div>
     </div>
-    <div class="graph-scroll">${renderGraph(events)}</div>
-  </section>
-  <section class="panel" aria-label="Invocation timeline">
-    <div class="panel-heading"><div><h2>Span timeline</h2><p>UTC timestamps · duration bars show relative wall time</p></div></div>
-    <div class="timeline">${rows}</div>
-  </section>
-  <p class="note">${includeMessages ? `${messageCount} spans show limited, redacted request/response excerpts. ` : "Message capture was off for this run. Re-run with include_messages to show excerpts. "}Raw OTLP is not included in this artifact.</p>
-</main>
+    <nav class="tabs" role="tablist" aria-label="Trace views">
+      <button class="tab" id="tab-overview" role="tab" aria-selected="true" aria-controls="overview" data-tab="overview">Overview</button>
+      <button class="tab" id="tab-graph" role="tab" aria-selected="false" aria-controls="graph" data-tab="graph">Dependency graph</button>
+      <button class="tab" id="tab-timeline" role="tab" aria-selected="false" aria-controls="timeline" data-tab="timeline">Timeline <span class="tab-count">${events.length}</span></button>
+      <button class="tab" id="tab-messages" role="tab" aria-selected="false" aria-controls="messages" data-tab="messages">Messages <span class="tab-count">${messageEvents.length}</span></button>
+    </nav>
+  </header>
+  <main>
+    <section class="tab-panel" id="overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="stats">
+        <div class="stat"><strong>${counts.agents}</strong><span>Agent spans</span></div>
+        <div class="stat"><strong>${counts.subagents}</strong><span>Subagents</span></div>
+        <div class="stat"><strong>${counts.peak}</strong><span>Peak parallel</span></div>
+        <div class="stat"><strong>${counts.tools}</strong><span>Tool calls</span></div>
+        <div class="stat"><strong>${counts.chats}</strong><span>Model calls</span></div>
+      </div>
+      <div class="overview-grid">
+        <section class="panel">
+          <div class="panel-heading"><div><h2>Run assessment</h2><p>Observed evidence from ${events.length} spans over ${(total / 1000).toFixed(1)} seconds.</p></div></div>
+          <div class="overview-body">
+            <div class="status-list">
+              <div class="status-row"><span class="status-icon">✓</span><strong>Parallel orchestration</strong><span>${counts.peak} concurrent subagents</span></div>
+              <div class="status-row"><span class="status-icon">✓</span><strong>AWS research branch</strong><span>web_fetch observed</span></div>
+              <div class="status-row"><span class="status-icon">✓</span><strong>Azure research branch</strong><span>Microsoft Learn MCP observed</span></div>
+              <div class="status-row"><span class="status-icon">✓</span><strong>Message privacy</strong><span>${includeMessages ? `${messageCount} redacted excerpts` : "content capture disabled"}</span></div>
+            </div>
+          </div>
+        </section>
+        <section class="panel inventory">
+          <div class="inventory-group"><h3>Agents</h3><div class="chips">${chips(agentNames, "agent")}</div></div>
+          <div class="inventory-group"><h3>Models</h3><div class="chips">${chips(modelNames, "model")}</div></div>
+          <div class="inventory-group"><h3>Tools</h3><div class="chips">${chips(toolNames, "tool")}</div></div>
+        </section>
+      </div>
+      <p class="note">${includeMessages ? `${messageCount} spans include bounded, redacted request/response excerpts. ` : "Message capture was off for this run. Re-run with include_messages to inspect exchanges. "}Raw OTLP is not included.</p>
+    </section>
+    <section class="tab-panel" id="graph" role="tabpanel" aria-labelledby="tab-graph" hidden>
+      <section class="panel" aria-label="Invocation dependency graph">
+        <div class="panel-heading"><div><h2>Invocation graph</h2><p>Observed agent ancestry; repeated tool and model calls are grouped.</p></div>
+          <div class="legend"><span><i class="swatch"></i>Agent</span><span><i class="swatch tool"></i>Tool</span><span><i class="swatch chat"></i>Model</span></div>
+        </div>
+        <div class="graph-scroll">${renderGraph(events)}</div>
+      </section>
+    </section>
+    <section class="tab-panel" id="timeline" role="tabpanel" aria-labelledby="tab-timeline" hidden>
+      <section class="panel" aria-label="Invocation timeline">
+        <div class="panel-heading"><div><h2>Span timeline</h2><p>UTC timestamps · duration bars show relative wall time</p></div>
+          <div class="toolbar"><input class="search" id="timeline-filter" type="search" placeholder="Filter by agent, model, or tool" aria-label="Filter timeline"></div>
+        </div>
+        <div class="timeline">${rows}</div>
+      </section>
+    </section>
+    <section class="tab-panel" id="messages" role="tabpanel" aria-labelledby="tab-messages" hidden>
+      <section class="panel">
+        <div class="panel-heading"><div><h2>Request and response inspector</h2><p>Bounded, best-effort redacted excerpts captured for this run.</p></div></div>
+        ${messageEvents.length ? `<div class="messages-layout">
+          <aside class="message-sidebar"><div class="message-sidebar-head"><input class="search" id="message-filter" type="search" placeholder="Filter exchanges" aria-label="Filter message exchanges"></div>
+            <div class="message-list" role="listbox" aria-label="Captured exchanges">${messageIndex}</div></aside>
+          <div class="message-stage">${messageDetails}</div>
+        </div>` : `<div class="empty-state"><div><strong>No message content captured</strong><p>Run the workflow with include_messages enabled to populate this view.</p></div></div>`}
+      </section>
+    </section>
+  </main>
+</div>
+<script>
+  (() => {
+    const tabs = [...document.querySelectorAll("[data-tab]")];
+    const panels = [...document.querySelectorAll(".tab-panel")];
+    const activateTab = (id, updateHash = true) => {
+      if (!panels.some((panel) => panel.id === id)) id = "overview";
+      tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === id)));
+      panels.forEach((panel) => panel.hidden = panel.id !== id);
+      if (updateHash) history.replaceState(null, "", "#" + id);
+    };
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => activateTab(tab.dataset.tab));
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+        event.preventDefault();
+        const current = tabs.indexOf(tab);
+        const next = tabs[(current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+        next.focus();
+        activateTab(next.dataset.tab);
+      });
+    });
+    activateTab(location.hash.slice(1) || "overview", false);
+    const timelineFilter = document.querySelector("#timeline-filter");
+    timelineFilter?.addEventListener("input", () => {
+      const query = timelineFilter.value.trim().toLowerCase();
+      document.querySelectorAll(".row[data-filter]").forEach((row) =>
+        row.classList.toggle("filtered", query && !row.dataset.filter.includes(query)));
+    });
+    const messageItems = [...document.querySelectorAll(".message-item")];
+    const messagePanels = [...document.querySelectorAll(".message-detail")];
+    const activateMessage = (id) => {
+      messageItems.forEach((item) => {
+        const active = item.dataset.message === id;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-selected", String(active));
+      });
+      messagePanels.forEach((panel) => {
+        const active = panel.dataset.messagePanel === id;
+        panel.classList.toggle("active", active);
+        panel.hidden = !active;
+      });
+    };
+    messageItems.forEach((item) => item.addEventListener("click", () => activateMessage(item.dataset.message)));
+    const messageFilter = document.querySelector("#message-filter");
+    messageFilter?.addEventListener("input", () => {
+      const query = messageFilter.value.trim().toLowerCase();
+      let firstVisible = null;
+      messageItems.forEach((item) => {
+        const visible = !query || item.textContent.toLowerCase().includes(query);
+        item.hidden = !visible;
+        if (visible && !firstVisible) firstVisible = item;
+      });
+      if (firstVisible) activateMessage(firstVisible.dataset.message);
+    });
+  })();
+</script>
 </body>
 </html>`;
 }

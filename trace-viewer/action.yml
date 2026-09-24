@@ -1,0 +1,29 @@
+name: Render Copilot CLI trace
+description: Render Copilot CLI OpenTelemetry JSONL into a GitHub Job Summary and self-contained HTML viewer.
+inputs:
+  trace-path:
+    description: Path to the Copilot CLI OpenTelemetry JSONL file.
+    required: true
+  html-path:
+    description: Destination path for the self-contained HTML viewer.
+    required: true
+  include-messages:
+    description: Include bounded, redacted request/response excerpts.
+    default: "false"
+  require-model:
+    description: Require every observed model call to use this model.
+    default: ""
+  require-demo-evidence:
+    description: Fail when expected parallelism, tools, model, or requested messages are absent.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Render trace
+      shell: bash
+      env:
+        TRACE_HTML_PATH: ${{ inputs.html-path }}
+        TRACE_INCLUDE_MESSAGES: ${{ inputs.include-messages }}
+        REQUIRE_MODEL: ${{ inputs.require-model }}
+        REQUIRE_DEMO_EVIDENCE: ${{ inputs.require-demo-evidence }}
+      run: node "$GITHUB_ACTION_PATH/render-trace.mjs" "${{ inputs.trace-path }}"

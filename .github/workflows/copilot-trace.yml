@@ -40,13 +40,13 @@ jobs:
             --deny-tool=write --deny-tool=shell
       - name: Render call chain
         if: always()
-        env:
-          REQUIRE_DEMO_EVIDENCE: "true"
-          REQUIRE_MODEL: gpt-6-luna
-          TRACE_INCLUDE_MESSAGES: ${{ inputs.include_messages && 'true' || 'false' }}
-          TRACE_HTML_PATH: ${{ runner.temp }}/copilot-trace.html
-          COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
-        run: node trace-viewer/render-trace.mjs "$COPILOT_OTEL_FILE_EXPORTER_PATH"
+        uses: ./trace-viewer
+        with:
+          trace-path: ${{ runner.temp }}/copilot-otel.jsonl
+          html-path: ${{ runner.temp }}/copilot-trace.html
+          include-messages: ${{ inputs.include_messages }}
+          require-model: gpt-6-luna
+          require-demo-evidence: "true"
       - name: Attach HTML trace viewer
         if: always()
         uses: actions/upload-artifact@v7

@@ -38,7 +38,9 @@ test("reports no invented subagents and isolates parent identifiers by trace", (
 
 test("accepts the CLI's direct JSONL span records with hrtime and attribute objects", () => {
   const hash = (name) => createHash("sha256").update(name).digest("hex");
-  const id = (server, tool) => `${hash(server)}/${hash(tool).slice(0, 40)}`;
+  const id = (server, tool) => `${hash(server)}/${hash(tool).slice(0, 35)}`;
+  assert.equal(id("microsoft-learn", "microsoft_docs_search"),
+    "13b8ca8a502562dbd2771a98ddffb2928c5f332b9613385401698065fc630761/9eda69db084fe3d07903b420273b6010da2");
   const direct = (id, parent, name, start, end, attributes = {}) => JSON.stringify({
     type: "span", traceId: "direct-trace", spanId: id, parentSpanId: parent, name,
     kind: 0, startTime: [1700000000, start], endTime: [1700000000, end],

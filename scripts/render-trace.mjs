@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const configured = JSON.parse(readFileSync(new URL("../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
 const hash = (name) => createHash("sha256").update(name).digest("hex");
 const mcpNames = new Map(Object.entries(configured).flatMap(([server, config]) =>
-  config.tools.map((tool) => [`${hash(server)}/${hash(tool).slice(0, 40)}`, `${server}/${tool}`])));
+  config.tools.map((tool) => [`${hash(server)}/${hash(tool).slice(0, 35)}`, `${server}/${tool}`])));
 
 function value(attribute) {
   const data = attribute?.value;

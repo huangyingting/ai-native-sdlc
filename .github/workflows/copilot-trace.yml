@@ -141,7 +141,7 @@ jobs:
           google-chrome --headless --no-sandbox --disable-gpu --hide-scrollbars \
             --window-size=1600,1000 \
             --screenshot="$GITHUB_WORKSPACE/trace-report/dependency-map.png" \
-            "file://$GITHUB_WORKSPACE/trace-report/copilot-trace-report.html?view=map"
+            "file://$GITHUB_WORKSPACE/trace-report/copilot-trace-report.html?tab=dependencies"
       - name: Attach HTML trace viewer
         if: always()
         uses: actions/upload-artifact@v7
@@ -150,35 +150,54 @@ jobs:
           path: trace-report/
           if-no-files-found: warn
           retention-days: 14
-      - name: Upload dependency map for issue comment
+      - name: Publish dependency image
         id: media
         if: always() && github.event_name == 'issues'
-        continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          MEDIA_TOKEN: ${{ secrets.AGENT_TRACE_MEDIA_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "$MEDIA_TOKEN" ]; then
+            echo "::notice::AGENT_TRACE_MEDIA_TOKEN is not configured; the issue comment will use a Mermaid dependency graph."
+            exit 0
+          fi
           FILE='trace-report/dependency-map.png'
           NAME="$(basename -- "$FILE")"
           MIME='image/png'
           REPO='${{ github.repository }}'
           if [ ! -f "$FILE" ]; then
-            echo "Dependency-map image is unavailable." >&2
-            exit 1
+            echo "::warning::Dependency-map image is unavailable; the issue comment will use Mermaid."
+            exit 0
           fi
-          REPO_ID="$(gh api "repos/$REPO" --jq .id)" || { echo "Repository lookup failed." >&2; exit 1; }
-          case "$REPO_ID" in ''|*[!0-9]*) echo "No repository_id for $REPO." >&2; exit 1;; esac
-          URL="$(curl --fail-with-body -sS -X POST \
+          REPO_ID="$(GH_TOKEN="$MEDIA_TOKEN" gh api "repos/$REPO" --jq .id)" || {
+            echo "::warning::Repository lookup for the dependency image failed; the issue comment will use Mermaid."
+            exit 0
+          }
+          case "$REPO_ID" in
+            ''|*[!0-9]*)
+              echo "::warning::Repository ID is invalid; the issue comment will use Mermaid."
+              exit 0
+              ;;
+          esac
+          RESPONSE_PATH="$RUNNER_TEMP/dependency-image-upload.json"
+          if ! curl --fail-with-body -sS -X POST \
             'https://uploads.github.com/user-attachments/assets' \
             --url-query "name=$NAME" \
             --url-query "content_type=$MIME" \
             --url-query "repository_id=$REPO_ID" \
+            -H 'Accept: application/json' \
             -H 'Content-Type: application/octet-stream' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            --data-binary "@$FILE" | jq -r .url)"
-          case "$URL" in https://*) ;; *) echo "Media upload failed: $URL" >&2; exit 1;; esac
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+            -H "Authorization: Bearer $MEDIA_TOKEN" \
+            --data-binary "@$FILE" > "$RESPONSE_PATH"; then
+            echo "::warning::GitHub rejected the dependency image upload; the issue comment will use Mermaid."
+            exit 0
+          fi
+          URL="$(jq -r '.url // empty' "$RESPONSE_PATH")"
+          case "$URL" in
+            https://*) echo "url=$URL" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::warning::GitHub returned no dependency image URL; the issue comment will use Mermaid." ;;
+          esac
       - name: Post result to issue
         if: always() && github.event_name == 'issues'
         env:

@@ -113,12 +113,8 @@ export function renderGraph(events) {
 
 export function renderHtml(model) {
   const { events, counts, complete, includeMessages, duration, timeRange } = model;
-  const selectedEvent = events.find((event) => event.failed) ?? events[0];
-  const slowest = events.filter((event) => event.depth > 0)
-    .sort((a, b) => (b.end - b.start) - (a.end - a.start))
-    .slice(0, 3);
+  const selectedEvent = events[0];
   const failed = events.filter((event) => event.failed);
-  const unpriced = events.filter((event) => event.kind === "chat" && event.cost == null && event.hasTokenUsage);
   const costLabel = counts.costMode === "estimated" ? "Estimated" : counts.costMode === "reported" ? "Reported" : counts.costMode === "mixed" ? "Mixed" : "Cost";
   const graph = renderGraph(events);
 
@@ -132,7 +128,7 @@ export function renderHtml(model) {
       <div class="span-identity" style="--depth:${event.depth}">
         ${event.childIds.length ? `<button class="collapse" type="button" data-collapse="${escapeHtml(event.id)}" aria-label="Collapse descendants">${icon("chevron")}</button>` : `<span class="collapse-spacer"></span>`}
         <span class="kind-icon ${event.kind}">${icon(event.kind === "invoke_agent" ? "agent" : event.kind === "chat" ? "model" : "tool")}</span>
-        <span class="span-title"><strong>${escapeHtml(event.name)}</strong><small>${kindLabel(event.kind)}${event.ownerName && event.kind !== "invoke_agent" ? ` · ${escapeHtml(event.ownerName)}` : ""}</small></span>
+        <span class="span-title"><strong>${escapeHtml(event.name)}</strong><small>${kindLabel(event.kind)}${event.ownerName && event.kind !== "invoke_agent" ? ` · ${escapeHtml(event.ownerName)}` : ""}${event.failed ? " · Error" : ""}</small></span>
       </div>
       <div class="waterfall-track"><span class="waterfall-bar ${event.kind}${event.failed ? " failed" : ""}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div>
       <span class="span-duration">${formatDuration(event.end - event.start)}</span>
@@ -170,22 +166,6 @@ export function renderHtml(model) {
     </article>`;
   }).join("\n");
 
-  const findingButton = (event, eyebrow, detail, severity = "") =>
-    `<button class="finding ${severity}" type="button" data-select="${escapeHtml(event.id)}">${icon(severity === "danger" ? "error" : event.kind === "chat" ? "model" : event.kind === "execute_tool" ? "tool" : "agent")}<span>${eyebrow}</span><strong>${escapeHtml(event.name)}</strong><small>${detail}</small></button>`;
-  const findingRecords = [];
-  const findingIds = new Set();
-  const addFinding = (event, eyebrow, detail, severity = "") => {
-    if (findingIds.has(event.id)) return;
-    findingIds.add(event.id);
-    findingRecords.push({ event, eyebrow, detail, severity });
-  };
-  failed.slice(0, 4).forEach((event) => addFinding(event, "Error", formatDuration(event.end - event.start), "danger"));
-  slowest.slice(0, 3).forEach((event) => addFinding(event, "Slow path", formatDuration(event.end - event.start)));
-  unpriced.slice(0, 2).forEach((event) => addFinding(event, "Cost unavailable", "model not in pricing catalog", "warning"));
-  const findings = findingRecords.slice(0, 7)
-    .map(({ event, eyebrow, detail, severity }) => findingButton(event, eyebrow, detail, severity))
-    .join("");
-
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -201,48 +181,40 @@ export function renderHtml(model) {
 <style>
 :root{color-scheme:light;--bg:#f5f7fb;--surface:#fff;--surface-soft:#f7f8fb;--surface-hover:#f0f4fa;--border:#dfe4ec;--border-strong:#c9d1dc;--text:#18202b;--muted:#667085;--soft:#98a2b3;--blue:#2563eb;--blue-soft:#eaf1ff;--violet:#7c3aed;--green:#159455;--green-soft:#e9f8f0;--red:#dc3545;--red-soft:#fff0f1;--amber:#b7791f;--amber-soft:#fff8e7;--shadow:0 10px 30px rgba(29,41,57,.07)}
 html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surface-soft:#151c28;--surface-hover:#1b2432;--border:#263142;--border-strong:#364258;--text:#edf2f7;--muted:#9aa7b8;--soft:#6f7d91;--blue:#6ea8fe;--blue-soft:#162747;--violet:#b794f4;--green:#4ade80;--green-soft:#10291d;--red:#ff6b78;--red-soft:#351820;--amber:#f2c66d;--amber-soft:#332916;--shadow:none}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}button,input{font:inherit;color:inherit}.mono,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.svg-icon{display:inline-block;width:14px;height:14px;flex:0 0 auto;vertical-align:-2px}
-.app{height:100%}.workspace{height:100%;min-height:0;display:grid;grid-template-columns:220px minmax(560px,1fr) 340px;gap:1px;background:var(--border)}.rail,.main,.inspector{min-height:0;background:var(--surface)}.rail{overflow:auto;padding:10px 9px}.rail-status{display:flex;align-items:center;gap:6px;padding:2px 5px 10px;color:var(--muted);font-size:10px}.rail-status>.svg-icon{width:13px;height:13px;color:${failed.length ? "var(--red)" : "var(--green)"}}.rail-status strong{color:${failed.length ? "var(--red)" : "var(--green)"};font-size:11px}.rail-status span:last-child{margin-left:auto;color:var(--soft);font-variant-numeric:tabular-nums}.micro-label{margin:13px 5px 5px;color:var(--soft);font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-.focus{display:flex;flex-wrap:wrap;gap:4px;padding:0 3px 5px}.focus button{display:flex;align-items:center;gap:5px;border:0;border-radius:6px;background:transparent;padding:5px 7px;color:var(--muted);font-size:10px;cursor:pointer}.focus button:hover{background:var(--surface-hover)}.focus button.active{background:var(--blue-soft);color:var(--blue)}.focus button span{color:var(--soft);font-variant-numeric:tabular-nums}
-.findings{display:grid;gap:1px}.finding{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:0 5px;border:0;border-radius:7px;background:transparent;padding:7px 8px;text-align:left;cursor:pointer}.finding>.svg-icon{grid-column:1;grid-row:1/3;width:12px;height:12px;margin-top:1px;color:var(--soft)}.finding:hover{background:var(--surface-hover)}.finding>span{grid-column:3;grid-row:1;color:var(--soft);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.finding strong{grid-column:2;grid-row:1;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.finding small{grid-column:2/-1;color:var(--soft);font-size:9px}.finding.danger>.svg-icon,.finding.danger>span{color:var(--red)}.finding.warning>.svg-icon,.finding.warning>span{color:var(--amber)}.empty-findings{padding:16px 8px;color:var(--muted);font-size:10px;text-align:center}
-.main{display:grid;grid-template-rows:auto 1fr;min-width:0}.commandbar{display:flex;align-items:center;gap:7px;min-height:43px;padding:6px 10px;border-bottom:1px solid var(--border)}.trace-meta{display:flex;align-items:center;gap:9px;padding-right:9px;border-right:1px solid var(--border);white-space:nowrap;color:var(--muted);font-size:9px}.trace-meta strong{color:var(--text);font-size:10px;font-variant-numeric:tabular-nums}.trace-meta .error{color:var(--red)}.trace-meta .cost{color:var(--amber)}.search-wrap{position:relative;flex:1;max-width:390px}.search-wrap>.svg-icon{position:absolute;left:9px;top:7px;color:var(--soft);width:13px;height:13px}.search{width:100%;border:0;border-radius:7px;background:var(--surface-soft);padding:6px 9px 6px 29px;outline:0}.search:focus{box-shadow:inset 0 0 0 1px var(--blue)}.mode{display:flex;margin-left:auto}.mode button,.icon-button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:6px;background:transparent;padding:5px 8px;color:var(--muted);font-size:10px;cursor:pointer}.mode button .svg-icon,.icon-button .svg-icon{width:12px;height:12px}.mode button.active{background:var(--surface-hover);color:var(--text)}.icon-button{padding:5px 7px;font-size:9px}.icon-button:hover{background:var(--surface-hover);color:var(--text)}
+*{box-sizing:border-box}[hidden]{display:none!important}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}button,input{font:inherit;color:inherit}.mono,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.svg-icon{display:inline-block;width:14px;height:14px;flex:0 0 auto;vertical-align:-2px}
+.app{height:100%}.workspace{height:100%;min-height:0;display:grid;grid-template-columns:minmax(620px,1fr) 340px;gap:1px;background:var(--border)}.main,.inspector{min-height:0;background:var(--surface)}
+.main{display:grid;grid-template-rows:auto 1fr;min-width:0}.commandbar{display:flex;align-items:center;gap:8px;min-height:46px;padding:0 10px;border-bottom:1px solid var(--border)}.trace-meta{display:flex;align-items:center;gap:9px;margin-left:auto;white-space:nowrap;color:var(--muted);font-size:9px}.trace-meta strong{color:var(--text);font-size:10px;font-variant-numeric:tabular-nums}.trace-meta .error{color:var(--red)}.trace-meta .cost{color:var(--amber)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap>.svg-icon{position:absolute;left:9px;top:7px;color:var(--soft);width:13px;height:13px}.search{width:100%;border:0;border-radius:7px;background:var(--surface-soft);padding:6px 9px 6px 29px;outline:0}.search:focus{box-shadow:inset 0 0 0 1px var(--blue)}.mode{display:flex;align-self:stretch;margin-right:4px}.mode button,.icon-button{display:inline-flex;align-items:center;gap:5px;border:0;border-bottom:2px solid transparent;background:transparent;padding:0 10px;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer}.mode button .svg-icon,.icon-button .svg-icon{width:12px;height:12px}.mode button.active{border-bottom-color:var(--blue);color:var(--text)}.icon-button{align-self:center;border:0;border-radius:6px;padding:5px 7px;font-size:9px}.icon-button:hover{background:var(--surface-hover);color:var(--text)}.focus{display:flex;gap:2px}.focus button{display:flex;align-items:center;gap:4px;border:0;border-radius:6px;background:transparent;padding:5px 7px;color:var(--muted);font-size:9px;cursor:pointer}.focus button:hover{background:var(--surface-hover)}.focus button.active{background:var(--blue-soft);color:var(--blue)}.focus button span{color:var(--soft);font-variant-numeric:tabular-nums}.focus button[data-focus="errors"] span{color:${failed.length ? "var(--red)" : "var(--soft)"}}
 .canvas{min-height:0;position:relative}.trace-view{height:100%;display:grid;grid-template-rows:30px 1fr}.trace-view[hidden],.map-view[hidden]{display:none}.axis{display:grid;grid-template-columns:300px 1fr 68px 68px 24px;align-items:end;border-bottom:1px solid var(--border);color:var(--soft);font-size:9px}.axis-label{padding:0 10px 7px}.ticks{display:flex;justify-content:space-between;padding:0 2px 7px}.span-list{overflow:auto}.span-row{display:grid;grid-template-columns:300px minmax(220px,1fr) 68px 68px 24px;align-items:center;min-height:39px;border-bottom:1px solid var(--border);cursor:pointer;outline:0;transition:background .12s,opacity .12s}.span-row:hover{background:var(--surface-hover)}.span-row.active{background:var(--blue-soft)}.span-row.related{background:color-mix(in srgb,var(--violet) 8%,var(--surface))}.span-row.branch-context:not(.active):not(.related){background:color-mix(in srgb,var(--blue) 3%,var(--surface))}.span-row.dimmed{opacity:.32}.span-row.filtered,.span-row.collapsed{display:none}.span-identity{min-width:0;display:flex;align-items:center;padding-left:calc(7px + var(--depth) * 14px);gap:7px}.collapse{display:grid;place-items:center;width:16px;height:20px;border:0;background:transparent;color:var(--muted);padding:0;cursor:pointer;transition:transform .15s}.collapse .svg-icon{width:12px;height:12px}.collapse.closed{transform:rotate(-90deg)}.collapse-spacer{width:16px}.kind-icon{display:grid;place-items:center;flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:color-mix(in srgb,var(--violet) 12%,transparent);color:var(--violet)}.kind-icon .svg-icon{width:12px;height:12px}.kind-icon.execute_tool{background:var(--green-soft);color:var(--green)}.kind-icon.chat{background:var(--blue-soft);color:var(--blue)}.span-title{min-width:0;display:grid}.span-title strong{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.span-title small{color:var(--muted);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.waterfall-track{position:relative;height:100%;background:linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:25% 100%}.waterfall-bar{position:absolute;top:14px;height:10px;min-width:3px;border-radius:4px;background:var(--violet);box-shadow:0 0 0 1px color-mix(in srgb,var(--violet) 18%,transparent)}.waterfall-bar.execute_tool{background:var(--green)}.waterfall-bar.chat{background:var(--blue)}.waterfall-bar.failed{background:var(--red)}.span-duration,.span-cost{padding-right:9px;text-align:right;font:10px "SFMono-Regular",Consolas,monospace;color:var(--muted)}.span-cost{color:var(--amber)}.span-state{width:7px;height:7px;border-radius:50%;background:var(--green)}.span-state.failed{background:var(--red)}
 .map-view{height:100%;overflow:auto;background:radial-gradient(var(--border) .7px,transparent .7px);background-size:15px 15px}.graph-wrap{min-width:100%;min-height:100%;padding:22px}.graph{display:block;max-width:none;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.graph-edges path{fill:none;stroke:var(--border-strong);stroke-width:1.2}.graph-node{cursor:pointer;outline:0}.graph-node rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}.graph-node:hover rect,.graph-node.active rect{stroke:var(--blue);stroke-width:1.6}.graph-node circle{fill:var(--violet)}.graph-node.execute_tool circle{fill:var(--green)}.graph-node.chat circle{fill:var(--blue)}.graph-node.failed rect{stroke:var(--red)}.graph-node.failed circle{fill:var(--red)}.graph-node text{fill:var(--text);font-size:10px;font-weight:650}.graph-node .graph-meta{fill:var(--muted);font-size:8px;font-weight:500}
 .inspector{overflow:auto}.inspector-panel{padding:12px 14px}.inspector-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.inspector-head>div{display:flex;align-items:center;gap:8px;min-width:0}.inspector-head h2{font-size:13px;line-height:1.25;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kind-kicker{font-size:8px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--violet)}.kind-kicker.execute_tool{color:var(--green)}.kind-kicker.chat{color:var(--blue)}.status-pill{display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:2px 6px;background:var(--green-soft);color:var(--green);font-size:8px;font-weight:700;text-transform:uppercase}.status-pill .svg-icon{width:10px;height:10px}.status-pill.failed{background:var(--red-soft);color:var(--red)}.breadcrumb{margin:8px 0 10px;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.breadcrumb span{padding:0 4px;color:var(--soft)}.breadcrumb strong{color:var(--text)}.properties{display:grid;grid-template-columns:1fr 1fr;margin:0;border-top:1px solid var(--border);border-left:1px solid var(--border)}.properties div{padding:7px 8px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}.properties dt{color:var(--muted);font-size:8px}.properties dd{display:flex;align-items:baseline;gap:5px;margin:2px 0 0;font-size:10px;font-weight:650}.properties dd small{color:var(--soft);font-size:7px;font-weight:500;text-transform:uppercase}.related{margin-top:13px}.related h3{display:flex;align-items:center;gap:4px;margin:0 0 5px;color:var(--soft);font-size:8px;letter-spacing:.07em;text-transform:uppercase}.related h3 .svg-icon{width:10px;height:10px}.related>div{display:grid;gap:3px}.related button{display:grid;grid-template-columns:42px 1fr;border:0;border-radius:6px;background:var(--surface-soft);padding:6px 7px;text-align:left;cursor:pointer;font-size:9px}.related button:hover{background:var(--surface-hover)}.related button span{color:var(--soft);font-size:7px;text-transform:uppercase}.payload{margin-top:13px;display:grid;gap:5px}.payload details{border:1px solid var(--border);border-radius:7px;background:var(--surface-soft);overflow:hidden}.payload summary{padding:7px 8px;cursor:pointer;font-size:9px;font-weight:650}.payload summary>.svg-icon{width:11px;height:11px;margin-right:5px}.payload summary span{float:right;color:var(--soft);font-weight:400}.payload pre{max-height:260px;overflow:auto;margin:0;padding:9px;border-top:1px solid var(--border);background:var(--surface);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:9px;line-height:1.55}
-@media(max-width:1180px){.workspace{grid-template-columns:190px minmax(500px,1fr) 300px}.trace-meta span:nth-child(4),.trace-meta span:nth-child(5){display:none}.axis,.span-row{grid-template-columns:255px minmax(200px,1fr) 60px 60px 20px}}
-@media(max-width:850px){body{overflow:auto}.app{height:auto;min-height:100%}.workspace{display:block;height:auto}.rail{display:none}.main{min-height:620px}.inspector{border-top:1px solid var(--border)}.trace-meta{display:none}.axis,.span-row{grid-template-columns:230px minmax(180px,1fr) 58px 20px}.span-cost,.axis .cost-axis{display:none}}
+@media(max-width:1180px){.workspace{grid-template-columns:minmax(520px,1fr) 300px}.trace-meta span:nth-child(4),.trace-meta span:nth-child(5){display:none}.axis,.span-row{grid-template-columns:255px minmax(200px,1fr) 60px 60px 20px}}
+@media(max-width:850px){body{overflow:auto}.app{height:auto;min-height:100%}.workspace{display:block;height:auto}.main{min-height:620px}.inspector{border-top:1px solid var(--border)}.trace-meta{display:none}.focus button:not(.active){display:none}.axis,.span-row{grid-template-columns:230px minmax(180px,1fr) 58px 20px}.span-cost,.axis .cost-axis{display:none}}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="workspace">
-    <aside class="rail">
-      <div class="rail-status">${icon(failed.length ? "error" : "check")}<strong>${failed.length ? `${failed.length} error${failed.length === 1 ? "" : "s"}` : "No errors"}</strong><span>${formatDuration(duration)}</span></div>
-      <div class="focus">
-        <button class="active" type="button" data-focus="all">All <span>${events.length}</span></button>
-        <button type="button" data-focus="errors">Errors <span>${failed.length}</span></button>
-        <button type="button" data-focus="models">Models <span>${counts.chats}</span></button>
-        <button type="button" data-focus="tools">Tools <span>${counts.tools}</span></button>
-      </div>
-      <div class="micro-label">Signals</div>
-      <div class="findings">${findings || `<div class="empty-findings">No errors or unusual spans detected.</div>`}</div>
-    </aside>
     <main class="main">
       <div class="commandbar">
-        <div class="trace-meta">
-          <span><strong>${events.length}</strong> spans</span>
-          <span><strong class="${failed.length ? "error" : ""}">${failed.length}</strong> errors</span>
-          <span><strong>${counts.peak}</strong> parallel</span>
-          <span><strong>${counts.inputTokens.toLocaleString()} / ${counts.outputTokens.toLocaleString()}</strong> tokens</span>
-          <span><strong class="cost">${formatCost(counts.totalCost)}</strong> ${costLabel.toLowerCase()} cost</span>
+        <div class="mode" role="tablist" aria-label="Trace views">
+          <button class="active" type="button" role="tab" aria-selected="true" data-mode="trace">${icon("waterfall")}Trace</button>
+          <button type="button" role="tab" aria-selected="false" data-mode="dependencies">${icon("map")}Dependencies</button>
         </div>
         <div class="search-wrap">
           ${icon("search")}
           <input id="span-search" class="search" type="search" placeholder="Find agent, model, tool, or status" aria-label="Search spans">
         </div>
-        <div class="mode" role="group" aria-label="Trace visualization">
-          <button class="active" type="button" data-mode="waterfall">${icon("waterfall")}Waterfall</button>
-          <button type="button" data-mode="map">${icon("map")}Map</button>
+        <div class="focus" aria-label="Filter trace">
+          <button class="active" type="button" data-focus="all">All <span>${events.length}</span></button>
+          <button type="button" data-focus="errors">Errors <span>${failed.length}</span></button>
+          <button type="button" data-focus="models">Models <span>${counts.chats}</span></button>
+          <button type="button" data-focus="tools">Tools <span>${counts.tools}</span></button>
+        </div>
+        <div class="trace-meta">
+          <span><strong>${formatDuration(duration)}</strong></span>
+          <span><strong>${counts.peak}</strong> parallel</span>
+          <span><strong>${counts.inputTokens.toLocaleString()} / ${counts.outputTokens.toLocaleString()}</strong> tokens</span>
+          <span><strong class="cost">${formatCost(counts.totalCost)}</strong> ${costLabel.toLowerCase()} cost</span>
         </div>
         <button class="icon-button export-control" id="download-svg" type="button" title="Download SVG" aria-label="Download SVG" hidden>${icon("download")}SVG</button>
         <button class="icon-button export-control" id="download-png" type="button" title="Download PNG" aria-label="Download PNG" hidden>${icon("download")}PNG</button>
@@ -315,6 +287,11 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
     focus = button.dataset.focus;
     focusButtons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
     applyFilters();
+    const selected = rows.find((row) => row.dataset.id === selectedId);
+    if (selected?.classList.contains("filtered")) {
+      const firstVisible = rows.find((row) => !row.classList.contains("filtered") && !row.classList.contains("collapsed"));
+      if (firstVisible) selectSpan(firstVisible.dataset.id);
+    }
   }));
   document.querySelector("#span-search").addEventListener("input", applyFilters);
 
@@ -329,11 +306,16 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
   }));
 
   document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
-    const map = button.dataset.mode === "map";
+    const map = button.dataset.mode === "dependencies";
     document.querySelectorAll("[data-mode]").forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+    document.querySelectorAll("[data-mode]").forEach((candidate) => candidate.setAttribute("aria-selected", String(candidate === button)));
     document.querySelector("#waterfall-view").hidden = map;
     document.querySelector("#map-view").hidden = !map;
     document.querySelectorAll(".export-control").forEach((control) => control.hidden = !map);
+    document.querySelector(".search-wrap").hidden = map;
+    document.querySelector(".focus").hidden = map;
+    document.querySelector(".trace-meta").style.marginLeft = map ? "auto" : "";
+    history.replaceState(null, "", map ? "?tab=dependencies" : "?tab=trace");
   }));
 
   const serializeGraph = () => {
@@ -365,8 +347,9 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
 
   const requested = decodeURIComponent((location.hash.match(/^#span=(.+)$/) || [])[1] || "");
   selectSpan(rows.some((row) => row.dataset.id === requested) ? requested : selectedId);
-  if (new URLSearchParams(location.search).get("view") === "map") {
-    const mapButton = document.querySelector('[data-mode="map"]');
+  const requestedTab = new URLSearchParams(location.search).get("tab");
+  if (requestedTab === "dependencies" || new URLSearchParams(location.search).get("view") === "map") {
+    const mapButton = document.querySelector('[data-mode="dependencies"]');
     mapButton.click();
   }
 })();

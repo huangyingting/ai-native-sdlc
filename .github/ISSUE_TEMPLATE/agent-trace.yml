@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        This form starts the Agent Trace workflow for repository owners, members, and collaborators. The final comparison, trace diagnostics, dependency-map image, and HTML artifact link are posted as an issue comment.
+        This form starts the Agent Trace workflow for repository owners, members, and collaborators. The final comparison, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
 
   - type: dropdown
     id: orchestrator_model

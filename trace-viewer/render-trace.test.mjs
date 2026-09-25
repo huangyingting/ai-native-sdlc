@@ -86,13 +86,14 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   const html = renderHtml(result);
   assert.match(html, /scoutTheme/);
   assert.match(html, /Agent Trace/);
-  assert.match(html, /data-mode="waterfall"/);
-  assert.match(html, /data-mode="map"/);
+  assert.match(html, /data-mode="trace"/);
+  assert.match(html, /data-mode="dependencies"/);
   assert.match(html, /id="span-search"/);
   assert.match(html, /class="inspector-panel"/);
   assert.match(html, /class="svg-icon/);
   assert.match(html, /aria-label="Download PNG"/);
-  assert.match(html, /Signals/);
+  assert.doesNotMatch(html, /Signals/);
+  assert.match(html, />Dependencies</);
   assert.match(html, /reported cost/i);
   assert.match(html, /\$0\.0230/);
   assert.match(html, /id="download-png"/);

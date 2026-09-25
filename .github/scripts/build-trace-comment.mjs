@@ -18,6 +18,31 @@ function clean(text, limit) {
     : normalized;
 }
 
+function mermaidLabel(text) {
+  return String(text ?? "unnamed")
+    .replace(/["<>{}|`]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 54);
+}
+
+function dependencyDiagram(dependencies = []) {
+  if (!dependencies.length) return "> Dependency data was unavailable. The complete map remains in the workflow artifact.";
+  const visible = dependencies.slice(0, 28);
+  const ids = new Map(visible.map((node, index) => [node.id, `n${index}`]));
+  const lines = ["```mermaid", "flowchart LR"];
+  for (const node of visible) {
+    const detail = `${node.kind === "invoke_agent" ? "Agent" : node.kind === "chat" ? "Model" : "Tool"} · ${node.calls}×`;
+    lines.push(`  ${ids.get(node.id)}["${mermaidLabel(node.name)}<br/><small>${detail}</small>"]`);
+  }
+  for (const node of visible) {
+    if (ids.has(node.owner)) lines.push(`  ${ids.get(node.owner)} --> ${ids.get(node.id)}`);
+  }
+  const failed = visible.filter((node) => node.failed).map((node) => ids.get(node.id));
+  if (failed.length) lines.push(`  class ${failed.join(",")} failed`, "  classDef failed stroke:#dc3545,stroke-width:2px,color:#dc3545");
+  lines.push("```");
+  return lines.join("\n");
+}
+
 export function buildTraceComment({
   report,
   comparison,
@@ -29,9 +54,9 @@ export function buildTraceComment({
   const result = clean(comparison, 24_000) || "_The orchestrator did not produce a comparison result._";
   const errors = report?.signals?.errors ?? [];
   const slow = report?.signals?.slow ?? [];
-  const media = mediaUrl
+  const dependencies = mediaUrl
     ? `![Agent Trace dependency map](${mediaUrl})`
-    : "> The dependency-map image could not be attached. It remains available in the workflow artifact.";
+    : dependencyDiagram(report?.dependencies);
   const diagnosticRows = report ? [
     `| Duration | ${report.durationText} |`,
     `| Spans | ${report.counts.events} |`,
@@ -65,7 +90,12 @@ ${signals.length ? signals.join("\n") : "- No errors were recorded in the trace.
 
 </details>
 
-${media}
+<details>
+<summary>Dependency map</summary>
+
+${dependencies}
+
+</details>
 
 [Open workflow run](${runUrl}) · [Download interactive Agent Trace report](${runUrl}#artifacts)
 `;

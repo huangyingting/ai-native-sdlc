@@ -41,6 +41,24 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (process.env.TRACE_DATA_PATH) {
       const sortedByDuration = [...result.events].sort((left, right) =>
         (right.end - right.start) - (left.end - left.start));
+      const dependencyNodes = new Map();
+      for (const event of result.events) {
+        const id = event.kind === "invoke_agent" ? event.id : `${event.owner ?? "root"}:${event.kind}:${event.name}`;
+        const existing = dependencyNodes.get(id);
+        if (existing) {
+          existing.calls++;
+          existing.failed ||= event.failed;
+        } else {
+          dependencyNodes.set(id, {
+            id,
+            owner: event.owner,
+            kind: event.kind,
+            name: event.name,
+            calls: 1,
+            failed: event.failed,
+          });
+        }
+      }
       const data = {
         complete: result.complete,
         modelMatches: result.modelMatches,
@@ -66,6 +84,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
             duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
           })),
         },
+        dependencies: [...dependencyNodes.values()],
       };
       mkdirSync(dirname(process.env.TRACE_DATA_PATH), { recursive: true });
       writeFileSync(process.env.TRACE_DATA_PATH, JSON.stringify(data, null, 2));

@@ -36,6 +36,7 @@ function dependencyDiagram(dependencies = []) {
   }
   for (const node of visible) {
     if (ids.has(node.owner)) lines.push(`  ${ids.get(node.owner)} --> ${ids.get(node.id)}`);
+    if (ids.has(node.dependsOn)) lines.push(`  ${ids.get(node.dependsOn)} -. next .-> ${ids.get(node.id)}`);
   }
   const failed = visible.filter((node) => node.failed).map((node) => ids.get(node.id));
   if (failed.length) lines.push(`  class ${failed.join(",")} failed`, "  classDef failed stroke:#dc3545,stroke-width:2px,color:#dc3545");

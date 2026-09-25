@@ -54,7 +54,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
             id,
             owner: event.owner,
             kind: event.kind,
-            name: event.name,
+            name: event.patternRole ? `${event.patternRole} · ${event.name}` : event.name,
+            dependsOn: event.dependsOn,
             calls: 1,
             failed: event.failed,
           });

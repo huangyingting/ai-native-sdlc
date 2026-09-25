@@ -339,6 +339,21 @@ export function buildTraceModel(spans, {
     event.parentName = parent?.name ?? null;
     event.ownerName = eventById.get(event.owner)?.name ?? null;
   }
+  const delegatedEvents = events
+    .filter((event) => event.kind === "invoke_agent" && event.owner)
+    .sort((left, right) => left.start - right.start);
+  for (const [index, event] of delegatedEvents.entries()) {
+    event.patternRole = pattern === "parallel-delegation"
+      ? `Branch ${index + 1}`
+      : pattern === "sequential-pipeline"
+        ? `Stage ${index + 1}`
+        : pattern === "critic-reviser-loop"
+          ? delegatedEvents.length === 1 ? "Critic" : `Critic ${index + 1}`
+          : null;
+    if (pattern === "sequential-pipeline" && index > 0) {
+      event.dependsOn = delegatedEvents[index - 1].id;
+    }
+  }
 
   function aggregateCosts(items, keyFor, labelFor) {
     const groups = new Map();

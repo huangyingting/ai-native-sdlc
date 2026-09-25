@@ -261,6 +261,13 @@ test("keeps provider comparison content out of reusable pattern defaults", () =>
 test("pairs the validated URL exception with web fetch permission", () => {
   const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
   assert.match(workflow, /EXTRA_ARGS\+=\(--allow-url="\$ALLOWED_URL"\)/);
+  assert.match(workflow, /else\s+EXTRA_ARGS\+=\(--available-tools='[^']*'\)/);
+  assert.doesNotMatch(workflow, /--available-tools='[^']*web_fetch[^']*'/);
   assert.match(workflow, /--allow-tool='[^']*web_fetch[^']*'/);
   assert.doesNotMatch(workflow, /--allow-url='https:\/\/docs\.aws\.amazon\.com'/);
+});
+
+test("captures only the dependency canvas for issue images", () => {
+  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  assert.match(workflow, /tab=dependencies&capture=graph/);
 });

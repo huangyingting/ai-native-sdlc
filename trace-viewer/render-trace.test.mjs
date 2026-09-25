@@ -68,12 +68,12 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
     direct("aws", "root", "invoke_agent AWS", 100000000, 600000000),
     direct("root", "", "invoke_agent parent", 0, 900000000, { "gen_ai.input.messages": "private prompt must never be rendered" }),
   ].join("\n"));
-  const result = summarizeTrace(spans, { includeMessages: true, expectedModel: "gpt-6-luna" });
+  const result = summarizeTrace(spans, { includeMessages: true, expectedModel: "gpt-6-luna", pattern: "parallel-delegation" });
   assert.equal(result.complete, true);
   assert.equal(result.modelMatches, true);
   assert.equal(result.includeMessages, true);
   assert.ok(result.messageCount > 0);
-  assert.match(result.summary, /Pattern evidence: PASS.*subagents: 2.*peak concurrency: 2/);
+  assert.match(result.summary, /Pattern evidence: PASS.*delegated branches: 2.*concurrent execution: yes/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.doesNotMatch(result.summary, /status=unknown/);
@@ -81,9 +81,11 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
     /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
   assert.match(result.summary, /Required: gpt-6-luna \(PASS\)/);
-  const graph = renderGraph(result.events);
+  const graph = renderGraph(result.events, result.pattern);
   assert.match(graph, /aria-label="Agent, model, and tool dependency map"/);
   assert.match(graph, /microsoft-learn\/microsoft_docs_search/);
+  assert.match(graph, /Branch 1 · AWS/);
+  assert.match(graph, /Branch 2 · Azure/);
   assert.ok((graph.match(/<path /g) ?? []).length >= 4);
   const html = renderHtml(result);
   assert.match(html, /scoutTheme/);
@@ -92,6 +94,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /data-mode="dependencies"/);
   assert.match(html, /id="span-search"/);
   assert.match(html, /class="inspector-panel"/);
+  assert.match(html, /capture-graph \.inspector\{display:none\}/);
   assert.match(html, /class="svg-icon/);
   assert.match(html, /aria-label="Download PNG"/);
   assert.doesNotMatch(html, /Signals/);
@@ -173,9 +176,15 @@ test("validates review and sequential orchestration pattern evidence", () => {
   ));
   const result = summarizeTrace(collaboration, { pattern: "sequential-pipeline" });
   assert.equal(result.complete, true);
+  const graph = renderGraph(result.events, result.pattern);
+  assert.match(graph, /Stage 1/);
+  assert.match(graph, /Stage 2/);
+  assert.match(graph, /class="flow-edge"/);
   assert.match(result.summary, /sequential execution: yes/);
   assert.equal(summarizeTrace(collaboration, { pattern: "parallel-delegation" }).complete, false);
-  assert.equal(summarizeTrace(collaboration, { pattern: "critic-reviser-loop" }).complete, true);
+  const critic = summarizeTrace(collaboration, { pattern: "critic-reviser-loop" });
+  assert.equal(critic.complete, true);
+  assert.match(renderGraph(critic.events, critic.pattern), /Critic 2 · critical-reviewer/);
 });
 
 test("validates a single-agent baseline without delegated agents", () => {

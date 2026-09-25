@@ -396,6 +396,10 @@ export function buildTraceModel(spans, {
     : expectedModels[0];
   const modelMatches = !expectedModels.length || (allowedModelsObserved
     && models.some((model) => sameModel(model, requiredRuntimeModel)));
+  const modelExpectation = !expectedModels.length ? ""
+    : expectedModels.length > 1 && subagents.length
+      ? ` | Allowed: ${expectedModels.map((model) => safe(model)).join(", ")} | Delegated: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`
+      : ` | Required: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`;
   const webCalls = tools.filter(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const mcpCalls = tools.filter(({ span, attrs, branch }) =>
@@ -433,7 +437,7 @@ export function buildTraceModel(spans, {
     `Agent spans: ${agents.length} | Subagents: ${subagents.length} | Peak concurrent subagents: ${peak}`,
     `Tool calls: ${tools.length} | Failed tool calls: ${tools.filter(({ span, attrs }) => Number(span.status?.code) === 2 || attrs["error.type"]).length} | Chat calls: ${chats.length} | Tokens: ${tokenInfo}`,
     `Model cost: ${costs.length ? `${totalCost} (${costMode})` : "unavailable"} (${costs.length}/${chats.length} chat spans priced)`,
-    `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${expectedModels.length ? ` | Required: ${expectedModels.map((model) => safe(model)).join(", ")} (${modelMatches ? "PASS" : "MISMATCH"})` : ""}`,
+    `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${modelExpectation}`,
     `Demo evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
     ...(scenario === "concurrent" || !scenario ? ["AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token."] : []),
     ...(includeMessages ? [`Message payloads: ${messageCount} spans${contentKeys.length ? ` | available attribute names: ${contentKeys.map((key) => safe(key)).join(", ")}` : ""}`] : ["Message content capture: off (enable include_messages when dispatching to see payloads)."]),

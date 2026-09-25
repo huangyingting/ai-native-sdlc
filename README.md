@@ -32,6 +32,8 @@ The renderer accepts both direct CLI span records and OTLP `resourceSpans[].scop
 
 OpenTelemetry span status `UNSET` (`code: 0`) does not mean that the outcome is unknown. The renderer treats a span as successful unless OTEL reports `ERROR` (`code: 2`) or an error attribute, which prevents healthy auto-instrumented tool calls from being labeled `unknown`.
 
+Failed spans show the OTEL failure reason in the inspector even when message capture is disabled. A fast failed tool call can be an intentional permission-policy rejection—for example, `web_fetch` is restricted to `docs.aws.amazon.com`, while Azure documentation must use the Microsoft Learn MCP tools.
+
 Run the local, dependency-free parser tests with `node --test trace-viewer/render-trace.test.mjs`.
 
 References: [CLI in Actions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions), [CLI tool permissions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools), [workspace MCP configuration](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), [Learn MCP tools](https://learn.microsoft.com/en-us/training/support/mcp-developer-reference), [Actions billing](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/copilot-cli-in-github-actions).

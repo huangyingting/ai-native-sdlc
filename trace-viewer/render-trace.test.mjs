@@ -96,6 +96,10 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, />Dependencies</);
   assert.match(html, /reported cost/i);
   assert.match(html, /\$0\.0230/);
+  assert.match(html, /Cost allocation/);
+  assert.match(html, /By agent branch/);
+  assert.equal(result.costBreakdown.byModel.length, 1);
+  assert.equal(result.costBreakdown.byAgent.length, 3);
   assert.match(html, /id="download-png"/);
   assert.match(html, /microsoft-learn\/microsoft_docs_search/);
   assert.match(html, /S3 versioning &lt;verified&gt;/);
@@ -114,6 +118,26 @@ test("validates parent and subagent model selections as an observed set", () => 
   ));
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
+});
+
+test("validates review and sequential collaboration scenario evidence", () => {
+  const review = loadSpans(line(
+    span("root", "", "invoke_agent", 0, 100),
+    span("left", "root", "invoke_agent architecture-review", 10, 70),
+    span("right", "root", "invoke_agent reliability-review", 20, 80),
+  ));
+  assert.equal(summarizeTrace(review, { scenario: "review" }).complete, true);
+  assert.equal(summarizeTrace(review, { scenario: "collaboration" }).complete, false);
+
+  const collaboration = loadSpans(line(
+    span("root", "", "invoke_agent", 0, 100),
+    span("architect", "root", "invoke_agent solution-architect", 10, 40),
+    span("reviewer", "root", "invoke_agent critical-reviewer", 50, 90),
+  ));
+  const result = summarizeTrace(collaboration, { scenario: "collaboration" });
+  assert.equal(result.complete, true);
+  assert.match(result.summary, /sequential execution: yes/);
+  assert.equal(summarizeTrace(collaboration, { scenario: "review" }).complete, false);
 });
 
 test("hydrates file-backed tool output before redaction and rendering", () => {
@@ -157,6 +181,8 @@ test("estimates mixed-model cost from the model pricing catalog", () => {
   assert.equal(model.counts.totalCost, 34.7);
   assert.equal(model.counts.costedCalls, 2);
   assert.equal(model.counts.costMode, "estimated");
+  assert.equal(model.costBreakdown.byModel.length, 3);
+  assert.equal(model.costBreakdown.byModel.find((group) => group.label === "private-model").cost, null);
   assert.match(renderHtml(model), /estimated cost/i);
   assert.match(renderHtml(model), /\$34\.7000/);
   const unknown = summarizeTrace(loadSpans(line(span("unknown", "", "chat private-model", 1, 2))));

@@ -3,7 +3,11 @@ import { strict as assert } from "node:assert";
 import { parseIssueRequest } from "./prepare-trace-request.mjs";
 
 test("parses an Agent Trace issue form", () => {
-  const request = parseIssueRequest(`### Orchestrator model
+  const request = parseIssueRequest(`### Orchestration scenario
+
+Review panel
+
+### Orchestrator model
 
 gpt-6-sol
 
@@ -11,7 +15,7 @@ gpt-6-sol
 
 claude-sonnet-4.6
 
-### Comparison task
+### Task or question
 
 Compare two services safely.
 
@@ -19,6 +23,9 @@ Compare two services safely.
 
 - [x] Include redacted request and response payloads in the HTML trace artifact`);
   assert.deepEqual(request, {
+    scenario: "review",
+    scenarioLabel: "Review panel",
+    instruction: "Use fleet to invoke the repository's architecture-review and reliability-review custom agents concurrently. Give both reviewers the request. Reconcile duplicate or conflicting observations and return a prioritized review containing only evidence-backed findings.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",
@@ -38,4 +45,34 @@ gpt-6-luna
 ### Comparison task
 
 Compare services.`), /Unsupported orchestrator model/);
+});
+
+test("defaults older issue forms to concurrent research", () => {
+  const request = parseIssueRequest(`### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna
+
+### Comparison task
+
+Compare services.`);
+  assert.equal(request.scenario, "concurrent");
+  assert.equal(request.prompt, "Compare services.");
+});
+
+test("rejects unsupported orchestration scenarios", () => {
+  assert.throws(() => parseIssueRequest(`### Orchestration scenario
+
+Untrusted workflow
+
+### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna`), /Unsupported scenario/);
 });

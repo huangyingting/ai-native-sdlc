@@ -10,6 +10,19 @@ body:
         This form starts the Agent Trace workflow for repository owners, members, and collaborators. The final comparison, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
 
   - type: dropdown
+    id: orchestration_scenario
+    attributes:
+      label: Orchestration scenario
+      description: Select the collaboration pattern to demonstrate in the trace.
+      options:
+        - Concurrent research
+        - Review panel
+        - Lead + specialists
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
     id: orchestrator_model
     attributes:
       label: Orchestrator model
@@ -39,7 +52,7 @@ body:
     id: subagent_model
     attributes:
       label: Subagent model
-      description: Used by both the AWS and Azure research agents.
+      description: Shared by the specialist agents used in the selected scenario.
       options:
         - gpt-6-luna
         - gpt-6-sol
@@ -64,12 +77,9 @@ body:
   - type: textarea
     id: task_prompt
     attributes:
-      label: Comparison task
-      description: Describe what the orchestrator and its two research agents should compare.
-      value: |
-        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. The AWS agent must use official AWS documentation; the Azure agent must use Microsoft Learn. Cite sources and clearly identify non-equivalent features.
-    validations:
-      required: true
+      label: Task or question
+      description: Override the selected scenario's default task.
+      placeholder: Leave empty to use the selected scenario's built-in demonstration task.
 
   - type: checkboxes
     id: capture_messages

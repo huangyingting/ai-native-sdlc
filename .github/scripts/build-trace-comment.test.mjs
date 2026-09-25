@@ -6,6 +6,7 @@ test("builds an issue comment with comparison, diagnostics, and a dependency gra
   const comment = buildTraceComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "claude-sonnet-4.6",
+    scenarioLabel: "Review panel",
     comparison: "S3 and Blob Storage differ in lifecycle semantics.",
     runUrl: "https://github.com/example/repo/actions/runs/1",
     report: {
@@ -25,6 +26,7 @@ test("builds an issue comment with comparison, diagnostics, and a dependency gra
   });
   assert.match(comment, /### Comparison[\s\S]*S3 and Blob Storage/);
   assert.match(comment, /orchestrator `gpt-6-luna` · subagents `claude-sonnet-4.6`/);
+  assert.match(comment, /\*\*Scenario:\*\* Review panel/);
   assert.match(comment, /\*\*Error:\*\* `web_fetch`/);
   assert.match(comment, /```mermaid[\s\S]*flowchart LR/);
   assert.match(comment, /orchestrator[\s\S]*aws-storage[\s\S]*web_fetch/);
@@ -36,6 +38,7 @@ test("uses a GitHub-hosted dependency image when one is available", () => {
   const comment = buildTraceComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "gpt-6-luna",
+    scenarioLabel: "Concurrent research",
     comparison: "Comparison",
     runUrl: "https://github.com/example/repo/actions/runs/1",
     mediaUrl: "https://github.com/user-attachments/assets/dependency-map",

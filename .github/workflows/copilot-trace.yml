@@ -5,6 +5,14 @@ on:
     types: [opened, reopened]
   workflow_dispatch:
     inputs:
+      scenario:
+        description: "Orchestration pattern to demonstrate"
+        type: choice
+        default: Concurrent research
+        options:
+          - Concurrent research
+          - Review panel
+          - Lead + specialists
       orchestrator_model:
         description: "Model that delegates to subagents and synthesizes the final result"
         type: choice
@@ -51,6 +59,10 @@ on:
         description: "Include limited request/response excerpts in the public HTML artifact"
         type: boolean
         default: false
+      task_prompt:
+        description: "Optional task override; leave empty to use the scenario default"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -88,7 +100,10 @@ jobs:
           INPUT_ORCHESTRATOR_MODEL: ${{ inputs.orchestrator_model }}
           INPUT_SUBAGENT_MODEL: ${{ inputs.subagent_model }}
           INPUT_INCLUDE_MESSAGES: ${{ inputs.include_messages }}
+          INPUT_SCENARIO: ${{ inputs.scenario }}
+          INPUT_TASK_PROMPT: ${{ inputs.task_prompt }}
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
+          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
         run: node .github/scripts/prepare-trace-request.mjs
       - name: Configure subagent model
         env:
@@ -97,7 +112,15 @@ jobs:
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from "node:fs";
 
-          for (const path of [".github/agents/aws-storage.agent.md", ".github/agents/azure-storage.agent.md"]) {
+          const paths = [
+            ".github/agents/aws-storage.agent.md",
+            ".github/agents/azure-storage.agent.md",
+            ".github/agents/architecture-review.agent.md",
+            ".github/agents/reliability-review.agent.md",
+            ".github/agents/solution-architect.agent.md",
+            ".github/agents/critical-reviewer.agent.md",
+          ];
+          for (const path of paths) {
             const profile = readFileSync(path, "utf8");
             if (!/^model:\s*.+$/m.test(profile)) throw new Error(`Missing model field in ${path}`);
             writeFileSync(path, profile.replace(/^model:\s*.+$/m, `model: ${process.env.SUBAGENT_MODEL}`));
@@ -108,17 +131,25 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model }}
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
+          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
+          TRACE_SCENARIO: ${{ steps.request.outputs.scenario }}
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
           OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ steps.request.outputs.include_messages }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
           mkdir -p trace-report
           REQUEST="$(cat "$TRACE_PROMPT_PATH")"
-          copilot --model "$ORCHESTRATOR_MODEL" -p "Use fleet to invoke the repository's aws-storage and azure-storage custom agents concurrently. The AWS agent must use web_fetch for official AWS documentation; the Azure agent must use Microsoft Learn MCP microsoft_docs_search. Have each cite sources, then synthesize a concise comparison that explicitly notes non-equivalent features. Do not edit files or run shell commands.
+          INSTRUCTION="$(cat "$TRACE_INSTRUCTION_PATH")"
+          EXTRA_ARGS=()
+          if [ "$TRACE_SCENARIO" != "collaboration" ]; then
+            EXTRA_ARGS+=(--fleet)
+          fi
+          copilot --model "$ORCHESTRATOR_MODEL" -p "$INSTRUCTION
 
-          Comparison request:
+          Task:
           $REQUEST" \
-            --fleet --allow-tool='read,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
+            "${EXTRA_ARGS[@]}" \
+            --allow-tool='read,search,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
             --allow-url='https://docs.aws.amazon.com' \
             --deny-tool=write --deny-tool=shell | tee trace-report/comparison-result.md
       - name: Render call chain
@@ -130,7 +161,7 @@ jobs:
           data-path: ${{ github.workspace }}/trace-report/trace-summary.json
           include-messages: ${{ steps.request.outputs.include_messages }}
           require-model: ${{ steps.request.outputs.orchestrator_model }},${{ steps.request.outputs.subagent_model }}
-          require-demo-evidence: "true"
+          require-demo-evidence: ${{ steps.request.outputs.scenario }}
       - name: Capture dependency map
         if: always()
         run: |
@@ -205,6 +236,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model || 'unavailable' }}
           SUBAGENT_MODEL: ${{ steps.request.outputs.subagent_model || 'unavailable' }}
+          SCENARIO_LABEL: ${{ steps.request.outputs.scenario_label || 'unavailable' }}
           TRACE_RESULT_PATH: ${{ github.workspace }}/trace-report/comparison-result.md
           TRACE_DATA_PATH: ${{ github.workspace }}/trace-report/trace-summary.json
           COMMENT_PATH: ${{ runner.temp }}/agent-trace-comment.md

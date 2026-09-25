@@ -48,6 +48,7 @@ export function buildTraceComment({
   comparison,
   orchestratorModel,
   subagentModel,
+  scenarioLabel,
   runUrl,
   mediaUrl,
 }) {
@@ -74,6 +75,7 @@ export function buildTraceComment({
 ## Agent Trace result
 
 **Models:** orchestrator \`${orchestratorModel}\` · subagents \`${subagentModel}\`
+**Scenario:** ${scenarioLabel}
 
 ### Comparison
 
@@ -108,6 +110,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     comparison: read(process.env.TRACE_RESULT_PATH),
     orchestratorModel: process.env.ORCHESTRATOR_MODEL,
     subagentModel: process.env.SUBAGENT_MODEL,
+    scenarioLabel: process.env.SCENARIO_LABEL,
     runUrl: process.env.RUN_URL,
     mediaUrl: process.env.MEDIA_URL,
   }));

@@ -17,7 +17,7 @@ inputs:
     description: Comma-separated models that must be observed; every model call must use one of them.
     default: ""
   require-demo-evidence:
-    description: Fail when expected parallelism, tools, model, or requested messages are absent.
+    description: Scenario ID whose expected agent pattern must be observed (concurrent, review, or collaboration); false disables validation.
     default: "false"
   pricing-path:
     description: Optional path to a model-keyed pricing JSON file; defaults to the bundled GitHub Copilot catalog.
@@ -33,5 +33,6 @@ runs:
         TRACE_INCLUDE_MESSAGES: ${{ inputs.include-messages }}
         REQUIRE_MODEL: ${{ inputs.require-model }}
         REQUIRE_DEMO_EVIDENCE: ${{ inputs.require-demo-evidence }}
+        TRACE_SCENARIO: ${{ inputs.require-demo-evidence }}
         PRICING_PATH: ${{ inputs.pricing-path }}
       run: node "$GITHUB_ACTION_PATH/render-trace.mjs" "${{ inputs.trace-path }}"

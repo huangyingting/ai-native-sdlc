@@ -229,6 +229,7 @@ export function loadSpans(jsonl) {
 export function buildTraceModel(spans, {
   includeMessages = false,
   expectedModel = null,
+  scenario = null,
   pricingCatalog = defaultPricingCatalog,
 } = {}) {
   const prices = pricingIndex(pricingCatalog);
@@ -336,6 +337,33 @@ export function buildTraceModel(spans, {
     event.ownerName = eventById.get(event.owner)?.name ?? null;
   }
 
+  function aggregateCosts(items, keyFor, labelFor) {
+    const groups = new Map();
+    for (const event of items) {
+      const key = keyFor(event);
+      const existing = groups.get(key) ?? {
+        id: key,
+        label: labelFor(event),
+        calls: 0,
+        pricedCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+      };
+      existing.calls++;
+      existing.inputTokens += event.inputTokens ?? 0;
+      existing.outputTokens += event.outputTokens ?? 0;
+      if (event.cost != null) {
+        existing.pricedCalls++;
+        existing.cost += event.cost;
+      }
+      groups.set(key, existing);
+    }
+    return [...groups.values()]
+      .map((group) => ({ ...group, cost: group.pricedCalls ? group.cost : null }))
+      .sort((left, right) => (right.cost ?? -1) - (left.cost ?? -1));
+  }
+
   const subagents = agents.filter((agent) => agent.subagent);
   let concurrent = 0;
   let peak = 0;
@@ -365,7 +393,17 @@ export function buildTraceModel(spans, {
     branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const mcp = tools.find(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search");
-  const complete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
+  const concurrentComplete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
+  const reviewComplete = peak >= 2 && subagents.length >= 2;
+  const collaborationComplete = subagents.length >= 2 && peak === 1;
+  const complete = scenario === "review" ? reviewComplete
+    : scenario === "collaboration" ? collaborationComplete
+      : concurrentComplete;
+  const evidence = scenario === "review"
+    ? `review branches: ${subagents.length} | overlapping reviewers: ${peak >= 2 ? "yes" : "no"}`
+    : scenario === "collaboration"
+      ? `specialist branches: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
+      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
   const contentKeys = includeMessages && !messageCount
     ? [...new Set([...nodes.values()].flatMap((node) => Object.keys(node.attrs)).filter((key) => /message|content|argument|result/i.test(key)))].slice(0, 20)
@@ -379,8 +417,8 @@ export function buildTraceModel(spans, {
     `Tool calls: ${tools.length} | Failed tool calls: ${tools.filter(({ span, attrs }) => Number(span.status?.code) === 2 || attrs["error.type"]).length} | Chat calls: ${chats.length} | Tokens: ${tokenInfo}`,
     `Model cost: ${costs.length ? `${totalCost} (${costMode})` : "unavailable"} (${costs.length}/${chats.length} chat spans priced)`,
     `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${expectedModels.length ? ` | Required: ${expectedModels.map((model) => safe(model)).join(", ")} (${modelMatches ? "PASS" : "MISMATCH"})` : ""}`,
-    `Demo evidence: ${complete ? "PASS" : "MISSING"} | overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`,
-    "AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token.",
+    `Demo evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
+    ...(scenario === "concurrent" || !scenario ? ["AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token."] : []),
     ...(includeMessages ? [`Message payloads: ${messageCount} spans${contentKeys.length ? ` | available attribute names: ${contentKeys.map((key) => safe(key)).join(", ")}` : ""}`] : ["Message content capture: off (enable include_messages when dispatching to see payloads)."]),
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",
@@ -393,6 +431,7 @@ export function buildTraceModel(spans, {
   ];
   return {
     summary: summary.join("\n"),
+    scenario,
     complete: Boolean(complete),
     modelMatches,
     events,
@@ -400,6 +439,18 @@ export function buildTraceModel(spans, {
     messageCount,
     duration: Math.max(1, end - start),
     timeRange: { start, end },
+    costBreakdown: {
+      byModel: aggregateCosts(
+        events.filter((event) => event.kind === "chat"),
+        (event) => event.name,
+        (event) => event.name,
+      ),
+      byAgent: aggregateCosts(
+        events.filter((event) => event.kind === "chat"),
+        (event) => event.owner ?? "unassigned",
+        (event) => event.ownerName ?? "Unassigned",
+      ),
+    },
     counts: {
       agents: agents.length,
       subagents: subagents.length,

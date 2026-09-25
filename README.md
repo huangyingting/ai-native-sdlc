@@ -9,16 +9,16 @@ Issue comments always include a GitHub-rendered Mermaid dependency graph. To add
 The issue form and manual dispatch support five trace scenarios:
 
 - **Single agent baseline** handles the task directly, providing a cost and latency baseline for comparison.
-- **Concurrent research** fans out to the AWS and Azure research agents and validates overlapping execution plus both documentation tools.
-- **Review panel** runs the built-in code-review agent and an architecture reviewer in parallel, then reconciles their findings.
-- **Rubber duck critique** makes the orchestrator state an initial position, invokes a dedicated repository critic, and records how the conclusion changed.
-- **Lead + specialists** runs a solution architect first and a critical reviewer second, producing a sequential collaboration trace before the orchestrator revises the proposal.
+- **Concurrent research** asks Copilot CLI to dynamically create two focused researchers and validates overlapping execution plus both documentation tools.
+- **Review panel** dynamically creates two reviewers with different concerns in parallel, then reconciles their findings.
+- **Rubber duck critique** dynamically creates an independent critic after the initial position and records how the conclusion changed.
+- **Lead + specialists** dynamically creates a design specialist and then a fresh critical reviewer in sequence before revising the proposal.
 
-Each scenario has a useful built-in task, or the issue author can provide a custom task. All specialist profiles are read-only and use the selected subagent model.
+Each scenario has a useful built-in task, or the issue author can provide a custom task. The repository does not predefine scenario-specific agent profiles: Copilot CLI decides the concrete subagent type at runtime from the task and orchestration instructions. Every delegated task is read-only and is instructed to use the selected subagent model.
 
 The dependency-free implementation in `trace-viewer/` is also a local composite action. `trace-model.mjs` normalizes direct CLI JSONL and OTLP envelopes into one trace view model; `html-renderer.mjs` renders that model; `render-trace.mjs` is the action/CLI adapter. The demo calls it with `uses: ./trace-viewer`; other workflows can pass an OTEL JSONL `trace-path`, a stable `html-path`, optional model/evidence/message requirements, and an optional replacement pricing catalog.
 
-The workflow exposes **Orchestrator model** and **Subagent model** choices, both defaulting to `gpt-6-luna`. The orchestrator delegates work and synthesizes the final response; the selected subagent model is applied to every scenario profile on the runner. Concurrent scenarios use `--fleet`; the collaboration scenario intentionally runs its specialists in sequence. Scenario-specific result markers and trace evidence validate the requested agent pattern, while model validation confirms that only the selected model set appeared. The repository owner's Copilot entitlement must include the selected models.
+The workflow exposes **Orchestrator model** and **Subagent model** choices, both defaulting to `gpt-6-luna`. The orchestrator delegates work and synthesizes the final response; dynamically created subagents are instructed to use the selected subagent model. Concurrent scenarios use `--fleet`; sequential scenarios let the orchestrator create each subagent only after the previous result returns. OTEL trace evidence validates branch counts, concurrency/order, tool use, and observed models without depending on predetermined agent names. The repository owner's Copilot entitlement must include the selected models.
 
 The workflow runs from `workflow_dispatch` or an authorized `agent-trace` issue, installs Node 22 and `@github/copilot`, and authenticates Copilot with the run's short-lived `GITHUB_TOKEN` (`contents: read`, `copilot-requests: write`). The repository owner needs a Copilot entitlement and available usage; usage in a personal repository is billed to that owner's Copilot seat. Organization repositories additionally need the Copilot CLI organization billing policy. The optional user-attachment upload uses the separate `AGENT_TRACE_MEDIA_TOKEN` secret described above.
 

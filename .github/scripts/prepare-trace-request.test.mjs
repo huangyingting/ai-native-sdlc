@@ -25,11 +25,12 @@ Compare two services safely.
   assert.deepEqual(request, {
     scenario: "review",
     scenarioLabel: "Review panel",
-    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
+    instruction: "Dynamically create exactly two read-only review subagents and run them concurrently. Give one a code-correctness and reliability focus and the other an architecture and maintainability focus. Give both the request, then reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review. Every dynamically created subagent must use the claude-sonnet-4.6 model.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",
     includeMessages: true,
+    requiredModels: "gpt-6-sol,claude-sonnet-4.6",
   });
 });
 
@@ -91,6 +92,7 @@ gpt-6-luna
 gpt-6-luna`);
   assert.equal(single.scenario, "single");
   assert.match(single.instruction, /without invoking any subagents/);
+  assert.equal(single.requiredModels, "gpt-6-luna");
 
   const rubberDuck = parseIssueRequest(`### Orchestration scenario
 
@@ -104,5 +106,6 @@ gpt-6-luna
 
 gpt-6-luna`);
   assert.equal(rubberDuck.scenario, "rubber-duck");
-  assert.match(rubberDuck.instruction, /repository's rubber-duck custom agent/);
+  assert.match(rubberDuck.instruction, /dynamically create one read-only subagent/);
+  assert.match(rubberDuck.instruction, /gpt-6-luna model/);
 });

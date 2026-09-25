@@ -22,7 +22,7 @@ Every workflow run has two model inputs:
 
 The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated patterns, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
 
-Each pattern includes a runnable default task and default agent guidance. Leave the task and guidance fields empty for a one-click demo. Supplying a custom task disables example-specific guidance while retaining the pattern's generic execution contract.
+Each pattern has a dedicated issue form with a runnable task and agent guidance already filled in. Both fields are editable, so a user can run the default with one click or customize it before submission. Manual workflow dispatch provides the same defaults when its optional task and guidance inputs are empty.
 
 ## 1. Direct execution
 
@@ -119,4 +119,4 @@ Select the span to view its **Failure reason**. This diagnostic is shown indepen
 - Choose **Critic-reviser loop** when an initial position needs adversarial reflection.
 - Choose **Sequential pipeline** when later work must consume an earlier result.
 
-Select a pattern through **Actions → Copilot CLI Agent Demos → Run workflow** or the **Copilot CLI agent demo** issue form. The issue supplies the concrete task and can add task-specific agent instructions, so new demos do not require repository files or workflow changes.
+Select a pattern through **Actions → Copilot CLI Agent Demos → Run workflow** or choose one of the four pattern-specific issue forms. GitHub Issue Forms do not support changing textarea values from a dropdown, so separate forms provide the clearest one-click experience while keeping the execution workflow shared.

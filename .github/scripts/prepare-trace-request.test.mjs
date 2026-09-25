@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { parseIssueRequest, supportedPatterns } from "./prepare-trace-request.mjs";
 
 test("parses a Copilot CLI agent demo issue form", () => {
@@ -138,10 +138,19 @@ gpt-6-luna`);
 });
 
 test("keeps orchestration pattern labels synchronized", () => {
-  for (const path of [".github/workflows/copilot-trace.yml", ".github/ISSUE_TEMPLATE/agent-trace.yml"]) {
-    const source = readFileSync(path, "utf8");
-    for (const { label } of supportedPatterns) {
-      assert.match(source, new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  const workflow = readFileSync(".github/workflows/copilot-trace.yml", "utf8");
+  const formSources = readdirSync(".github/ISSUE_TEMPLATE")
+    .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
+    .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
+  assert.equal(formSources.length, supportedPatterns.length);
+  for (const { label, defaultPrompt, defaultGuidance } of supportedPatterns) {
+    const pattern = new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+    assert.match(workflow, pattern);
+    const matchingForms = formSources.filter((source) => source.includes(`options: [${label}]`));
+    assert.equal(matchingForms.length, 1);
+    assert.match(matchingForms[0], new RegExp(defaultPrompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    if (defaultGuidance) {
+      assert.match(matchingForms[0], new RegExp(defaultGuidance.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
   }
 });

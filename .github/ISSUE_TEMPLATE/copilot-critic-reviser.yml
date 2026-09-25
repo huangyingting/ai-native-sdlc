@@ -1,0 +1,84 @@
+name: "Copilot CLI demo: Critic-reviser loop"
+description: Challenge an initial position with a dynamic critic before revising it.
+title: "[Copilot CLI: Critic] "
+labels: [agent-trace]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Runs an initial-position, independent-critique, and revision loop. The task and instructions below are prefilled and editable.
+  - type: dropdown
+    id: orchestration_pattern
+    attributes:
+      label: Orchestration pattern
+      options: [Critic-reviser loop]
+    validations:
+      required: true
+  - type: dropdown
+    id: orchestrator_model
+    attributes:
+      label: Orchestrator model
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: subagent_model
+    attributes:
+      label: Subagent model
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: task_prompt
+    attributes:
+      label: Task or question
+      value: |
+        Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.
+    validations:
+      required: true
+  - type: textarea
+    id: agent_instructions
+    attributes:
+      label: Agent instructions
+      value: |
+        Ask the critic to focus on hidden assumptions, counterexamples, and unnecessary complexity.
+  - type: checkboxes
+    id: capture_messages
+    attributes:
+      label: Trace content
+      options:
+        - label: Include redacted request and response payloads in the HTML trace artifact

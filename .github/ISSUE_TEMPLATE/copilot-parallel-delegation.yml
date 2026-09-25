@@ -1,0 +1,84 @@
+name: "Copilot CLI demo: Parallel delegation"
+description: Run independent dynamic subagents concurrently and synthesize their results.
+title: "[Copilot CLI: Parallel] "
+labels: [agent-trace]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Runs independent subagents concurrently. The task and instructions below are prefilled and editable.
+  - type: dropdown
+    id: orchestration_pattern
+    attributes:
+      label: Orchestration pattern
+      options: [Parallel delegation]
+    validations:
+      required: true
+  - type: dropdown
+    id: orchestrator_model
+    attributes:
+      label: Orchestrator model
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: subagent_model
+    attributes:
+      label: Subagent model
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: task_prompt
+    attributes:
+      label: Task or question
+      value: |
+        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.
+    validations:
+      required: true
+  - type: textarea
+    id: agent_instructions
+    attributes:
+      label: Agent instructions
+      value: |
+        Assign one branch to Amazon S3 using official docs.aws.amazon.com sources through web_fetch, and the other to Azure Blob Storage using Microsoft Learn tools.
+  - type: checkboxes
+    id: capture_messages
+    attributes:
+      label: Trace content
+      options:
+        - label: Include redacted request and response payloads in the HTML trace artifact

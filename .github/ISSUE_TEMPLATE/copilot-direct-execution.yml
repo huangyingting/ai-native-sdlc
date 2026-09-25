@@ -1,33 +1,23 @@
-name: Copilot CLI agent demo
-description: Run a traced Copilot CLI orchestration demo and post the result back to this issue.
-title: "[Copilot CLI demo] "
-labels:
-  - agent-trace
+name: "Copilot CLI demo: Direct execution"
+description: Run a traced task without subagent delegation.
+title: "[Copilot CLI: Direct] "
+labels: [agent-trace]
 body:
   - type: markdown
     attributes:
       value: |
-        This form starts a Copilot CLI Agent Demos workflow for repository owners, members, and collaborators. The final result, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
-
+        Runs the task directly to establish a latency, token, and cost baseline. The task and instructions below are prefilled and editable.
   - type: dropdown
     id: orchestration_pattern
     attributes:
       label: Orchestration pattern
-      description: Select the collaboration pattern to demonstrate in the trace.
-      options:
-        - Direct execution
-        - Parallel delegation
-        - Critic-reviser loop
-        - Sequential pipeline
-      default: 1
+      options: [Direct execution]
     validations:
       required: true
-
   - type: dropdown
     id: orchestrator_model
     attributes:
       label: Orchestrator model
-      description: Delegates work to the subagents and synthesizes the final comparison.
       options:
         - gpt-6-luna
         - gpt-6-sol
@@ -48,12 +38,11 @@ body:
       default: 0
     validations:
       required: true
-
   - type: dropdown
     id: subagent_model
     attributes:
       label: Subagent model
-      description: Shared by dynamically created subagents in the selected pattern.
+      description: Retained for consistent comparisons; this pattern does not create subagents.
       options:
         - gpt-6-luna
         - gpt-6-sol
@@ -74,25 +63,23 @@ body:
       default: 0
     validations:
       required: true
-
   - type: textarea
     id: task_prompt
     attributes:
       label: Task or question
-      description: Describe the concrete demo task. Leave empty to use the pattern's example task.
-      placeholder: What should Copilot and its dynamic subagents accomplish?
-
+      value: |
+        Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.
+    validations:
+      required: true
   - type: textarea
     id: agent_instructions
     attributes:
       label: Agent instructions
-      description: Optional task-specific guidance for decomposition, specialist perspectives, sources, or handoff behavior.
-      placeholder: For example, assign one branch to API compatibility and another to migration risk.
-
+      value: |
+        Work directly without delegating. Keep the answer concise and evidence-backed.
   - type: checkboxes
     id: capture_messages
     attributes:
       label: Trace content
-      description: Message payloads may contain sensitive data and will be posted in a downloadable public artifact.
       options:
         - label: Include redacted request and response payloads in the HTML trace artifact

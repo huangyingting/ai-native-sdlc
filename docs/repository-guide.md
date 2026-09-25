@@ -42,6 +42,20 @@ checks.
   for one rendered run, **trace site** for the published report collection,
   and **dependency graph** for the agent/model/tool visualization.
 
+## Adding a demo
+
+Each demo is a self-contained project under `demos/<demo-name>/`. When adding
+one:
+
+1. Include a project README, manifest, and package-manager lockfile.
+2. Document the required runtime.
+3. Define test, lint, and build scripts in the project manifest.
+4. Add a path-scoped workflow under `.github/workflows/`.
+5. Add the demo to the project list in the root README.
+
+Keep demo dependencies inside the demo project. Do not add them to the root
+package.
+
 ## Local development
 
 Node.js 24 is the recommended repository runtime.

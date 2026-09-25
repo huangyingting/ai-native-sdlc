@@ -29,7 +29,7 @@ Each demo owns its dependencies and additional validation commands.
   workflows, trace publishing, security, and operations.
 - [Agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md)
   — pattern selection, execution diagrams, and trace evidence.
-- [Demo project conventions](demos/README.md)
+- [Adding a demo](docs/repository-guide.md#adding-a-demo)
 - [IT service desk](demos/it-service-desk/README.md)
 - [Trace viewer](tools/trace-viewer/README.md)
 - [Agent instructions](AGENTS.md)

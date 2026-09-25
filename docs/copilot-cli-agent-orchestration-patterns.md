@@ -1,10 +1,12 @@
-# Agent Trace orchestration scenarios
+# Copilot CLI agent orchestration patterns
 
-Agent Trace demonstrates how GitHub Copilot CLI can dynamically decompose a task into subagents. The repository defines the orchestration objective and constraints, but it does not define fixed scenario-specific agent profiles. At runtime, Copilot CLI chooses the appropriate built-in subagent type, creates isolated task contexts, and returns their results to the orchestrator.
+This guide describes reusable orchestration patterns for GitHub Copilot CLI. Each pattern shows how Copilot can dynamically decompose a task into subagents, coordinate their execution, and synthesize their results. The repository defines the orchestration objective and constraints, but it does not define fixed scenario-specific agent profiles.
 
-## Scenario comparison
+Agent Trace is the observability layer used by this repository to demonstrate and validate these patterns. It records the resulting OpenTelemetry call hierarchy, timing, model usage, tool calls, and cost; it is not the name of the patterns themselves.
 
-| Scenario | Subagents | Scheduling | Information flow | Best used for |
+## Pattern comparison
+
+| Pattern | Subagents | Scheduling | Information flow | Best used for |
 |---|---:|---|---|---|
 | Single agent baseline | 0 | Direct | User → orchestrator → result | Establishing latency, token, and cost baselines |
 | Concurrent research | 2 | Parallel | Two independent investigations → synthesis | Comparing products, sources, or independent domains |
@@ -19,7 +21,7 @@ Every workflow run has two model inputs:
 - **Orchestrator model** plans delegation, supplies context, and synthesizes the final response.
 - **Subagent model** is requested for every dynamically created subagent.
 
-The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated scenarios, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
+The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated patterns, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
 
 ## 1. Single agent baseline
 
@@ -31,7 +33,7 @@ User request
             └── Final answer
 ```
 
-Use this scenario to measure the overhead introduced by delegation. It is the reference point for comparing elapsed time, token use, and cost with the other scenarios.
+Use this pattern to measure the overhead introduced by delegation. It is the reference point for comparing elapsed time, token use, and cost with the other patterns.
 
 **Trace evidence**
 
@@ -55,7 +57,7 @@ The branches are independent and should overlap in time. The default task also d
 - AWS research uses `web_fetch` against allowlisted `docs.aws.amazon.com` pages.
 - Azure research uses `microsoft-learn/microsoft_docs_search`.
 
-Microsoft Learn URLs are intentionally not permitted through `web_fetch`; the Microsoft Learn MCP tools should be used instead. A denied attempt appears as a failed tool span, while a later successful MCP call can still satisfy the scenario.
+Microsoft Learn URLs are intentionally not permitted through `web_fetch`; the Microsoft Learn MCP tools should be used instead. A denied attempt appears as a failed tool span, while a later successful MCP call can still satisfy the pattern.
 
 **Trace evidence**
 
@@ -104,7 +106,7 @@ Unlike a review panel, this pattern is intentionally asymmetric: the critic reac
 
 ## 5. Lead + specialists
 
-This scenario demonstrates dependent, sequential collaboration. The orchestrator dynamically creates a solution-design specialist and waits for its proposal. It then creates a fresh critical-review specialist whose input includes both the original request and the first result.
+This pattern demonstrates dependent, sequential collaboration. The orchestrator dynamically creates a solution-design specialist and waits for its proposal. It then creates a fresh critical-review specialist whose input includes both the original request and the first result.
 
 ```text
 User request
@@ -134,7 +136,7 @@ A red tool span means OpenTelemetry recorded an actual tool failure. It does not
 
 Select the span to view its **Failure reason**. This diagnostic is shown independently of request/response payload capture. Payload capture remains off by default because tool arguments and results can contain sensitive information.
 
-## Choosing a scenario
+## Choosing a pattern
 
 - Choose **Single agent baseline** when measuring whether delegation is worthwhile.
 - Choose **Concurrent research** when subtasks are independent and benefit from parallel execution.
@@ -142,4 +144,4 @@ Select the span to view its **Failure reason**. This diagnostic is shown indepen
 - Choose **Rubber duck critique** when a proposal needs adversarial reflection rather than another complete solution.
 - Choose **Lead + specialists** when later work must consume and critique an earlier specialist result.
 
-Scenarios can be selected through **Actions → Agent Trace → Run workflow** or the **Agent Trace run** issue form. A custom task can replace the built-in demonstration task without changing the selected orchestration pattern.
+The workflow and issue form label these choices as scenarios because each run demonstrates one pattern with a concrete task. Select one through **Actions → Agent Trace → Run workflow** or the **Agent Trace run** issue form. A custom task can replace the built-in demonstration task without changing the selected orchestration pattern.

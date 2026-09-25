@@ -16,7 +16,7 @@ The issue form and manual dispatch support five trace scenarios:
 
 Each scenario has a useful built-in task, or the issue author can provide a custom task. The repository does not predefine scenario-specific agent profiles: Copilot CLI decides the concrete subagent type at runtime from the task and orchestration instructions. Every delegated task is read-only and is instructed to use the selected subagent model.
 
-See [Agent Trace orchestration scenarios](docs/agent-trace-scenarios.md) for execution diagrams, model behavior, validation signals, failure interpretation, and guidance on choosing a scenario.
+See [Copilot CLI agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md) for execution diagrams, model behavior, validation signals, failure interpretation, and guidance on choosing a pattern.
 
 The dependency-free implementation in `trace-viewer/` is also a local composite action. `trace-model.mjs` normalizes direct CLI JSONL and OTLP envelopes into one trace view model; `html-renderer.mjs` renders that model; `render-trace.mjs` is the action/CLI adapter. The demo calls it with `uses: ./trace-viewer`; other workflows can pass an OTEL JSONL `trace-path`, a stable `html-path`, optional model/evidence/message requirements, and an optional replacement pricing catalog.
 

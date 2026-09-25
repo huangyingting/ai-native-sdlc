@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Runs the task directly to establish a latency, token, and cost baseline. The task and instructions below are prefilled and editable.
+        Runs the task directly to establish a latency, token, and cost baseline. The orchestration behavior is applied automatically.
   - type: dropdown
     id: orchestration_pattern
     attributes:
@@ -71,12 +71,6 @@ body:
         Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.
     validations:
       required: true
-  - type: textarea
-    id: agent_instructions
-    attributes:
-      label: Agent instructions
-      value: |
-        Work directly without delegating. Keep the answer concise and evidence-backed.
   - type: checkboxes
     id: capture_messages
     attributes:

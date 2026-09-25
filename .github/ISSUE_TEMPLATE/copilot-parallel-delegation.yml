@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Runs independent subagents concurrently. The task and instructions below are prefilled and editable.
+        Runs independent subagents concurrently. The orchestration behavior is applied automatically.
   - type: dropdown
     id: orchestration_pattern
     attributes:
@@ -67,15 +67,9 @@ body:
     attributes:
       label: Task or question
       value: |
-        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.
+        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Use official AWS and Microsoft Learn sources, cite them, and clearly identify non-equivalent features.
     validations:
       required: true
-  - type: textarea
-    id: agent_instructions
-    attributes:
-      label: Agent instructions
-      value: |
-        Assign one branch to Amazon S3 using official docs.aws.amazon.com sources through web_fetch, and the other to Azure Blob Storage using Microsoft Learn tools.
   - type: checkboxes
     id: capture_messages
     attributes:

@@ -28,7 +28,6 @@ export const supportedPatterns = [
     legacyLabels: ["Single-agent baseline", "Single agent baseline"],
     execution: "direct",
     defaultPrompt: "Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.",
-    defaultGuidance: "",
     instruction: "Handle the task directly without invoking any subagents. Produce a concise evidence-backed answer.",
   },
   {
@@ -36,8 +35,7 @@ export const supportedPatterns = [
     label: "Parallel delegation",
     legacyLabels: ["Parallel research", "Concurrent research", "Parallel review", "Review panel"],
     execution: "fleet",
-    defaultPrompt: "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.",
-    defaultGuidance: "Assign one branch to Amazon S3 using official docs.aws.amazon.com sources through web_fetch, and the other to Azure Blob Storage using Microsoft Learn tools.",
+    defaultPrompt: "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Use official AWS and Microsoft Learn sources, cite them, and clearly identify non-equivalent features.",
     instruction: "Dynamically create at least two read-only subagents and run them concurrently. Give each an independent subtask or perspective, wait for all branches, then synthesize their results and reconcile conflicts.",
   },
   {
@@ -45,8 +43,7 @@ export const supportedPatterns = [
     label: "Critic-reviser loop",
     legacyLabels: ["Critique and revision", "Rubber duck critique"],
     execution: "sequential",
-    defaultPrompt: "Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
-    defaultGuidance: "Ask the critic to focus on hidden assumptions, counterexamples, and unnecessary complexity.",
+    defaultPrompt: "Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its hidden assumptions, counterexamples, and unnecessary complexity before revising it into a simpler and more defensible proposal.",
     instruction: "First write a concise initial position. Then dynamically create one read-only subagent as an independent critic, give it the request and initial position, and wait for its response. Finish with a revised conclusion that states what changed.",
   },
   {
@@ -54,8 +51,7 @@ export const supportedPatterns = [
     label: "Sequential pipeline",
     legacyLabels: ["Sequential handoff", "Lead + specialists"],
     execution: "sequential",
-    defaultPrompt: "Propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.",
-    defaultGuidance: "Use a solution-design specialist for the first stage and a critical-review specialist for the dependent second stage.",
+    defaultPrompt: "Use a solution-design stage followed by a dependent critical-review stage to propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.",
     instruction: "Dynamically create two read-only subagents in sequence. Wait for the first result, then give that result and the original request to a fresh second subagent. Finally synthesize the two stages.",
   },
 ];
@@ -90,7 +86,7 @@ export function parseIssueRequest(body) {
   const subagentModel = validateModel(section(body, "Subagent model"), "subagent model");
   const customPrompt = section(body, "Task or question") || section(body, "Comparison task");
   const prompt = customPrompt || selectedPattern.defaultPrompt;
-  const guidance = section(body, "Agent instructions") || (!customPrompt ? selectedPattern.defaultGuidance : "");
+  const guidance = section(body, "Agent instructions");
   const capture = section(body, "Trace content");
   return finalizeRequest({
     scenario: selectedPattern.id,
@@ -123,7 +119,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
   const selectedPattern = pattern(process.env.INPUT_SCENARIO);
   const customPrompt = process.env.INPUT_TASK_PROMPT?.trim();
-  const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim() || (!customPrompt ? selectedPattern.defaultGuidance : "");
+  const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim();
   const request = process.env.GITHUB_EVENT_NAME === "issues"
     ? parseIssueRequest(event.issue?.body)
     : finalizeRequest({

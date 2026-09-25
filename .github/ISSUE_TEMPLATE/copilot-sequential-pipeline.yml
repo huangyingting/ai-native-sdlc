@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Runs two dependent subagent stages in sequence. The task and instructions below are prefilled and editable.
+        Runs two dependent subagent stages in sequence. The orchestration behavior is applied automatically.
   - type: dropdown
     id: orchestration_pattern
     attributes:
@@ -67,15 +67,9 @@ body:
     attributes:
       label: Task or question
       value: |
-        Propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.
+        Use a solution-design stage followed by a dependent critical-review stage to propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.
     validations:
       required: true
-  - type: textarea
-    id: agent_instructions
-    attributes:
-      label: Agent instructions
-      value: |
-        Use a solution-design specialist for the first stage and a critical-review specialist for the dependent second stage.
   - type: checkboxes
     id: capture_messages
     attributes:

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Runs an initial-position, independent-critique, and revision loop. The task and instructions below are prefilled and editable.
+        Runs an initial-position, independent-critique, and revision loop. The orchestration behavior is applied automatically.
   - type: dropdown
     id: orchestration_pattern
     attributes:
@@ -67,15 +67,9 @@ body:
     attributes:
       label: Task or question
       value: |
-        Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.
+        Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its hidden assumptions, counterexamples, and unnecessary complexity before revising it into a simpler and more defensible proposal.
     validations:
       required: true
-  - type: textarea
-    id: agent_instructions
-    attributes:
-      label: Agent instructions
-      value: |
-        Ask the critic to focus on hidden assumptions, counterexamples, and unnecessary complexity.
   - type: checkboxes
     id: capture_messages
     attributes:

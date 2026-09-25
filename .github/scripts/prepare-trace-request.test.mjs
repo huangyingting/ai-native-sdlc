@@ -117,8 +117,28 @@ gpt-6-luna`);
   assert.match(rubberDuck.instruction, /gpt-6-luna model/);
 });
 
+test("does not inject example-specific guidance into a custom issue task", () => {
+  const request = parseIssueRequest(`### Orchestration pattern
+
+Parallel delegation
+
+### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna
+
+### Task or question
+
+Review the authentication boundary from two independent perspectives.`);
+  assert.match(request.instruction, /run them concurrently/);
+  assert.doesNotMatch(request.instruction, /Amazon S3|Azure Blob Storage|Microsoft Learn/);
+});
+
 test("provides a runnable default for every orchestration pattern", () => {
-  for (const { id, label, defaultPrompt, defaultGuidance } of supportedPatterns) {
+  for (const { id, label, defaultPrompt } of supportedPatterns) {
     const request = parseIssueRequest(`### Orchestration pattern
 
 ${label}
@@ -133,7 +153,6 @@ gpt-6-luna`);
     assert.equal(request.scenario, id);
     assert.equal(request.prompt, defaultPrompt);
     assert.ok(request.instruction.length > 20);
-    if (defaultGuidance) assert.match(request.instruction, new RegExp(defaultGuidance.slice(0, 20)));
   }
 });
 
@@ -143,14 +162,13 @@ test("keeps orchestration pattern labels synchronized", () => {
     .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
     .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
   assert.equal(formSources.length, supportedPatterns.length);
-  for (const { label, defaultPrompt, defaultGuidance } of supportedPatterns) {
+  for (const { label, defaultPrompt } of supportedPatterns) {
     const pattern = new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
     assert.match(workflow, pattern);
     const matchingForms = formSources.filter((source) => source.includes(`options: [${label}]`));
     assert.equal(matchingForms.length, 1);
     assert.match(matchingForms[0], new RegExp(defaultPrompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    if (defaultGuidance) {
-      assert.match(matchingForms[0], new RegExp(defaultGuidance.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    }
+    assert.doesNotMatch(matchingForms[0], /id: agent_instructions|label: Agent instructions/);
+    assert.equal(matchingForms[0].match(/type: textarea/g)?.length, 1);
   }
 });

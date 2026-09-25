@@ -22,7 +22,7 @@ Every workflow run has two model inputs:
 
 The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated patterns, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
 
-Each pattern has a dedicated issue form with a runnable task and agent guidance already filled in. Both fields are editable, so a user can run the default with one click or customize it before submission. Manual workflow dispatch provides the same defaults when its optional task and guidance inputs are empty.
+Each pattern has a dedicated issue form with one runnable, editable task. The form does not expose a separate agent-instructions field: the selected pattern's orchestration contract is injected automatically. Manual workflow dispatch retains an optional advanced guidance input.
 
 ## 1. Direct execution
 
@@ -45,7 +45,7 @@ Use this pattern to measure the overhead introduced by delegation. It is the ref
 
 ## 2. Parallel delegation
 
-Copilot CLI runs in fleet mode and dynamically creates at least two independent subagents. The issue instructions decide whether branches research different subjects, review the same artifact from different perspectives, or solve separate parts of a larger task.
+Copilot CLI runs in fleet mode and dynamically creates at least two independent subagents. The task determines whether branches research different subjects, review the same artifact from different perspectives, or solve separate parts of a larger task.
 
 ```text
                          ┌── Dynamic subagent A ── independent result ──┐

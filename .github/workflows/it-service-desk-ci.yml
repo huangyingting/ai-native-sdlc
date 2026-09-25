@@ -1,0 +1,34 @@
+name: IT Service Desk CI
+
+on:
+  pull_request:
+    paths:
+      - "demos/it-service-desk/**"
+      - ".github/workflows/it-service-desk-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "demos/it-service-desk/**"
+      - ".github/workflows/it-service-desk-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: demos/it-service-desk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: demos/it-service-desk/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build

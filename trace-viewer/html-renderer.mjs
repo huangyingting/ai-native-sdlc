@@ -1,0 +1,376 @@
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (char) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+function formatDuration(milliseconds) {
+  if (milliseconds < 1000) return `${Math.round(milliseconds)} ms`;
+  if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 2 : 1)} s`;
+  return `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1000)}s`;
+}
+
+function formatCost(cost) {
+  if (cost == null) return "—";
+  if (cost === 0) return "$0.00";
+  return `$${cost < 0.01 ? cost.toFixed(6) : cost.toFixed(4)}`;
+}
+
+function kindLabel(kind) {
+  return kind === "invoke_agent" ? "Agent" : kind === "chat" ? "Model" : "Tool";
+}
+
+function shortId(id) {
+  return String(id).split(":").at(-1)?.slice(0, 12) ?? "";
+}
+
+function icon(name, className = "") {
+  const paths = {
+    agent: '<circle cx="8" cy="5" r="2.25"/><path d="M3.5 14v-1.25A3.75 3.75 0 0 1 7.25 9h1.5a3.75 3.75 0 0 1 3.75 3.75V14M12 4.5h2M13 3.5v2"/>',
+    model: '<path d="M8 2.25 9.15 5.1 12 6.25 9.15 7.4 8 10.25 6.85 7.4 4 6.25 6.85 5.1 8 2.25Z"/><path d="m12.5 10 .55 1.45L14.5 12l-1.45.55L12.5 14l-.55-1.45L10.5 12l1.45-.55L12.5 10Z"/>',
+    tool: '<path d="M9.8 3.1a3.2 3.2 0 0 0-3.9 3.9l-3.4 3.4a1.5 1.5 0 1 0 2.1 2.1L8 9.1a3.2 3.2 0 0 0 3.9-3.9L10 7.1 8.9 6 10.8 4.1Z"/>',
+    error: '<circle cx="8" cy="8" r="5.5"/><path d="M8 4.75v4M8 11.5h.01"/>',
+    check: '<circle cx="8" cy="8" r="5.5"/><path d="m5.25 8 1.8 1.8 3.7-3.7"/>',
+    search: '<circle cx="7" cy="7" r="4.25"/><path d="m10.25 10.25 3 3"/>',
+    waterfall: '<path d="M2.5 3.5h4v2h-4zM5 7h4v2H5zM8 10.5h5.5v2H8z"/><path d="M4.5 5.5V7M7 9v1.5"/>',
+    map: '<circle cx="3.5" cy="8" r="1.5"/><circle cx="8" cy="4" r="1.5"/><circle cx="12.5" cy="9.5" r="1.5"/><path d="m4.8 6.9 1.9-1.7M9.3 5.1l1.9 3.2"/>',
+    chevron: '<path d="m5 6 3 3 3-3"/>',
+    download: '<path d="M8 2.5v7M5.25 7 8 9.75 10.75 7M3 12.5h10"/>',
+    link: '<path d="m6.5 9.5-1 1a2.12 2.12 0 0 1-3-3l2-2a2.12 2.12 0 0 1 3 0M9.5 6.5l1-1a2.12 2.12 0 1 1 3 3l-2 2a2.12 2.12 0 0 1-3 0M5.75 10.25l4.5-4.5"/>',
+    request: '<path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/>',
+    response: '<path d="M13 8H4M7.5 4.5 4 8l3.5 3.5"/>',
+  };
+  return `<svg class="svg-icon ${className}" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
+}
+
+export function renderGraph(events) {
+  const nodes = new Map();
+  for (const event of events) {
+    const id = event.kind === "invoke_agent" ? event.id : `${event.owner ?? "root"}:${event.kind}:${event.name}`;
+    const existing = nodes.get(id);
+    if (existing) {
+      existing.count++;
+      existing.duration += event.end - event.start;
+      existing.cost = existing.cost == null && event.cost == null ? null : (existing.cost ?? 0) + (event.cost ?? 0);
+      existing.failed ||= event.failed;
+    } else {
+      nodes.set(id, {
+        id,
+        eventId: event.id,
+        owner: event.owner,
+        kind: event.kind,
+        name: event.name,
+        count: 1,
+        start: event.start,
+        duration: event.end - event.start,
+        cost: event.cost,
+        failed: event.failed,
+      });
+    }
+  }
+  const children = new Map();
+  for (const node of nodes.values()) {
+    const parent = nodes.has(node.owner) ? node.owner : null;
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(node);
+  }
+  for (const group of children.values()) group.sort((a, b) => a.start - b.start);
+  const positions = new Map();
+  let nextY = 24;
+  let maxDepth = 0;
+  function place(node, depth) {
+    maxDepth = Math.max(maxDepth, depth);
+    const descendants = children.get(node.id) ?? [];
+    const ys = descendants.map((child) => place(child, depth + 1));
+    const y = ys.length ? (ys[0] + ys[ys.length - 1]) / 2 : nextY;
+    if (!ys.length) nextY += 58;
+    positions.set(node.id, { x: 20 + depth * 246, y });
+    return y;
+  }
+  for (const root of children.get(null) ?? []) place(root, 0);
+  const edges = [...nodes.values()].filter((node) => positions.has(node.owner)).map((node) => {
+    const from = positions.get(node.owner);
+    const to = positions.get(node.id);
+    const middle = (from.x + 214 + to.x) / 2;
+    return `<path d="M${from.x + 214} ${from.y + 19} C${middle} ${from.y + 19},${middle} ${to.y + 19},${to.x - 7} ${to.y + 19}" />`;
+  }).join("\n");
+  const cards = [...nodes.values()].map((node) => {
+    const { x, y } = positions.get(node.id);
+    const shown = node.name.length > 25 ? `${node.name.slice(0, 23)}…` : node.name;
+    return `<g class="graph-node ${node.kind}${node.failed ? " failed" : ""}" data-event-id="${escapeHtml(node.eventId)}" tabindex="0" role="button" transform="translate(${x} ${y})">
+      <title>${escapeHtml(`${kindLabel(node.kind)}: ${node.name}; ${node.count} call${node.count === 1 ? "" : "s"}; ${formatDuration(node.duration)}; ${formatCost(node.cost)}`)}</title>
+      <rect width="214" height="38" rx="9" />
+      <circle cx="14" cy="19" r="4" />
+      <text x="26" y="16">${escapeHtml(shown)}</text>
+      <text class="graph-meta" x="26" y="29">${kindLabel(node.kind).toUpperCase()} · ${node.count}× · ${formatDuration(node.duration)}${node.cost == null ? "" : ` · ${formatCost(node.cost)}`}</text>
+    </g>`;
+  }).join("\n");
+  const width = 20 + maxDepth * 246 + 234;
+  const height = Math.max(90, nextY + 18);
+  return `<svg id="dependency-graph" class="graph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Agent, model, and tool dependency map">
+    <g class="graph-edges">${edges}</g>${cards}
+  </svg>`;
+}
+
+export function renderHtml(model) {
+  const { events, counts, complete, includeMessages, duration, timeRange } = model;
+  const selectedEvent = events.find((event) => event.failed) ?? events[0];
+  const slowest = events.filter((event) => event.depth > 0)
+    .sort((a, b) => (b.end - b.start) - (a.end - a.start))
+    .slice(0, 3);
+  const failed = events.filter((event) => event.failed);
+  const unpriced = events.filter((event) => event.kind === "chat" && event.cost == null && event.hasTokenUsage);
+  const costLabel = counts.costMode === "estimated" ? "Estimated" : counts.costMode === "reported" ? "Reported" : counts.costMode === "mixed" ? "Mixed" : "Cost";
+  const graph = renderGraph(events);
+
+  const rows = events.map((event) => {
+    const left = ((event.start - timeRange.start) / duration) * 100;
+    const width = Math.min(100 - left, Math.max(0.35, ((event.end - event.start) / duration) * 100));
+    const search = `${event.kind} ${event.name} ${event.failed ? "failed error" : "success"} ${event.ownerName ?? ""}`.toLowerCase();
+    return `<div class="span-row${event.id === selectedEvent.id ? " active" : ""}" role="button" tabindex="0"
+      data-id="${escapeHtml(event.id)}" data-parent="${escapeHtml(event.parentId ?? "")}" data-owner="${escapeHtml(event.owner ?? "")}"
+      data-kind="${event.kind}" data-failed="${event.failed}" data-priced="${event.cost != null}" data-filter="${escapeHtml(search)}">
+      <div class="span-identity" style="--depth:${event.depth}">
+        ${event.childIds.length ? `<button class="collapse" type="button" data-collapse="${escapeHtml(event.id)}" aria-label="Collapse descendants">${icon("chevron")}</button>` : `<span class="collapse-spacer"></span>`}
+        <span class="kind-icon ${event.kind}">${icon(event.kind === "invoke_agent" ? "agent" : event.kind === "chat" ? "model" : "tool")}</span>
+        <span class="span-title"><strong>${escapeHtml(event.name)}</strong><small>${kindLabel(event.kind)}${event.ownerName && event.kind !== "invoke_agent" ? ` · ${escapeHtml(event.ownerName)}` : ""}</small></span>
+      </div>
+      <div class="waterfall-track"><span class="waterfall-bar ${event.kind}${event.failed ? " failed" : ""}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div>
+      <span class="span-duration">${formatDuration(event.end - event.start)}</span>
+      <span class="span-cost">${formatCost(event.cost)}</span>
+      <span class="span-state ${event.failed ? "failed" : "ok"}" title="${event.failed ? "Error recorded by OTEL" : "No error recorded"}"></span>
+    </div>`;
+  }).join("\n");
+
+  const detailPanels = events.map((event) => {
+    const children = event.childIds.map((id) => events.find((candidate) => candidate.id === id)).filter(Boolean);
+    const relationButtons = [
+      ...(event.parentId ? [`<button type="button" data-select="${escapeHtml(event.parentId)}"><span>Parent</span>${escapeHtml(event.parentName ?? shortId(event.parentId))}</button>`] : []),
+      ...children.map((child) => `<button type="button" data-select="${escapeHtml(child.id)}"><span>Child</span>${escapeHtml(child.name)}</button>`),
+    ].join("");
+    const offset = event.start - timeRange.start;
+    return `<article class="inspector-panel" data-inspector="${escapeHtml(event.id)}" ${event.id === selectedEvent.id ? "" : "hidden"}>
+      <header class="inspector-head">
+        <div><span class="kind-kicker ${event.kind}">${kindLabel(event.kind)}</span><h2>${escapeHtml(event.name)}</h2></div>
+        <span class="status-pill ${event.failed ? "failed" : "ok"}">${icon(event.failed ? "error" : "check")}${event.failed ? "Error" : "Success"}</span>
+      </header>
+      <div class="breadcrumb">${event.parentName ? `${escapeHtml(event.parentName)} <span>›</span> ` : ""}<strong>${escapeHtml(event.name)}</strong></div>
+      <dl class="properties">
+        <div><dt>Start offset</dt><dd>+${formatDuration(offset)}</dd></div>
+        <div><dt>Duration</dt><dd>${formatDuration(event.end - event.start)}</dd></div>
+        <div><dt>Cost</dt><dd>${formatCost(event.cost)}${event.costSource ? `<small>${event.costSource}</small>` : ""}</dd></div>
+        <div><dt>Span ID</dt><dd class="mono">${escapeHtml(shortId(event.id))}</dd></div>
+        ${event.hasTokenUsage ? `<div><dt>Input tokens</dt><dd>${event.inputTokens.toLocaleString()}</dd></div>` : ""}
+        ${event.hasTokenUsage ? `<div><dt>Output tokens</dt><dd>${event.outputTokens.toLocaleString()}</dd></div>` : ""}
+      </dl>
+      ${relationButtons ? `<section class="related"><h3>${icon("link")}Related calls</h3><div>${relationButtons}</div></section>` : ""}
+      <section class="payload">
+        <details ${event.request ? "open" : ""}><summary>${icon("request")}Request ${event.request ? "" : "<span>not captured</span>"}</summary><pre>${escapeHtml(event.request ?? "No request payload was recorded for this span.")}</pre></details>
+        <details ${event.response ? "open" : ""}><summary>${icon("response")}Response ${event.response ? "" : "<span>not captured</span>"}</summary><pre>${escapeHtml(event.response ?? "No response payload was recorded for this span.")}</pre></details>
+      </section>
+    </article>`;
+  }).join("\n");
+
+  const findingButton = (event, eyebrow, detail, severity = "") =>
+    `<button class="finding ${severity}" type="button" data-select="${escapeHtml(event.id)}">${icon(severity === "danger" ? "error" : event.kind === "chat" ? "model" : event.kind === "execute_tool" ? "tool" : "agent")}<span>${eyebrow}</span><strong>${escapeHtml(event.name)}</strong><small>${detail}</small></button>`;
+  const findingRecords = [];
+  const findingIds = new Set();
+  const addFinding = (event, eyebrow, detail, severity = "") => {
+    if (findingIds.has(event.id)) return;
+    findingIds.add(event.id);
+    findingRecords.push({ event, eyebrow, detail, severity });
+  };
+  failed.slice(0, 4).forEach((event) => addFinding(event, "Error", formatDuration(event.end - event.start), "danger"));
+  slowest.slice(0, 3).forEach((event) => addFinding(event, "Slow path", formatDuration(event.end - event.start)));
+  unpriced.slice(0, 2).forEach((event) => addFinding(event, "Cost unavailable", "model not in pricing catalog", "warning"));
+  const findings = findingRecords.slice(0, 7)
+    .map(({ event, eyebrow, detail, severity }) => findingButton(event, eyebrow, detail, severity))
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Trace</title>
+<script>
+(() => {
+  const requested = new URLSearchParams(location.search).get("theme") || new URLSearchParams(location.search).get("scoutTheme");
+  document.documentElement.dataset.theme = requested || (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");
+})();
+</script>
+<style>
+:root{color-scheme:light;--bg:#f5f7fb;--surface:#fff;--surface-soft:#f7f8fb;--surface-hover:#f0f4fa;--border:#dfe4ec;--border-strong:#c9d1dc;--text:#18202b;--muted:#667085;--soft:#98a2b3;--blue:#2563eb;--blue-soft:#eaf1ff;--violet:#7c3aed;--green:#159455;--green-soft:#e9f8f0;--red:#dc3545;--red-soft:#fff0f1;--amber:#b7791f;--amber-soft:#fff8e7;--shadow:0 10px 30px rgba(29,41,57,.07)}
+html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surface-soft:#151c28;--surface-hover:#1b2432;--border:#263142;--border-strong:#364258;--text:#edf2f7;--muted:#9aa7b8;--soft:#6f7d91;--blue:#6ea8fe;--blue-soft:#162747;--violet:#b794f4;--green:#4ade80;--green-soft:#10291d;--red:#ff6b78;--red-soft:#351820;--amber:#f2c66d;--amber-soft:#332916;--shadow:none}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}button,input{font:inherit;color:inherit}.mono,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.svg-icon{display:inline-block;width:14px;height:14px;flex:0 0 auto;vertical-align:-2px}
+.app{height:100%}.workspace{height:100%;min-height:0;display:grid;grid-template-columns:220px minmax(560px,1fr) 340px;gap:1px;background:var(--border)}.rail,.main,.inspector{min-height:0;background:var(--surface)}.rail{overflow:auto;padding:10px 9px}.rail-status{display:flex;align-items:center;gap:6px;padding:2px 5px 10px;color:var(--muted);font-size:10px}.rail-status>.svg-icon{width:13px;height:13px;color:${failed.length ? "var(--red)" : "var(--green)"}}.rail-status strong{color:${failed.length ? "var(--red)" : "var(--green)"};font-size:11px}.rail-status span:last-child{margin-left:auto;color:var(--soft);font-variant-numeric:tabular-nums}.micro-label{margin:13px 5px 5px;color:var(--soft);font-size:8px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+.focus{display:flex;flex-wrap:wrap;gap:4px;padding:0 3px 5px}.focus button{display:flex;align-items:center;gap:5px;border:0;border-radius:6px;background:transparent;padding:5px 7px;color:var(--muted);font-size:10px;cursor:pointer}.focus button:hover{background:var(--surface-hover)}.focus button.active{background:var(--blue-soft);color:var(--blue)}.focus button span{color:var(--soft);font-variant-numeric:tabular-nums}
+.findings{display:grid;gap:1px}.finding{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:0 5px;border:0;border-radius:7px;background:transparent;padding:7px 8px;text-align:left;cursor:pointer}.finding>.svg-icon{grid-column:1;grid-row:1/3;width:12px;height:12px;margin-top:1px;color:var(--soft)}.finding:hover{background:var(--surface-hover)}.finding>span{grid-column:3;grid-row:1;color:var(--soft);font-size:8px;text-transform:uppercase;letter-spacing:.05em}.finding strong{grid-column:2;grid-row:1;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.finding small{grid-column:2/-1;color:var(--soft);font-size:9px}.finding.danger>.svg-icon,.finding.danger>span{color:var(--red)}.finding.warning>.svg-icon,.finding.warning>span{color:var(--amber)}.empty-findings{padding:16px 8px;color:var(--muted);font-size:10px;text-align:center}
+.main{display:grid;grid-template-rows:auto 1fr;min-width:0}.commandbar{display:flex;align-items:center;gap:7px;min-height:43px;padding:6px 10px;border-bottom:1px solid var(--border)}.trace-meta{display:flex;align-items:center;gap:9px;padding-right:9px;border-right:1px solid var(--border);white-space:nowrap;color:var(--muted);font-size:9px}.trace-meta strong{color:var(--text);font-size:10px;font-variant-numeric:tabular-nums}.trace-meta .error{color:var(--red)}.trace-meta .cost{color:var(--amber)}.search-wrap{position:relative;flex:1;max-width:390px}.search-wrap>.svg-icon{position:absolute;left:9px;top:7px;color:var(--soft);width:13px;height:13px}.search{width:100%;border:0;border-radius:7px;background:var(--surface-soft);padding:6px 9px 6px 29px;outline:0}.search:focus{box-shadow:inset 0 0 0 1px var(--blue)}.mode{display:flex;margin-left:auto}.mode button,.icon-button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:6px;background:transparent;padding:5px 8px;color:var(--muted);font-size:10px;cursor:pointer}.mode button .svg-icon,.icon-button .svg-icon{width:12px;height:12px}.mode button.active{background:var(--surface-hover);color:var(--text)}.icon-button{padding:5px 7px;font-size:9px}.icon-button:hover{background:var(--surface-hover);color:var(--text)}
+.canvas{min-height:0;position:relative}.trace-view{height:100%;display:grid;grid-template-rows:30px 1fr}.trace-view[hidden],.map-view[hidden]{display:none}.axis{display:grid;grid-template-columns:300px 1fr 68px 68px 24px;align-items:end;border-bottom:1px solid var(--border);color:var(--soft);font-size:9px}.axis-label{padding:0 10px 7px}.ticks{display:flex;justify-content:space-between;padding:0 2px 7px}.span-list{overflow:auto}.span-row{display:grid;grid-template-columns:300px minmax(220px,1fr) 68px 68px 24px;align-items:center;min-height:39px;border-bottom:1px solid var(--border);cursor:pointer;outline:0;transition:background .12s,opacity .12s}.span-row:hover{background:var(--surface-hover)}.span-row.active{background:var(--blue-soft)}.span-row.related{background:color-mix(in srgb,var(--violet) 8%,var(--surface))}.span-row.branch-context:not(.active):not(.related){background:color-mix(in srgb,var(--blue) 3%,var(--surface))}.span-row.dimmed{opacity:.32}.span-row.filtered,.span-row.collapsed{display:none}.span-identity{min-width:0;display:flex;align-items:center;padding-left:calc(7px + var(--depth) * 14px);gap:7px}.collapse{display:grid;place-items:center;width:16px;height:20px;border:0;background:transparent;color:var(--muted);padding:0;cursor:pointer;transition:transform .15s}.collapse .svg-icon{width:12px;height:12px}.collapse.closed{transform:rotate(-90deg)}.collapse-spacer{width:16px}.kind-icon{display:grid;place-items:center;flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:color-mix(in srgb,var(--violet) 12%,transparent);color:var(--violet)}.kind-icon .svg-icon{width:12px;height:12px}.kind-icon.execute_tool{background:var(--green-soft);color:var(--green)}.kind-icon.chat{background:var(--blue-soft);color:var(--blue)}.span-title{min-width:0;display:grid}.span-title strong{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.span-title small{color:var(--muted);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.waterfall-track{position:relative;height:100%;background:linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:25% 100%}.waterfall-bar{position:absolute;top:14px;height:10px;min-width:3px;border-radius:4px;background:var(--violet);box-shadow:0 0 0 1px color-mix(in srgb,var(--violet) 18%,transparent)}.waterfall-bar.execute_tool{background:var(--green)}.waterfall-bar.chat{background:var(--blue)}.waterfall-bar.failed{background:var(--red)}.span-duration,.span-cost{padding-right:9px;text-align:right;font:10px "SFMono-Regular",Consolas,monospace;color:var(--muted)}.span-cost{color:var(--amber)}.span-state{width:7px;height:7px;border-radius:50%;background:var(--green)}.span-state.failed{background:var(--red)}
+.map-view{height:100%;overflow:auto;background:radial-gradient(var(--border) .7px,transparent .7px);background-size:15px 15px}.graph-wrap{min-width:100%;min-height:100%;padding:22px}.graph{display:block;max-width:none;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.graph-edges path{fill:none;stroke:var(--border-strong);stroke-width:1.2}.graph-node{cursor:pointer;outline:0}.graph-node rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}.graph-node:hover rect,.graph-node.active rect{stroke:var(--blue);stroke-width:1.6}.graph-node circle{fill:var(--violet)}.graph-node.execute_tool circle{fill:var(--green)}.graph-node.chat circle{fill:var(--blue)}.graph-node.failed rect{stroke:var(--red)}.graph-node.failed circle{fill:var(--red)}.graph-node text{fill:var(--text);font-size:10px;font-weight:650}.graph-node .graph-meta{fill:var(--muted);font-size:8px;font-weight:500}
+.inspector{overflow:auto}.inspector-panel{padding:12px 14px}.inspector-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.inspector-head>div{display:flex;align-items:center;gap:8px;min-width:0}.inspector-head h2{font-size:13px;line-height:1.25;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kind-kicker{font-size:8px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--violet)}.kind-kicker.execute_tool{color:var(--green)}.kind-kicker.chat{color:var(--blue)}.status-pill{display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:2px 6px;background:var(--green-soft);color:var(--green);font-size:8px;font-weight:700;text-transform:uppercase}.status-pill .svg-icon{width:10px;height:10px}.status-pill.failed{background:var(--red-soft);color:var(--red)}.breadcrumb{margin:8px 0 10px;color:var(--muted);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.breadcrumb span{padding:0 4px;color:var(--soft)}.breadcrumb strong{color:var(--text)}.properties{display:grid;grid-template-columns:1fr 1fr;margin:0;border-top:1px solid var(--border);border-left:1px solid var(--border)}.properties div{padding:7px 8px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}.properties dt{color:var(--muted);font-size:8px}.properties dd{display:flex;align-items:baseline;gap:5px;margin:2px 0 0;font-size:10px;font-weight:650}.properties dd small{color:var(--soft);font-size:7px;font-weight:500;text-transform:uppercase}.related{margin-top:13px}.related h3{display:flex;align-items:center;gap:4px;margin:0 0 5px;color:var(--soft);font-size:8px;letter-spacing:.07em;text-transform:uppercase}.related h3 .svg-icon{width:10px;height:10px}.related>div{display:grid;gap:3px}.related button{display:grid;grid-template-columns:42px 1fr;border:0;border-radius:6px;background:var(--surface-soft);padding:6px 7px;text-align:left;cursor:pointer;font-size:9px}.related button:hover{background:var(--surface-hover)}.related button span{color:var(--soft);font-size:7px;text-transform:uppercase}.payload{margin-top:13px;display:grid;gap:5px}.payload details{border:1px solid var(--border);border-radius:7px;background:var(--surface-soft);overflow:hidden}.payload summary{padding:7px 8px;cursor:pointer;font-size:9px;font-weight:650}.payload summary>.svg-icon{width:11px;height:11px;margin-right:5px}.payload summary span{float:right;color:var(--soft);font-weight:400}.payload pre{max-height:260px;overflow:auto;margin:0;padding:9px;border-top:1px solid var(--border);background:var(--surface);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:9px;line-height:1.55}
+@media(max-width:1180px){.workspace{grid-template-columns:190px minmax(500px,1fr) 300px}.trace-meta span:nth-child(4),.trace-meta span:nth-child(5){display:none}.axis,.span-row{grid-template-columns:255px minmax(200px,1fr) 60px 60px 20px}}
+@media(max-width:850px){body{overflow:auto}.app{height:auto;min-height:100%}.workspace{display:block;height:auto}.rail{display:none}.main{min-height:620px}.inspector{border-top:1px solid var(--border)}.trace-meta{display:none}.axis,.span-row{grid-template-columns:230px minmax(180px,1fr) 58px 20px}.span-cost,.axis .cost-axis{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="workspace">
+    <aside class="rail">
+      <div class="rail-status">${icon(failed.length ? "error" : "check")}<strong>${failed.length ? `${failed.length} error${failed.length === 1 ? "" : "s"}` : "No errors"}</strong><span>${formatDuration(duration)}</span></div>
+      <div class="focus">
+        <button class="active" type="button" data-focus="all">All <span>${events.length}</span></button>
+        <button type="button" data-focus="errors">Errors <span>${failed.length}</span></button>
+        <button type="button" data-focus="models">Models <span>${counts.chats}</span></button>
+        <button type="button" data-focus="tools">Tools <span>${counts.tools}</span></button>
+      </div>
+      <div class="micro-label">Signals</div>
+      <div class="findings">${findings || `<div class="empty-findings">No errors or unusual spans detected.</div>`}</div>
+    </aside>
+    <main class="main">
+      <div class="commandbar">
+        <div class="trace-meta">
+          <span><strong>${events.length}</strong> spans</span>
+          <span><strong class="${failed.length ? "error" : ""}">${failed.length}</strong> errors</span>
+          <span><strong>${counts.peak}</strong> parallel</span>
+          <span><strong>${counts.inputTokens.toLocaleString()} / ${counts.outputTokens.toLocaleString()}</strong> tokens</span>
+          <span><strong class="cost">${formatCost(counts.totalCost)}</strong> ${costLabel.toLowerCase()} cost</span>
+        </div>
+        <div class="search-wrap">
+          ${icon("search")}
+          <input id="span-search" class="search" type="search" placeholder="Find agent, model, tool, or status" aria-label="Search spans">
+        </div>
+        <div class="mode" role="group" aria-label="Trace visualization">
+          <button class="active" type="button" data-mode="waterfall">${icon("waterfall")}Waterfall</button>
+          <button type="button" data-mode="map">${icon("map")}Map</button>
+        </div>
+        <button class="icon-button export-control" id="download-svg" type="button" title="Download SVG" aria-label="Download SVG" hidden>${icon("download")}SVG</button>
+        <button class="icon-button export-control" id="download-png" type="button" title="Download PNG" aria-label="Download PNG" hidden>${icon("download")}PNG</button>
+      </div>
+      <div class="canvas">
+        <section class="trace-view" id="waterfall-view">
+          <div class="axis"><span class="axis-label">Operation</span><div class="ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><span class="axis-label">Duration</span><span class="axis-label cost-axis">Cost</span><span></span></div>
+          <div class="span-list">${rows}</div>
+        </section>
+        <section class="map-view" id="map-view" hidden><div class="graph-wrap">${graph}</div></section>
+      </div>
+    </main>
+    <aside class="inspector">${detailPanels}</aside>
+  </div>
+</div>
+<script>
+(() => {
+  const rows = [...document.querySelectorAll(".span-row")];
+  const inspectors = [...document.querySelectorAll(".inspector-panel")];
+  const graphNodes = [...document.querySelectorAll(".graph-node[data-event-id]")];
+  const focusButtons = [...document.querySelectorAll("[data-focus]")];
+  let focus = "all";
+  let selectedId = ${JSON.stringify(selectedEvent.id)};
+
+  const relatedIds = (id) => {
+    const row = rows.find((candidate) => candidate.dataset.id === id);
+    if (!row) return new Set();
+    return new Set(rows.filter((candidate) => candidate.dataset.parent === id || candidate.dataset.id === row.dataset.parent).map((candidate) => candidate.dataset.id));
+  };
+  const applyFilters = () => {
+    const query = document.querySelector("#span-search").value.trim().toLowerCase();
+    rows.forEach((row) => {
+      const focusMatch = focus === "all"
+        || (focus === "errors" && row.dataset.failed === "true")
+        || (focus === "models" && row.dataset.kind === "chat")
+        || (focus === "tools" && row.dataset.kind === "execute_tool");
+      row.classList.toggle("filtered", !focusMatch || (query && !row.dataset.filter.includes(query)));
+    });
+  };
+  const selectSpan = (id, scroll = false) => {
+    const selected = rows.find((row) => row.dataset.id === id);
+    if (!selected) return;
+    selectedId = id;
+    const related = relatedIds(id);
+    rows.forEach((row) => {
+      row.classList.toggle("active", row.dataset.id === id);
+      row.classList.toggle("related", related.has(row.dataset.id));
+      row.classList.toggle("branch-context", Boolean(selected.dataset.owner && row.dataset.owner === selected.dataset.owner));
+      row.classList.toggle("dimmed", row.dataset.id !== id && !related.has(row.dataset.id) && selected.dataset.owner && row.dataset.owner !== selected.dataset.owner);
+    });
+    inspectors.forEach((panel) => panel.hidden = panel.dataset.inspector !== id);
+    graphNodes.forEach((node) => node.classList.toggle("active", node.dataset.eventId === id));
+    if (scroll) selected.scrollIntoView({block:"center",behavior:"smooth"});
+    history.replaceState(null, "", "#span=" + encodeURIComponent(id));
+  };
+  rows.forEach((row) => {
+    row.addEventListener("click", () => selectSpan(row.dataset.id));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectSpan(row.dataset.id); }
+    });
+  });
+  document.querySelectorAll("[data-select]").forEach((button) => button.addEventListener("click", () => selectSpan(button.dataset.select, true)));
+  graphNodes.forEach((node) => {
+    node.addEventListener("click", () => selectSpan(node.dataset.eventId));
+    node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectSpan(node.dataset.eventId); }
+    });
+  });
+  focusButtons.forEach((button) => button.addEventListener("click", () => {
+    focus = button.dataset.focus;
+    focusButtons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+    applyFilters();
+  }));
+  document.querySelector("#span-search").addEventListener("input", applyFilters);
+
+  const descendants = (id) => {
+    const direct = rows.filter((row) => row.dataset.parent === id);
+    return direct.flatMap((row) => [row, ...descendants(row.dataset.id)]);
+  };
+  document.querySelectorAll("[data-collapse]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const closed = button.classList.toggle("closed");
+    descendants(button.dataset.collapse).forEach((row) => row.classList.toggle("collapsed", closed));
+  }));
+
+  document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
+    const map = button.dataset.mode === "map";
+    document.querySelectorAll("[data-mode]").forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+    document.querySelector("#waterfall-view").hidden = map;
+    document.querySelector("#map-view").hidden = !map;
+    document.querySelectorAll(".export-control").forEach((control) => control.hidden = !map);
+  }));
+
+  const serializeGraph = () => {
+    const svg = document.querySelector("#dependency-graph").cloneNode(true);
+    const styles = getComputedStyle(document.documentElement);
+    const dark = document.documentElement.dataset.theme === "dark";
+    svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    svg.insertAdjacentHTML("afterbegin", "<style>.graph-edges path{fill:none;stroke:" + styles.getPropertyValue("--border-strong") + ";stroke-width:1.2}.graph-node rect{fill:" + styles.getPropertyValue("--surface") + ";stroke:" + styles.getPropertyValue("--border-strong") + "}.graph-node circle{fill:" + styles.getPropertyValue("--violet") + "}.graph-node.execute_tool circle{fill:" + styles.getPropertyValue("--green") + "}.graph-node.chat circle{fill:" + styles.getPropertyValue("--blue") + "}.graph-node.failed rect{stroke:" + styles.getPropertyValue("--red") + "}.graph-node.failed circle{fill:" + styles.getPropertyValue("--red") + "}.graph-node text{fill:" + styles.getPropertyValue("--text") + ";font:650 10px sans-serif}.graph-node .graph-meta{fill:" + styles.getPropertyValue("--muted") + ";font-size:8px;font-weight:500}</style><rect width='100%' height='100%' fill='" + (dark ? "#0b0f17" : "#ffffff") + "'/>");
+    return new XMLSerializer().serializeToString(svg);
+  };
+  const download = (blob, name) => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.download = name; link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  };
+  document.querySelector("#download-svg").addEventListener("click", () => download(new Blob([serializeGraph()], {type:"image/svg+xml"}), "copilot-trace-dependency-map.svg"));
+  document.querySelector("#download-png").addEventListener("click", () => {
+    const box = document.querySelector("#dependency-graph").viewBox.baseVal;
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(2, 4096 / Math.max(box.width, box.height));
+      const canvas = document.createElement("canvas"); canvas.width = box.width * scale; canvas.height = box.height * scale;
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => blob && download(blob, "copilot-trace-dependency-map.png"), "image/png");
+      URL.revokeObjectURL(image.src);
+    };
+    image.src = URL.createObjectURL(new Blob([serializeGraph()], {type:"image/svg+xml"}));
+  });
+
+  const requested = decodeURIComponent((location.hash.match(/^#span=(.+)$/) || [])[1] || "");
+  selectSpan(rows.some((row) => row.dataset.id === requested) ? requested : selectedId);
+  if (new URLSearchParams(location.search).get("view") === "map") {
+    const mapButton = document.querySelector('[data-mode="map"]');
+    mapButton.click();
+  }
+})();
+</script>
+</body>
+</html>`;
+}

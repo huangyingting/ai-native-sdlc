@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { loadSpans, renderTrace, renderGraph, renderHtml, summarizeTrace } from "./render-trace.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
@@ -33,7 +36,8 @@ test("reports no invented subagents and isolates parent identifiers by trace", (
   ].join("\n")));
   assert.match(result, /Subagents: 0 \| Peak concurrent subagents: 0/);
   assert.match(result, /No subagents observed/);
-  assert.match(result, /execute_tool view/);
+  assert.match(result, /execute_tool view .* status=ok/);
+  assert.doesNotMatch(result, /status=unknown/);
 });
 
 test("accepts the CLI's direct JSONL span records with hrtime and attribute objects", () => {
@@ -54,9 +58,12 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
       "gen_ai.input.messages": JSON.stringify([{ role: "system", content: "internal instructions" },
         { role: "user", content: "Fetch public S3 docs using ghs_12345678901234567890" }]),
       "gen_ai.output.messages": JSON.stringify([{ role: "assistant", content: "S3 versioning <verified>" }]),
+      "gen_ai.usage.input_tokens": 120,
+      "gen_ai.usage.output_tokens": 30,
+      "gen_ai.usage.cost": 0.003,
     }),
     direct("azure-chat", "azure", "chat gpt-6-luna", 410000000, 460000000),
-    direct("root-chat", "root", "chat gpt-6-luna", 750000000, 800000000),
+    direct("root-chat", "root", "chat gpt-6-luna", 750000000, 800000000, { "gen_ai.usage.cost": 0.02 }),
     direct("azure", "root", "invoke_agent Azure", 200000000, 700000000),
     direct("aws", "root", "invoke_agent AWS", 100000000, 600000000),
     direct("root", "", "invoke_agent parent", 0, 900000000, { "gen_ai.input.messages": "private prompt must never be rendered" }),
@@ -67,32 +74,93 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
+  assert.doesNotMatch(result.summary, /status=unknown/);
   assert.match(renderTrace(loadSpans(line(span("x", "", "execute_tool microsoft-learn-microsoft_docs_search", 1, 2)))),
     /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
   assert.match(result.summary, /Required: gpt-6-luna \(PASS\)/);
   const graph = renderGraph(result.events);
-  assert.match(graph, /aria-label="Observed agent to model and tool invocation graph"/);
+  assert.match(graph, /aria-label="Agent, model, and tool dependency map"/);
   assert.match(graph, /microsoft-learn\/microsoft_docs_search/);
   assert.ok((graph.match(/<path /g) ?? []).length >= 4);
   const html = renderHtml(result);
   assert.match(html, /scoutTheme/);
-  assert.match(html, /--cp-bg: #f7f4ef/);
-  assert.match(html, /role="tablist"/);
-  assert.match(html, /data-tab="overview"/);
-  assert.match(html, /data-tab="graph"/);
-  assert.match(html, /data-tab="timeline"/);
-  assert.match(html, /data-tab="messages"/);
-  assert.match(html, /Request and response inspector/);
-  assert.match(html, /id="timeline-filter"/);
-  assert.match(html, /activateMessage/);
+  assert.match(html, /Agent Trace/);
+  assert.match(html, /data-mode="waterfall"/);
+  assert.match(html, /data-mode="map"/);
+  assert.match(html, /id="span-search"/);
+  assert.match(html, /class="inspector-panel"/);
+  assert.match(html, /class="svg-icon/);
+  assert.match(html, /aria-label="Download PNG"/);
+  assert.match(html, /Signals/);
+  assert.match(html, /reported cost/i);
+  assert.match(html, /\$0\.0230/);
+  assert.match(html, /id="download-png"/);
   assert.match(html, /microsoft-learn\/microsoft_docs_search/);
   assert.match(html, /S3 versioning &lt;verified&gt;/);
   assert.match(html, /\[REDACTED TOKEN\]/);
   assert.doesNotMatch(html, /ghs_12345678901234567890|internal instructions/);
   assert.doesNotMatch(html, /private prompt must never be rendered/);
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-5" }).modelMatches, false);
+  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-5" }).modelMatches, false);
   assert.doesNotMatch(renderHtml(summarizeTrace(spans)), /S3 versioning &lt;verified&gt;/);
+});
+
+test("validates parent and subagent model selections as an observed set", () => {
+  const spans = loadSpans(line(
+    span("parent", "", "chat github-copilot/gpt-6-luna-2026-09-01", 1, 2),
+    span("child", "", "chat claude-sonnet-4.6", 3, 4),
+  ));
+  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
+  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
+});
+
+test("hydrates file-backed tool output before redaction and rendering", () => {
+  const directory = mkdtempSync(join(tmpdir(), "trace-viewer-test-"));
+  const outputPath = join(directory, "123-copilot-tool-output-result.txt");
+  const fullOutput = `{"results":[{"title":"Complete result","content":"${"useful ".repeat(400)}END-OF-FILE"}]}`;
+  writeFileSync(outputPath, fullOutput);
+  try {
+    const trace = line(span("tool", "", "execute_tool microsoft_docs_search", 1, 2, [
+      attr("gen_ai.tool.call.result", `Output too large to read at once (4 KB). Saved to: ${outputPath}\n\nPreview (first 500 chars): partial only`),
+    ]));
+    const model = summarizeTrace(loadSpans(trace), { includeMessages: true });
+    assert.equal(model.events[0].response, fullOutput);
+    const html = renderHtml(model);
+    assert.match(html, /END-OF-FILE/);
+    assert.doesNotMatch(html, /\[truncated\]|Saved to:|trace-viewer-test-/);
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test("estimates mixed-model cost from the model pricing catalog", () => {
+  const gpt = span("gpt", "", "chat github-copilot/gpt-6-luna-2026-09-01", 1, 2, [
+    attr("gen_ai.usage.input_tokens", "1000000"),
+    attr("gen_ai.usage.output_tokens", "2000000"),
+  ]);
+  const claude = span("claude", "", "chat anthropic/claude-sonnet-4.6", 3, 4, [
+    attr("gen_ai.usage.input_tokens", "1000000"),
+    attr("gen_ai.usage.output_tokens", "2000000"),
+  ]);
+  const unknownSpan = span("unknown", "", "chat private-model", 5, 6, [
+    attr("gen_ai.usage.input_tokens", "1000000"),
+    attr("gen_ai.usage.output_tokens", "2000000"),
+  ]);
+  const model = summarizeTrace(loadSpans(line(gpt, claude, unknownSpan)));
+  assert.equal(model.events[0].cost, 1.7);
+  assert.equal(model.events[0].pricedModel, "gpt-6-luna");
+  assert.equal(model.events[1].cost, 33);
+  assert.equal(model.events[1].pricedModel, "claude-sonnet-4.6");
+  assert.equal(model.events[2].cost, null);
+  assert.equal(model.counts.totalCost, 34.7);
+  assert.equal(model.counts.costedCalls, 2);
+  assert.equal(model.counts.costMode, "estimated");
+  assert.match(renderHtml(model), /estimated cost/i);
+  assert.match(renderHtml(model), /\$34\.7000/);
+  const unknown = summarizeTrace(loadSpans(line(span("unknown", "", "chat private-model", 1, 2))));
+  assert.equal(unknown.events[0].cost, null);
+  assert.equal(unknown.counts.totalCost, null);
 });
 
 test("fails clearly on missing or malformed traces", () => {

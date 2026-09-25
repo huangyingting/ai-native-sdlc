@@ -7,15 +7,21 @@ inputs:
   html-path:
     description: Destination path for the self-contained HTML viewer.
     required: true
+  data-path:
+    description: Optional destination for a machine-readable trace summary.
+    default: ""
   include-messages:
-    description: Include bounded, redacted request/response excerpts.
+    description: Include redacted request/response payloads with safe hydration of runner-temp tool output.
     default: "false"
   require-model:
-    description: Require every observed model call to use this model.
+    description: Comma-separated models that must be observed; every model call must use one of them.
     default: ""
   require-demo-evidence:
     description: Fail when expected parallelism, tools, model, or requested messages are absent.
     default: "false"
+  pricing-path:
+    description: Optional path to a model-keyed pricing JSON file; defaults to the bundled GitHub Copilot catalog.
+    default: ""
 runs:
   using: composite
   steps:
@@ -23,7 +29,9 @@ runs:
       shell: bash
       env:
         TRACE_HTML_PATH: ${{ inputs.html-path }}
+        TRACE_DATA_PATH: ${{ inputs.data-path }}
         TRACE_INCLUDE_MESSAGES: ${{ inputs.include-messages }}
         REQUIRE_MODEL: ${{ inputs.require-model }}
         REQUIRE_DEMO_EVIDENCE: ${{ inputs.require-demo-evidence }}
+        PRICING_PATH: ${{ inputs.pricing-path }}
       run: node "$GITHUB_ACTION_PATH/render-trace.mjs" "${{ inputs.trace-path }}"

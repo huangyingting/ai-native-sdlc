@@ -1,0 +1,80 @@
+name: Agent Trace run
+description: Run a traced Copilot comparison and post the result back to this issue.
+title: "[Agent Trace] "
+labels:
+  - agent-trace
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form starts the Agent Trace workflow for repository owners, members, and collaborators. The final comparison, trace diagnostics, dependency-map image, and HTML artifact link are posted as an issue comment.
+
+  - type: dropdown
+    id: orchestrator_model
+    attributes:
+      label: Orchestrator model
+      description: Delegates work to the subagents and synthesizes the final comparison.
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: subagent_model
+    attributes:
+      label: Subagent model
+      description: Used by both the AWS and Azure research agents.
+      options:
+        - gpt-6-luna
+        - gpt-6-sol
+        - gpt-6-astra
+        - gpt-5.6-luna
+        - gpt-5.6-terra
+        - gpt-5.6-sol
+        - gpt-5.5
+        - gpt-5.4
+        - gpt-5.4-mini
+        - gpt-5.3-codex
+        - gpt-5-mini
+        - claude-sonnet-5
+        - claude-sonnet-4.6
+        - gemini-3.8-flash
+        - grok-4.7
+        - mai-code-1.1-flash
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: task_prompt
+    attributes:
+      label: Comparison task
+      description: Describe what the orchestrator and its two research agents should compare.
+      value: |
+        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. The AWS agent must use official AWS documentation; the Azure agent must use Microsoft Learn. Cite sources and clearly identify non-equivalent features.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: capture_messages
+    attributes:
+      label: Trace content
+      description: Message payloads may contain sensitive data and will be posted in a downloadable public artifact.
+      options:
+        - label: Include redacted request and response payloads in the HTML trace artifact

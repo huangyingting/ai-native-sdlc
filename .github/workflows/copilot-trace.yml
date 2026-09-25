@@ -1,8 +1,52 @@
-name: Copilot CLI call-chain demo
+name: Agent Trace
 
 on:
+  issues:
+    types: [opened, reopened]
   workflow_dispatch:
     inputs:
+      orchestrator_model:
+        description: "Model that delegates to subagents and synthesizes the final result"
+        type: choice
+        default: gpt-6-luna
+        options:
+          - gpt-6-luna
+          - gpt-6-sol
+          - gpt-6-astra
+          - gpt-5.6-luna
+          - gpt-5.6-terra
+          - gpt-5.6-sol
+          - gpt-5.5
+          - gpt-5.4
+          - gpt-5.4-mini
+          - gpt-5.3-codex
+          - gpt-5-mini
+          - claude-sonnet-5
+          - claude-sonnet-4.6
+          - gemini-3.8-flash
+          - grok-4.7
+          - mai-code-1.1-flash
+      subagent_model:
+        description: "Model shared by the AWS and Azure custom agents"
+        type: choice
+        default: gpt-6-luna
+        options:
+          - gpt-6-luna
+          - gpt-6-sol
+          - gpt-6-astra
+          - gpt-5.6-luna
+          - gpt-5.6-terra
+          - gpt-5.6-sol
+          - gpt-5.5
+          - gpt-5.4
+          - gpt-5.4-mini
+          - gpt-5.3-codex
+          - gpt-5-mini
+          - claude-sonnet-5
+          - claude-sonnet-4.6
+          - gemini-3.8-flash
+          - grok-4.7
+          - mai-code-1.1-flash
       include_messages:
         description: "Include limited request/response excerpts in the public HTML artifact"
         type: boolean
@@ -11,9 +55,20 @@ on:
 permissions:
   contents: read
   copilot-requests: write
+  issues: write
+
+concurrency:
+  group: agent-trace-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   trace:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        contains(github.event.issue.labels.*.name, 'agent-trace') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -27,30 +82,115 @@ jobs:
           node-version: "22"
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
+      - name: Prepare trace request
+        id: request
+        env:
+          INPUT_ORCHESTRATOR_MODEL: ${{ inputs.orchestrator_model }}
+          INPUT_SUBAGENT_MODEL: ${{ inputs.subagent_model }}
+          INPUT_INCLUDE_MESSAGES: ${{ inputs.include_messages }}
+          TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
+        run: node .github/scripts/prepare-trace-request.mjs
+      - name: Configure subagent model
+        env:
+          SUBAGENT_MODEL: ${{ steps.request.outputs.subagent_model }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          for (const path of [".github/agents/aws-storage.agent.md", ".github/agents/azure-storage.agent.md"]) {
+            const profile = readFileSync(path, "utf8");
+            if (!/^model:\s*.+$/m.test(profile)) throw new Error(`Missing model field in ${path}`);
+            writeFileSync(path, profile.replace(/^model:\s*.+$/m, `model: ${process.env.SUBAGENT_MODEL}`));
+          }
+          NODE
       - name: Run parallel read-only analysis
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model }}
+          TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
-          OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ inputs.include_messages && 'true' || 'false' }}
+          OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ steps.request.outputs.include_messages }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
-          copilot --model gpt-6-luna -p "Use fleet to invoke the repository's aws-storage and azure-storage custom agents concurrently. Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. The AWS agent must web_fetch official AWS docs; the Azure agent must call Microsoft Learn MCP microsoft_docs_search. Have each cite sources; synthesize a concise comparison noting non-equivalences. Do not edit files or run shell commands." \
+          mkdir -p trace-report
+          REQUEST="$(cat "$TRACE_PROMPT_PATH")"
+          copilot --model "$ORCHESTRATOR_MODEL" -p "Use fleet to invoke the repository's aws-storage and azure-storage custom agents concurrently. The AWS agent must use web_fetch for official AWS documentation; the Azure agent must use Microsoft Learn MCP microsoft_docs_search. Have each cite sources, then synthesize a concise comparison that explicitly notes non-equivalent features. Do not edit files or run shell commands.
+
+          Comparison request:
+          $REQUEST" \
             --fleet --allow-tool='read,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
             --allow-url='https://docs.aws.amazon.com' \
-            --deny-tool=write --deny-tool=shell
+            --deny-tool=write --deny-tool=shell | tee trace-report/comparison-result.md
       - name: Render call chain
         if: always()
         uses: ./trace-viewer
         with:
           trace-path: ${{ runner.temp }}/copilot-otel.jsonl
-          html-path: ${{ runner.temp }}/copilot-trace.html
-          include-messages: ${{ inputs.include_messages }}
-          require-model: gpt-6-luna
+          html-path: ${{ github.workspace }}/trace-report/copilot-trace-report.html
+          data-path: ${{ github.workspace }}/trace-report/trace-summary.json
+          include-messages: ${{ steps.request.outputs.include_messages }}
+          require-model: ${{ steps.request.outputs.orchestrator_model }},${{ steps.request.outputs.subagent_model }}
           require-demo-evidence: "true"
+      - name: Capture dependency map
+        if: always()
+        run: |
+          if [ ! -f trace-report/copilot-trace-report.html ]; then
+            echo "HTML trace report is unavailable; skipping dependency-map capture." >&2
+            exit 1
+          fi
+          google-chrome --headless --no-sandbox --disable-gpu --hide-scrollbars \
+            --window-size=1600,1000 \
+            --screenshot="$GITHUB_WORKSPACE/trace-report/dependency-map.png" \
+            "file://$GITHUB_WORKSPACE/trace-report/copilot-trace-report.html?view=map"
       - name: Attach HTML trace viewer
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: copilot-trace-viewer
-          path: ${{ runner.temp }}/copilot-trace.html
+          path: trace-report/
           if-no-files-found: warn
+          retention-days: 14
+      - name: Upload dependency map for issue comment
+        id: media
+        if: always() && github.event_name == 'issues'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FILE='trace-report/dependency-map.png'
+          NAME="$(basename -- "$FILE")"
+          MIME='image/png'
+          REPO='${{ github.repository }}'
+          if [ ! -f "$FILE" ]; then
+            echo "Dependency-map image is unavailable." >&2
+            exit 1
+          fi
+          REPO_ID="$(gh api "repos/$REPO" --jq .id)" || { echo "Repository lookup failed." >&2; exit 1; }
+          case "$REPO_ID" in ''|*[!0-9]*) echo "No repository_id for $REPO." >&2; exit 1;; esac
+          URL="$(curl --fail-with-body -sS -X POST \
+            'https://uploads.github.com/user-attachments/assets' \
+            --url-query "name=$NAME" \
+            --url-query "content_type=$MIME" \
+            --url-query "repository_id=$REPO_ID" \
+            -H 'Content-Type: application/octet-stream' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            --data-binary "@$FILE" | jq -r .url)"
+          case "$URL" in https://*) ;; *) echo "Media upload failed: $URL" >&2; exit 1;; esac
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+      - name: Post result to issue
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model || 'unavailable' }}
+          SUBAGENT_MODEL: ${{ steps.request.outputs.subagent_model || 'unavailable' }}
+          TRACE_RESULT_PATH: ${{ github.workspace }}/trace-report/comparison-result.md
+          TRACE_DATA_PATH: ${{ github.workspace }}/trace-report/trace-summary.json
+          COMMENT_PATH: ${{ runner.temp }}/agent-trace-comment.md
+          MEDIA_URL: ${{ steps.media.outputs.url }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node .github/scripts/build-trace-comment.mjs
+          gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body-file "$COMMENT_PATH"

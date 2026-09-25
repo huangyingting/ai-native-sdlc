@@ -235,4 +235,13 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           node .github/scripts/build-demo-comment.mjs
-          gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body-file "$COMMENT_PATH"
+          COMMENT_ID="$(
+            gh api --paginate "repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
+              --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- copilot-agent-demo-result -->")))][-1].id // empty'
+          )"
+          if [ -n "$COMMENT_ID" ]; then
+            jq -n --rawfile body "$COMMENT_PATH" '{body: $body}' \
+              | gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" --input -
+          else
+            gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body-file "$COMMENT_PATH"
+          fi

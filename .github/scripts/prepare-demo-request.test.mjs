@@ -271,3 +271,10 @@ test("captures only the dependency canvas for issue images", () => {
   const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
   assert.match(workflow, /tab=dependencies&capture=graph/);
 });
+
+test("updates the existing demo result comment instead of duplicating it", () => {
+  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  assert.match(workflow, /copilot-agent-demo-result/);
+  assert.match(workflow, /issues\/comments\/\$COMMENT_ID/);
+  assert.match(workflow, /--method PATCH/);
+});

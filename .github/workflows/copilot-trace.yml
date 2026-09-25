@@ -10,8 +10,10 @@ on:
         type: choice
         default: Concurrent research
         options:
+          - Single agent baseline
           - Concurrent research
           - Review panel
+          - Rubber duck critique
           - Lead + specialists
       orchestrator_model:
         description: "Model that delegates to subagents and synthesizes the final result"
@@ -141,7 +143,7 @@ jobs:
           REQUEST="$(cat "$TRACE_PROMPT_PATH")"
           INSTRUCTION="$(cat "$TRACE_INSTRUCTION_PATH")"
           EXTRA_ARGS=()
-          if [ "$TRACE_SCENARIO" != "collaboration" ]; then
+          if [ "$TRACE_SCENARIO" = "concurrent" ] || [ "$TRACE_SCENARIO" = "review" ]; then
             EXTRA_ARGS+=(--fleet)
           fi
           copilot --model "$ORCHESTRATOR_MODEL" -p "$INSTRUCTION

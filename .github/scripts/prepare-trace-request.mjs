@@ -22,6 +22,11 @@ export const supportedModels = [
 ];
 
 export const supportedScenarios = {
+  "Single agent baseline": {
+    id: "single",
+    prompt: "Analyze the Agent Trace workflow and viewer, identify the highest-impact improvement, and support the recommendation with repository evidence.",
+    instruction: "Handle the task directly without invoking any subagents. Produce a concise evidence-backed answer. This run is the single-agent baseline for comparing latency, token use, and cost with orchestrated scenarios.",
+  },
   "Concurrent research": {
     id: "concurrent",
     prompt: "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.",
@@ -30,7 +35,12 @@ export const supportedScenarios = {
   "Review panel": {
     id: "review",
     prompt: "Review this repository's Agent Trace implementation for architecture, reliability, maintainability, and user-facing failure modes. Report only concrete, actionable findings with file references.",
-    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. After both return, consult the built-in rubber duck critic on the combined findings if it is available. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
+    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
+  },
+  "Rubber duck critique": {
+    id: "rubber-duck",
+    prompt: "Assess the Agent Trace workflow and viewer design, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
+    instruction: "First analyze the request and write a concise initial position. Then explicitly consult the built-in rubber duck agent as an independent critic. Give it the original request and your initial position, ask it to identify hidden assumptions and counterexamples, and wait for its response. Finish with a revised conclusion that clearly states what changed after the critique.",
   },
   "Lead + specialists": {
     id: "collaboration",

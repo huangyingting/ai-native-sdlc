@@ -16,4 +16,10 @@ test("requires sequential collaboration markers in order", () => {
 
 test("does not impose output markers on concurrent research", () => {
   assert.equal(validateScenarioResult("concurrent", "comparison complete"), true);
+  assert.equal(validateScenarioResult("single", "baseline complete"), true);
+});
+
+test("requires the built-in rubber duck in its dedicated scenario", () => {
+  assert.equal(validateScenarioResult("rubber-duck", "● Rubber-duck agent — challenge assumptions"), true);
+  assert.throws(() => validateScenarioResult("rubber-duck", "No critic was used"), /required agent/);
 });

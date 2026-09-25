@@ -15,10 +15,12 @@ body:
       label: Orchestration scenario
       description: Select the collaboration pattern to demonstrate in the trace.
       options:
+        - Single agent baseline
         - Concurrent research
         - Review panel
+        - Rubber duck critique
         - Lead + specialists
-      default: 0
+      default: 1
     validations:
       required: true
 

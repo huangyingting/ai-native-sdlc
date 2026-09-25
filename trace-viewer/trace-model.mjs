@@ -396,13 +396,21 @@ export function buildTraceModel(spans, {
   const concurrentComplete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
   const reviewComplete = peak >= 2 && subagents.length >= 2;
   const collaborationComplete = subagents.length >= 2 && peak === 1;
+  const rubberDuckComplete = subagents.length >= 1;
+  const singleComplete = subagents.length === 0 && chats.length >= 1;
   const complete = scenario === "review" ? reviewComplete
     : scenario === "collaboration" ? collaborationComplete
+      : scenario === "rubber-duck" ? rubberDuckComplete
+        : scenario === "single" ? singleComplete
       : concurrentComplete;
   const evidence = scenario === "review"
     ? `review branches: ${subagents.length} | overlapping reviewers: ${peak >= 2 ? "yes" : "no"}`
     : scenario === "collaboration"
       ? `specialist branches: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
+      : scenario === "rubber-duck"
+        ? `critic branches: ${subagents.length} | rubber duck result validated separately`
+        : scenario === "single"
+          ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
       : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
   const contentKeys = includeMessages && !messageCount

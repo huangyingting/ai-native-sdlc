@@ -17,7 +17,7 @@ inputs:
     description: Comma-separated models that must be observed; every model call must use one of them.
     default: ""
   require-demo-evidence:
-    description: Scenario ID whose expected agent pattern must be observed (concurrent, review, or collaboration); false disables validation.
+    description: Scenario ID whose expected agent pattern must be observed (single, concurrent, review, rubber-duck, or collaboration); false disables validation.
     default: "false"
   pricing-path:
     description: Optional path to a model-keyed pricing JSON file; defaults to the bundled GitHub Copilot catalog.

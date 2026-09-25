@@ -4,14 +4,16 @@ import { fileURLToPath } from "node:url";
 export function validateScenarioResult(scenario, output) {
   const text = String(output ?? "");
   const required = scenario === "review"
-    ? ["Code-review (model:", "Architecture-review (model:"]
+    ? [/Code-review \(model:/i, /Architecture-review \(model:/i]
     : scenario === "collaboration"
-      ? ["Solution-architect (model:", "Critical-reviewer (model:"]
-      : [];
-  for (const marker of required) {
-    if (!text.includes(marker)) throw new Error(`Scenario ${scenario} did not invoke ${marker.split(" (")[0]}`);
+      ? [/Solution-architect \(model:/i, /Critical-reviewer \(model:/i]
+      : scenario === "rubber-duck"
+        ? [/Rubber[- ]duck(?: agent)?/i]
+        : [];
+  for (const pattern of required) {
+    if (!pattern.test(text)) throw new Error(`Scenario ${scenario} did not invoke the required agent matching ${pattern}`);
   }
-  if (scenario === "collaboration" && text.indexOf(required[0]) >= text.indexOf(required[1])) {
+  if (scenario === "collaboration" && text.search(required[0]) >= text.search(required[1])) {
     throw new Error("Collaboration scenario did not complete the solution architect before the critical reviewer");
   }
   return true;

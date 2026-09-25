@@ -152,6 +152,16 @@ test("validates review and sequential collaboration scenario evidence", () => {
   assert.equal(result.complete, true);
   assert.match(result.summary, /sequential execution: yes/);
   assert.equal(summarizeTrace(collaboration, { scenario: "review" }).complete, false);
+  assert.equal(summarizeTrace(collaboration, { scenario: "rubber-duck" }).complete, true);
+});
+
+test("validates a single-agent baseline without delegated agents", () => {
+  const baseline = loadSpans(line(
+    span("root", "", "invoke_agent", 0, 100),
+    span("chat", "root", "chat gpt-6-luna", 10, 90),
+  ));
+  assert.equal(summarizeTrace(baseline, { scenario: "single" }).complete, true);
+  assert.equal(summarizeTrace(baseline, { scenario: "rubber-duck" }).complete, false);
 });
 
 test("hydrates file-backed tool output before redaction and rendering", () => {

@@ -25,7 +25,7 @@ Compare two services safely.
   assert.deepEqual(request, {
     scenario: "review",
     scenarioLabel: "Review panel",
-    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. After both return, consult the built-in rubber duck critic on the combined findings if it is available. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
+    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",
@@ -75,4 +75,34 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`), /Unsupported scenario/);
+});
+
+test("prepares single-agent and rubber-duck scenarios", () => {
+  const single = parseIssueRequest(`### Orchestration scenario
+
+Single agent baseline
+
+### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna`);
+  assert.equal(single.scenario, "single");
+  assert.match(single.instruction, /without invoking any subagents/);
+
+  const rubberDuck = parseIssueRequest(`### Orchestration scenario
+
+Rubber duck critique
+
+### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna`);
+  assert.equal(rubberDuck.scenario, "rubber-duck");
+  assert.match(rubberDuck.instruction, /built-in rubber duck agent/);
 });

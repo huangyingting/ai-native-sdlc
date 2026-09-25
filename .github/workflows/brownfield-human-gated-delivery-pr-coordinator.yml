@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths: [".github/brownfield-human-gated-delivery/config.json"]
   pull_request_target:
-    types: [opened, reopened, edited, synchronize, ready_for_review, converted_to_draft]
+    types: [opened, reopened, closed, edited, synchronize, ready_for_review, converted_to_draft]
   workflow_run:
     workflows: ["Brownfield Delivery · Review Signal", "Brownfield Delivery · Stage CI"]
     types: [completed]

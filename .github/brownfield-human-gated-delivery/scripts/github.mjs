@@ -9,6 +9,7 @@ import {
   parsePullRequestMetadata,
   renderPrompt,
   stages,
+  validateStageFiles,
 } from "./core.mjs";
 
 const apiVersion = "2026-03-10";
@@ -616,56 +617,181 @@ export async function classify() {
   appendOutput("stage-issue", metadata.stageIssueNumber);
 }
 
+async function evaluateReview(token, mergeToken, owner, repo, pullRequest) {
+  const config = loadConfig();
+  const context = await validateStageContext(token, owner, repo, pullRequest);
+  const files = await listAll(token, `/repos/${owner}/${repo}/pulls/${pullRequest.number}/files`);
+  if (!Number.isInteger(pullRequest.changed_files) || files.length !== pullRequest.changed_files) {
+    throw new Error("Incomplete PR file list; cannot enforce trusted stage scope.");
+  }
+  const paths = files.flatMap((file) => {
+    if (!file || typeof file.filename !== "string" || !file.filename ||
+        !["added", "modified", "removed", "renamed", "copied", "changed", "unchanged"].includes(file.status) ||
+        (file.previous_filename !== undefined && (typeof file.previous_filename !== "string" || !file.previous_filename)) ||
+        (file.status === "renamed" && !file.previous_filename)) {
+      throw new Error("Malformed PR file or missing rename source.");
+    }
+    return file.previous_filename ? [file.previous_filename, file.filename] : [file.filename];
+  });
+  validateStageFiles(context.metadata.stage, paths, context.metadata.intentNumber, config.project.path);
+  const policy = config.stages[context.metadata.stage];
+  const reviews = await listAll(token, `/repos/${owner}/${repo}/pulls/${pullRequest.number}/reviews`);
+  const teamMembers = await resolveTeamMembers(mergeToken, owner, policy.reviewers.teams);
+  const approval = countHumanApprovals(reviews, policy, pullRequest.user.login, teamMembers, pullRequest.head.sha);
+  return {
+    context,
+    mergeMethod: config.mergeMethod.toUpperCase(),
+    satisfied: approval.satisfied && !pullRequest.draft,
+    status: pullRequest.draft ? "Draft PR requires review" : approval.changesRequested.length
+      ? `Changes requested by ${approval.changesRequested.join(", ")}`
+      : `${approval.approved.length}/${policy.minimumApprovals} human approvals`,
+  };
+}
+
+function policySnapshot(pullRequest) {
+  return JSON.stringify([
+    pullRequest.head?.sha, pullRequest.base?.ref, pullRequest.base?.sha,
+    pullRequest.body, pullRequest.draft, pullRequest.state,
+  ]);
+}
+
 export async function coordinate() {
   const event = readEvent();
   const token = process.env.GITHUB_TOKEN;
+  const mergeToken = process.env.COPILOT_ASSIGN_TOKEN;
   const { owner, repo } = repositoryCoordinates();
-  if (event.workflow_run && !["pull_request_review", "pull_request"].includes(event.workflow_run.event)) {
-    return;
-  }
-  // GitHub replaces pending runs in a concurrency group. Every surviving run
-  // must reconcile all open PRs, not just the event that happened to survive.
+  if (event.workflow_run && !["pull_request_review", "pull_request"].includes(event.workflow_run.event)) return;
+  // Pending runs can be replaced. Reconcile all open PRs, aggregating by SHA:
+  // commit statuses belong to a commit, not to an individual pull request.
   const candidates = await listAll(token, `/repos/${owner}/${repo}/pulls?state=open`);
+  const groups = new Map();
   const failures = [];
+  const changedHeads = new Set();
+  async function recordCurrent(decision, current) {
+    decision.current = current;
+    if (policySnapshot(current) !== policySnapshot(decision.pr)) {
+      changedHeads.add(decision.pr.head.sha);
+      changedHeads.add(current.head.sha);
+      await writePolicyStatus(token, owner, repo, current, "pending", "PR changed; waiting for current validation");
+    }
+  }
+  async function refresh(decision) {
+    await recordCurrent(decision, await getPullRequest(token, owner, repo, decision.pr.number));
+  }
   for (const candidate of candidates) {
-    let pullRequest = candidate;
+    const decision = { pr: candidate, current: candidate, satisfied: false };
+    let group;
     try {
-      pullRequest = await getPullRequest(token, owner, repo, candidate.number);
-      if (pullRequest.state !== "open") continue;
+      decision.pr = await getPullRequest(token, owner, repo, candidate.number);
+      decision.current = decision.pr;
+      if (decision.pr.state !== "open") continue;
+    } catch (error) {
+      decision.error = error;
+      failures.push(error);
+    }
+    try {
+      const sha = decision.pr.head.sha;
+      group = groups.get(sha);
+      if (!group) {
+        group = { pr: decision.pr, decisions: [] };
+        groups.set(sha, group);
+        await writePolicyStatus(token, owner, repo, group.pr, "pending", "Evaluating all pull requests sharing this head");
+      }
+      group.decisions.push(decision);
+      if (decision.error) continue;
       const ownEvent = event.pull_request?.number === candidate.number ? event : {};
-      const registration = await lifecycleRegistration(token, owner, repo, pullRequest, ownEvent);
+      const registration = await lifecycleRegistration(token, owner, repo, decision.pr, ownEvent);
       if (!registration.candidate) {
-        await writePolicyStatus(token, owner, repo, pullRequest, "success", "Not a lifecycle pull request");
+        decision.satisfied = true;
         continue;
       }
-      await writePolicyStatus(token, owner, repo, pullRequest, "pending", "Re-evaluating current lifecycle policy");
       if (!registration.registered) {
-        await githubRequest(token, `/repos/${owner}/${repo}/issues/${pullRequest.number}/comments`, {
+        await githubRequest(token, `/repos/${owner}/${repo}/issues/${candidate.number}/comments`, {
           method: "POST",
           body: JSON.stringify({ body: `${policyMarker}\nThis PR is registered for lifecycle policy validation; removing body markers does not opt out.` }),
         });
       }
       if (!registration.registered || ownEvent.pull_request ||
-          (stageFromBody(pullRequest.body) === "implementation" &&
-           pullRequest.base.ref === lifecycleBranch(intentFromBody(pullRequest.body)))) {
-        await intake(pullRequest);
+          (stageFromBody(decision.pr.body) === "implementation" &&
+           decision.pr.base.ref.startsWith("brownfield-delivery/"))) {
+        await intake(decision.pr);
+        const current = await getPullRequest(token, owner, repo, candidate.number);
+        // Intake may intentionally retarget the base, but must not approve a different head or body.
+        if (current.head.sha !== sha || current.body !== decision.pr.body ||
+            current.draft !== decision.pr.draft || current.state !== "open") {
+          await recordCurrent(decision, current);
+          continue;
+        }
+        decision.pr = current;
+        decision.current = current;
       }
-      await review(candidate.number);
+      Object.assign(decision, await evaluateReview(token, mergeToken, owner, repo, decision.pr));
+    } catch (error) {
+      decision.error = error;
+      if (group && !group.decisions.includes(decision)) group.decisions.push(decision);
+      failures.push(error);
+    }
+  }
+  // Complete every decision before publishing any success, including when heads converge.
+  for (const group of groups.values()) {
+    for (const decision of group.decisions) {
+      try {
+        await refresh(decision);
+      } catch (error) {
+        decision.error = error;
+        failures.push(error);
+      }
+    }
+  }
+  for (const [sha, group] of groups) {
+    let state = changedHeads.has(sha) ? "pending" :
+      group.decisions.every((decision) => decision.satisfied && !decision.error) ? "success" : "failure";
+    try {
+      if (state === "success") {
+        // Keep the aggregate required status pending until every auto-merge mutation completes.
+        for (const decision of group.decisions) {
+          if (!decision.context || decision.current.auto_merge) continue;
+          await graphql(mergeToken, `
+            mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+              enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: $mergeMethod}) {
+                pullRequest { id autoMergeRequest { enabledAt } }
+              }
+            }
+          `, { pullRequestId: decision.pr.node_id, mergeMethod: decision.mergeMethod });
+          decision.current.auto_merge = true;
+        }
+        for (const decision of group.decisions) await refresh(decision);
+        if (changedHeads.has(sha)) state = "pending";
+      }
+      for (const decision of group.decisions) {
+        if (!decision.context) continue;
+        const { context } = decision;
+        await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
+          stage: context.metadata.stage,
+          status: state === "success" ? "Human approved; waiting for required checks and auto-merge" :
+            `Shared-head policy blocked: ${decision.status}`,
+          pullRequestUrl: decision.pr.html_url,
+        });
+      }
+    } catch (error) {
+      state = "failure";
+      failures.push(error);
+    }
+    if (state !== "success") {
+      const results = await Promise.allSettled(group.decisions.map((decision) =>
+        disableAutoMerge(mergeToken, decision.current)));
+      for (const result of results) if (result.status === "rejected") failures.push(result.reason);
+    }
+    try {
+      await writePolicyStatus(token, owner, repo, group.pr, state, state === "success"
+        ? group.decisions.some((decision) => decision.context)
+          ? "All lifecycle policies sharing this head are satisfied" : "Not a lifecycle pull request"
+        : "One or more PRs sharing this head require validation or human approval");
     } catch (error) {
       failures.push(error);
-      try {
-        pullRequest = await getPullRequest(token, owner, repo, candidate.number);
-      } catch (refreshError) {
-        failures.push(refreshError);
-      }
-      try {
-        await Promise.all([
-          writePolicyStatus(token, owner, repo, pullRequest, "failure", "Lifecycle validation failed; inspect coordinator logs"),
-          disableAutoMerge(process.env.COPILOT_ASSIGN_TOKEN, pullRequest),
-        ]);
-      } catch (invalidationError) {
-        failures.push(invalidationError);
-      }
+      const results = await Promise.allSettled(group.decisions.map((decision) =>
+        disableAutoMerge(mergeToken, decision.current)));
+      for (const result of results) if (result.status === "rejected") failures.push(result.reason);
     }
   }
   if (failures.length) {
@@ -673,87 +799,8 @@ export async function coordinate() {
   }
 }
 
-export async function review(pullRequestNumber) {
-  const event = readEvent();
-  const config = loadConfig();
-  const token = process.env.GITHUB_TOKEN;
-  const mergeToken = process.env.COPILOT_ASSIGN_TOKEN;
-  const { owner, repo } = repositoryCoordinates();
-  const number = pullRequestNumber ?? event.pull_request?.number;
-  const pullRequest = number ? await getPullRequest(token, owner, repo, number) : null;
-  if (!pullRequest) throw new Error("Pull request review event is required.");
-  if (pullRequest.state !== "open") return;
-  try {
-    await writePolicyStatus(token, owner, repo, pullRequest, "pending", "Evaluating current head and configured reviewers");
-    const context = await validateStageContext(token, owner, repo, pullRequest);
-    const policy = config.stages[context.metadata.stage];
-    const reviews = await listAll(
-      token,
-      `/repos/${owner}/${repo}/pulls/${pullRequest.number}/reviews`,
-    );
-    const teamMembers = await resolveTeamMembers(
-      mergeToken,
-      owner,
-      policy.reviewers.teams,
-    );
-    const approval = countHumanApprovals(
-      reviews,
-      policy,
-      pullRequest.user.login,
-      teamMembers,
-      pullRequest.head.sha,
-    );
-    const refreshed = await getPullRequest(token, owner, repo, pullRequest.number);
-    if (refreshed.head.sha !== pullRequest.head.sha || refreshed.body !== pullRequest.body ||
-        refreshed.base.ref !== pullRequest.base.ref || refreshed.draft !== pullRequest.draft ||
-        refreshed.state !== "open") {
-      await writePolicyStatus(token, owner, repo, refreshed, "pending", "PR changed during evaluation; waiting for current validation");
-      await disableAutoMerge(mergeToken, refreshed);
-      return;
-    }
-    if (!approval.satisfied || pullRequest.draft) {
-      const status = pullRequest.draft ? "Draft PR requires review" : approval.changesRequested.length
-        ? `Changes requested by ${approval.changesRequested.join(", ")}`
-        : `${approval.approved.length}/${policy.minimumApprovals} human approvals`;
-      await writePolicyStatus(token, owner, repo, pullRequest, "failure", status);
-      await disableAutoMerge(mergeToken, refreshed);
-      await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
-        stage: context.metadata.stage,
-        status,
-        pullRequestUrl: pullRequest.html_url,
-      });
-      return;
-    }
-    // Keep the required policy pending: already-clean PRs can reject enabling auto-merge.
-    if (!refreshed.auto_merge) {
-      await graphql(mergeToken, `
-        mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-          enablePullRequestAutoMerge(input: {
-            pullRequestId: $pullRequestId,
-            mergeMethod: $mergeMethod
-          }) {
-            pullRequest { id autoMergeRequest { enabledAt } }
-          }
-        }
-      `, {
-        pullRequestId: refreshed.node_id,
-        mergeMethod: config.mergeMethod.toUpperCase(),
-      });
-    }
-    await writePolicyStatus(token, owner, repo, pullRequest, "success", "Configured human approvals satisfied on this head");
-    await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
-      stage: context.metadata.stage,
-      status: "Human approved; waiting for required checks and auto-merge",
-      pullRequestUrl: pullRequest.html_url,
-    });
-  } catch (error) {
-    const refreshed = await getPullRequest(token, owner, repo, pullRequest.number);
-    await Promise.all([
-      writePolicyStatus(token, owner, repo, refreshed, "failure", "Lifecycle policy evaluation failed"),
-      disableAutoMerge(mergeToken, refreshed),
-    ]);
-    throw error;
-  }
+export async function review() {
+  return coordinate();
 }
 
 export async function advance() {

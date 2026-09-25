@@ -95,7 +95,7 @@ export function validateConfig(input) {
 }
 
 export function loadConfig(
-  path = ".github/brownfield-human-gated-delivery/config.json",
+  path = new URL("../config.json", import.meta.url),
 ) {
   return validateConfig(JSON.parse(readFileSync(path, "utf8")));
 }
@@ -423,7 +423,8 @@ export function validateVitestRunErrors(evidence) {
   requireObject(evidence, "Vitest run evidence");
   if (!["passed", "failed"].includes(evidence.reason) ||
       !Array.isArray(evidence.unhandledErrors) || evidence.unhandledErrors.length ||
-      !Array.isArray(evidence.suiteErrors) || evidence.suiteErrors.length) {
+      !Array.isArray(evidence.suiteErrors) || evidence.suiteErrors.length ||
+      !Array.isArray(evidence.hookErrors) || evidence.hookErrors.length) {
     throw new Error("Vitest collection, runtime, unhandled, or interrupted run error.");
   }
 }

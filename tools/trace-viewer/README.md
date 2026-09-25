@@ -28,7 +28,11 @@ the reusable action.
   satisfy requested message evidence.
 - Authorization headers, known token/secret fields, and local home, workspace,
   and temporary-directory prefixes are sanitized before publication to JSON,
-  HTML, summaries, and renderer diagnostics. This also applies to failure
+  HTML, summaries, and renderer diagnostics. Structured payloads are redacted
+  recursively before serialization, including JSON-encoded argument strings
+  in legacy function calls and standard tool-call parts. Nested JSON strings
+  keep their string type; malformed JSON and ordinary text use text redaction
+  instead. This also applies to failure
   reasons in metadata-only mode. Configured `GITHUB_WORKSPACE`,
   `RUNNER_WORKSPACE`, and `RUNNER_TEMP` roots are recognized alongside the
   current working directory, home directory, and common runner path prefixes.

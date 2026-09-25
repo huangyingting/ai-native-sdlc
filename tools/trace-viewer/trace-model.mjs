@@ -201,19 +201,42 @@ function redactAuthorization(text) {
 
 export function redact(content) {
   if (content == null) return null;
-  const text = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-  if (!text) return null;
+  const sanitized = redactValue(content);
+  return (typeof sanitized === "string" ? sanitized : JSON.stringify(sanitized, null, 2)) || null;
+}
+
+function redactText(text) {
   return normalizePaths(redactAuthorization(text)
     .replace(/(?:gh[pousr]_|github_pat_)[\w-]{12,}/gi, "[REDACTED TOKEN]")
     .replace(/Bearer\s+[\w.-]{12,}/gi, "******")
-    .replace(/((?:access[_-]?token|api[_-]?key|password|secret)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi, "$1[REDACTED]"));
+    .replace(/((?:access[_-]?token|api[_-]?key|password|secret)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi,
+      (_, prefix, value) => {
+        const quote = ['"', "'"].includes(value[0]) ? value[0] : "";
+        return `${prefix}${quote}[REDACTED]${quote}`;
+      }));
 }
 
-function redactModel(value) {
-  if (typeof value === "string") return redact(value) ?? "";
-  if (Array.isArray(value)) return value.map(redactModel);
+function redactValue(value) {
+  if (typeof value === "string") {
+    if (["{", "[", '"'].includes(value.trimStart()[0])) {
+      let parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        return redactText(value);
+      }
+      const sanitized = JSON.stringify(redactValue(parsed));
+      return sanitized === JSON.stringify(parsed) ? value : sanitized;
+    }
+    return redactText(value);
+  }
+  if (Array.isArray(value)) return value.map(redactValue);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactModel(item)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      redactText(key),
+      /(?:access[_-]?token|api[_-]?key|password|secret|(?:proxy-)?authorization)$/i.test(key)
+        ? "[REDACTED]" : redactValue(item),
+    ]));
   }
   return value;
 }
@@ -249,9 +272,9 @@ function messagePreview(content) {
         { tool_calls: message.tool_calls, function_call: message.function_call },
       ].filter(hasPayload);
       return payloads.length ? [`${message.role}: ${payloads
-        .map((payload) => typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)).join("\n")}`] : [];
+        .map((payload) => redact(payload)).join("\n")}`] : [];
     });
-  return redact(previews.join("\n"));
+  return previews.join("\n") || null;
 }
 
 function capturedMessages(span, attrs, kind) {
@@ -554,7 +577,7 @@ export function buildTraceModel(spans, {
     "```",
     "",
   ];
-  return redactModel({
+  return redactValue({
     summary: summary.join("\n"),
     pattern,
     complete: Boolean(complete),

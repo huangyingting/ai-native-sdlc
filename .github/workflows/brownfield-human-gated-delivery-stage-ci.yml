@@ -21,6 +21,7 @@ jobs:
       stage: ${{ steps.metadata.outputs.stage }}
       stage-issue: ${{ steps.metadata.outputs.stage-issue }}
       lifecycle: ${{ steps.metadata.outputs.lifecycle }}
+      trusted-sha: ${{ steps.metadata.outputs.trusted-sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,7 +31,9 @@ jobs:
         id: metadata
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node .github/brownfield-human-gated-delivery/scripts/github.mjs classify
+        run: |
+          node .github/brownfield-human-gated-delivery/scripts/github.mjs classify
+          echo "trusted-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   artifact-gate:
     needs: classify
@@ -39,10 +42,20 @@ jobs:
       needs.classify.outputs.stage == 'plan'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: pr
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.classify.outputs.trusted-sha }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: .github/brownfield-human-gated-delivery
+      - uses: actions/checkout@v7
+        with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
           fetch-depth: 0
       - name: Validate changed artifacts
         env:
@@ -54,23 +67,33 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
           CHANGED_FILES="$changed_files" \
-            node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs artifacts
+            node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" artifacts
 
   tdd-red:
     needs: classify
     if: needs.classify.outputs.stage == 'tests'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pr
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.classify.outputs.trusted-sha }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: .github/brownfield-human-gated-delivery
+      - uses: actions/checkout@v7
+        with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: demos/it-service-desk/package-lock.json
+          cache-dependency-path: pr/demos/it-service-desk/package-lock.json
       - name: Validate test-only changes and contracts
         env:
           INTENT_NUMBER: ${{ needs.classify.outputs.intent }}
@@ -81,7 +104,7 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
           CHANGED_FILES="$changed_files" \
-            node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs artifacts
+            node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" artifacts
       - name: Verify lifecycle baseline is Green
         run: |
           git worktree add "$RUNNER_TEMP/brownfield-delivery-base" \
@@ -89,20 +112,20 @@ jobs:
           npm --prefix "$RUNNER_TEMP/brownfield-delivery-base/demos/it-service-desk" ci
           npm --prefix "$RUNNER_TEMP/brownfield-delivery-base/demos/it-service-desk" test
       - name: Validate head compilation
-        working-directory: demos/it-service-desk
+        working-directory: pr/demos/it-service-desk
         run: |
           npm ci
           npm run lint
           npm run build
       - name: Capture expected Red
         id: red
-        working-directory: demos/it-service-desk
+        working-directory: pr/demos/it-service-desk
         env:
           VITEST_ERRORS_REPORT: ${{ runner.temp }}/vitest-red-errors.json
         run: |
           set +e
           npx vitest run --reporter=json \
-            --reporter=../../.github/brownfield-human-gated-delivery/scripts/vitest-errors-reporter.mjs \
+            --reporter="$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/vitest-errors-reporter.mjs" \
             --outputFile="$RUNNER_TEMP/vitest-red.json"
           test_status=$?
           set -e
@@ -119,23 +142,33 @@ jobs:
           INTENT_NUMBER: ${{ needs.classify.outputs.intent }}
           VITEST_REPORT: ${{ runner.temp }}/vitest-red.json
           VITEST_ERRORS_REPORT: ${{ runner.temp }}/vitest-red-errors.json
-        run: node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs red
+        run: node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" red
 
   implementation-contract:
     needs: classify
     if: needs.classify.outputs.stage == 'implementation'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: pr
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.classify.outputs.trusted-sha }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: .github/brownfield-human-gated-delivery
+      - uses: actions/checkout@v7
+        with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: demos/it-service-desk/package-lock.json
+          cache-dependency-path: pr/demos/it-service-desk/package-lock.json
       - name: Validate implementation scope and contracts
         env:
           INTENT_NUMBER: ${{ needs.classify.outputs.intent }}
@@ -146,29 +179,29 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
           CHANGED_FILES="$changed_files" \
-            node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs artifacts
+            node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" artifacts
       - name: Verify approved artifacts and test blobs are unchanged
         env:
           INTENT_NUMBER: ${{ needs.classify.outputs.intent }}
         run: |
           git fetch origin \
             "brownfield-delivery/${INTENT_NUMBER}:refs/remotes/origin/brownfield-delivery/${INTENT_NUMBER}"
-          node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs approved
+          node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" approved
       - name: Capture Green test evidence
-        working-directory: demos/it-service-desk
+        working-directory: pr/demos/it-service-desk
         env:
           VITEST_ERRORS_REPORT: ${{ runner.temp }}/vitest-green-errors.json
         run: |
           npm ci
           npx vitest run --reporter=json \
-            --reporter=../../.github/brownfield-human-gated-delivery/scripts/vitest-errors-reporter.mjs \
+            --reporter="$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/vitest-errors-reporter.mjs" \
             --outputFile="$RUNNER_TEMP/vitest-green.json"
       - name: Validate expected Red tests are Green
         env:
           INTENT_NUMBER: ${{ needs.classify.outputs.intent }}
           VITEST_REPORT: ${{ runner.temp }}/vitest-green.json
           VITEST_ERRORS_REPORT: ${{ runner.temp }}/vitest-green-errors.json
-        run: node .github/brownfield-human-gated-delivery/scripts/validate-stage.mjs green
+        run: node "$GITHUB_WORKSPACE/trusted/.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs" green
 
   stage-validation:
     if: always()

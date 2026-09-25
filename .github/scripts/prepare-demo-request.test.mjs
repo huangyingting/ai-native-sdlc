@@ -49,6 +49,59 @@ Include redacted request and response payloads`);
   }
 });
 
+test("does not treat inline code or invalid backtick info strings as fence openers", () => {
+  for (const prompt of [
+    "```npm test```",
+    "   ```npm test```",
+    "````run `npm test` safely````",
+    "```javascript `not a valid fence info string`",
+  ]) {
+    const guidance = "Do not change files.";
+    const request = parseIssueRequest(`${modelFields}
+
+### Task or question
+
+${prompt}
+
+### Agent instructions
+
+${guidance}
+
+### Trace detail
+
+Include redacted request and response payloads`);
+    assert.equal(request.prompt, prompt.trim());
+    assert.ok(request.instruction.includes(guidance));
+    assert.equal(request.includeMessages, true);
+  }
+});
+
+test("allows backticks in tilde-fence info and preserves fields after longer closing fences", () => {
+  for (const [opening, closing] of [
+    ["~~~markdown `example`", "~~~~"],
+    ["```javascript", "````"],
+  ]) {
+    const prompt = `${opening}\n### Agent instructions\n\nThis is example content.\n${closing}`;
+    const request = parseIssueRequest(`${modelFields}
+
+### Task or question
+
+${prompt}
+
+### Agent instructions
+
+Actual guidance.
+
+### Trace detail
+
+Include redacted request and response payloads`);
+    assert.equal(request.prompt, prompt);
+    assert.match(request.instruction, /Actual guidance\./);
+    assert.doesNotMatch(request.instruction, /This is example content/);
+    assert.equal(request.includeMessages, true);
+  }
+});
+
 test("preserves legacy task headings with CRLF line endings", () => {
   const request = parseIssueRequest(`${modelFields}
 

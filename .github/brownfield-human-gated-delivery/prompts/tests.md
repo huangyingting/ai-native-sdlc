@@ -24,6 +24,8 @@ The manifest shape is:
 List every and only expected failing test. The CI gate rejects missing,
 unexpected, infrastructure, syntax, collection, unhandled, and unrelated
 failures, as well as skipped or duplicate expected test evidence.
+Expected Red must come from test-body assertions, not failed or incomplete
+`beforeEach`/`afterEach` setup or teardown. Passing hooks are allowed.
 
 The pull-request body must contain exactly:
 

@@ -274,6 +274,127 @@ test("redacts tab-separated and JSON-escaped authorization values completely", (
   }
 });
 
+test("redacts nested structured and JSON-encoded tool arguments before publication", () => {
+  const secrets = {
+    password: "synthetic-not-a-real-password-12345",
+    api_key: "synthetic-not-a-real-api-key-67890",
+    "access-token": "synthetic-not-a-real-access-token-54321",
+  };
+  const authorization = Buffer.from("synthetic-user:synthetic-nested-password").toString("base64");
+  const innerArguments = JSON.stringify({
+    credentials: secrets,
+    headers: { Authorization: `Basic\t${authorization}` },
+    file: "/home/runner/private/nested-tool.json",
+    query: "public nested query",
+  });
+  const outerArguments = {
+    ...secrets,
+    tool_calls: [{ id: "nested-call", type: "function", function: {
+      name: "nested_lookup", arguments: innerArguments,
+    } }],
+    function_call: { name: "nested_function", arguments: JSON.stringify({ credentials: secrets }) },
+    visible: { count: 3, enabled: true, absent: null, items: ["public item"] },
+  };
+  const messages = [
+    { role: "assistant", tool_calls: [{ id: "legacy-call", type: "function", function: {
+      name: "legacy_lookup", arguments: JSON.stringify(outerArguments),
+    } }] },
+    { role: "assistant", function_call: { name: "legacy_function", arguments: outerArguments } },
+    { role: "assistant", parts: [{ type: "tool_call", id: "standard-call",
+      name: "standard_lookup", arguments: JSON.stringify(outerArguments) }] },
+    { role: "assistant", content: [{ type: "tool_use", name: "content_lookup", input: outerArguments }] },
+  ];
+  const spans = loadSpans(line(
+    span("chat", "", "chat gpt-6-luna", 1, 2, [
+      attr("gen_ai.output.messages", JSON.stringify(messages)),
+    ]),
+    {
+      ...span("tool", "", "execute_tool lookup", 3, 4, {
+        "gen_ai.tool.call.arguments": outerArguments,
+        "gen_ai.tool.call.result": JSON.stringify(outerArguments),
+        "error.message": JSON.stringify({ failure: { function: { arguments: innerArguments } } }),
+      }),
+      status: { code: 2 },
+    },
+  ));
+  for (const includeMessages of [true, false]) {
+    const model = buildTraceReport(spans, { includeMessages });
+    for (const published of [JSON.stringify(buildTraceData(model)), renderHtml(model)]) {
+      for (const secret of [...Object.values(secrets), authorization, "/home/runner/private"]) {
+        assert.ok(!published.includes(secret), `exposed nested secret with capture=${includeMessages}`);
+      }
+      assert.ok(published.includes("public nested query"), "must retain public failure details");
+    }
+    if (includeMessages) {
+      for (const name of ["legacy_lookup", "legacy_function", "standard_lookup", "content_lookup", "nested_lookup"]) {
+        assert.ok(model.events[0].response.includes(name), `must retain ${name}`);
+      }
+      const request = JSON.parse(model.events[1].request);
+      assert.equal(request.password, "[REDACTED]");
+      assert.deepEqual(request.visible, outerArguments.visible);
+      assert.equal(typeof request.tool_calls[0].function.arguments, "string");
+      assert.deepEqual(JSON.parse(request.tool_calls[0].function.arguments).credentials, {
+        password: "[REDACTED]", api_key: "[REDACTED]", "access-token": "[REDACTED]",
+      });
+    } else {
+      assert.equal(model.events[0].response, undefined);
+      assert.equal(model.events[1].request, undefined);
+    }
+  }
+});
+
+test("preserves nested JSON argument types and legitimate values without mutating input", () => {
+  const originalArguments = JSON.stringify(JSON.stringify({
+    password: "synthetic-nested-password-12345",
+    next: JSON.stringify({ api_key: "synthetic-nested-api-key-12345", keep: [0, false, null, {}] }),
+  }));
+  const payload = { function: { name: "lookup", arguments: originalArguments } };
+  const sanitized = JSON.parse(redact(payload));
+  assert.equal(sanitized.function.name, "lookup");
+  assert.equal(typeof sanitized.function.arguments, "string");
+  const args = JSON.parse(JSON.parse(sanitized.function.arguments));
+  assert.equal(args.password, "[REDACTED]");
+  assert.equal(typeof args.next, "string");
+  assert.deepEqual(JSON.parse(args.next), { api_key: "[REDACTED]", keep: [0, false, null, {}] });
+  assert.equal(payload.function.arguments, originalArguments);
+  for (const legitimate of [
+    ' { "query": "public query", "count": 3, "enabled": true, "items": [] } \n',
+    "42", "false", "null", '""', JSON.stringify(JSON.stringify({ query: "public query" })),
+    "https://example.com/docs?q=public", "src/main.mjs",
+  ]) {
+    assert.equal(redact(legitimate), legitimate);
+  }
+});
+
+test("uses text redaction for malformed nested arguments without losing public content", () => {
+  const secret = "synthetic-malformed-password-12345";
+  const malformed = `{ "password": "${secret}", "query": "public malformed query", trailing`;
+  const messages = [{ role: "assistant", tool_calls: [{ type: "function", function: {
+    name: "malformed_lookup", arguments: malformed,
+  } }] }];
+  const model = buildTraceReport(loadSpans(line(
+    span("chat", "", "chat gpt-6-luna", 1, 2, [
+      attr("gen_ai.output.messages", JSON.stringify(messages)),
+    ]),
+    {
+      ...span("tool", "", "execute_tool lookup", 3, 4, [
+        attr("gen_ai.tool.call.arguments", malformed),
+        attr("error.message", malformed),
+      ]),
+      status: { code: 2 },
+    },
+  )), { includeMessages: true });
+  for (const published of [JSON.stringify(buildTraceData(model)), renderHtml(model)]) {
+    assert.ok(!published.includes(secret));
+    assert.ok(published.includes("public malformed query"));
+    assert.ok(published.includes("trailing"));
+  }
+  const invalidMessages = buildTraceReport(loadSpans(line(span("invalid", "", "chat gpt-6-luna", 1, 2, [
+    attr("gen_ai.output.messages", malformed),
+  ]))), { includeMessages: true });
+  assert.equal(invalidMessages.messageCount, 0);
+});
+
 test("normalizes local path prefixes in every published payload and diagnostic", () => {
   const paths = [
     "/home/runner/work/sample/sample/src/main.mjs",

@@ -28,7 +28,8 @@ The defaults are `gpt-6-luna` for both inputs. The trace reports the models actu
 Each pattern has a dedicated issue form with one runnable, editable demonstration task. A template-specific `copilot-pattern:*` label routes the issue internally, so users do not need to repeat the pattern in a dropdown. Those scenarios are template content, not part of the reusable pattern definition. The form does not expose a separate agent-instructions field: the selected pattern's generic orchestration contract is injected automatically. Manual workflow dispatch retains an optional advanced guidance input and uses a generic repository-analysis task when no task is supplied.
 
 Task text preserves Markdown headings such as `### Requirements` and fenced
-examples. Only known form labels, such as `### Trace detail`, delimit fields
+examples. Inline code spans are not treated as fence openers, so later form
+settings remain separate. Only known form labels, such as `### Trace detail`, delimit fields
 outside code fences. Keep those labels reserved for the form itself; duplicate
 fields are rejected rather than silently choosing one value.
 

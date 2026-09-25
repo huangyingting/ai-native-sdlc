@@ -181,6 +181,12 @@ For `main`, require:
 - `validate`;
 - `container-smoke`.
 
+The IT service desk CI workflow runs for every PR, without PR-level path filters,
+so these required checks also exist for unrelated documentation or tooling PRs.
+Its intentional controlled-Red stage exemptions apply only on lifecycle branches.
+PRs targeting the default branch always run the real Green checks, even if their
+body contains `Delivery Stage: tests` as prose.
+
 The native review rule enforces a common floor, **not** the configured reviewer
 identities or higher stage thresholds. The required policy status prevents that
 weaker floor from authorizing a manual or automatic merge on its own. Do not grant
@@ -191,7 +197,7 @@ existing auto-merge whenever review policy is no longer satisfied. When approval
 are satisfied, it enables protected auto-merge while the required policy status
 is still pending, then publishes success; it never directly merges or bypasses
 branch rules. It re-reads
-live PR metadata and reviews on open/reopen, head synchronization, body/base edits,
+live PR metadata and reviews on open/reopen/close, head synchronization, body/base edits,
 draft transitions, submitted/edited/dismissed reviews, stage-CI completion, and
 default-branch policy configuration changes. These are asynchronous GitHub events;
 keep native stale-review dismissal and up-to-date branch requirements enabled.
@@ -199,7 +205,16 @@ Coordinator runs are serialized, and **every surviving run reconciles all open
 PRs** because GitHub can replace pending runs in a concurrency group. An invalid
 PR is failed and its auto-merge revoked without preventing other PRs from being
 reconciled; the run reports accumulated failures only after processing the list.
-Ordinary non-lifecycle PRs receive a not-applicable success. Lifecycle registration
+Commit statuses are keyed by **SHA and context**, not PR number. The coordinator
+keeps one aggregate `Brownfield delivery policy` status pending until it has
+evaluated **every open PR sharing that SHA**. All applicable lifecycle policies
+must pass before success; an ordinary PR cannot overwrite a sibling's failure.
+All protected auto-merge requests for an approved shared head are enabled while
+the aggregate remains pending. A failed decision or mutation revokes auto-merge
+for that shared-head group. Unrelated heads are still reconciled independently.
+Closing a blocking duplicate PR triggers reconciliation of the remaining peers.
+Ordinary non-lifecycle PRs receive a not-applicable success only when no lifecycle
+policy on their shared head blocks it. Lifecycle registration
 is retained in a PR comment, so deleting body markers instead fails validation.
 Do not delete that registration comment.
 
@@ -270,8 +285,12 @@ The Red gate succeeds only when:
 5. there are no unrelated, syntax, environment, or infrastructure failures.
 
 Validation checks the full Vitest 5 JSON report, including failed suites with
-no assertions. A companion reporter records unhandled errors and nested hook
-errors omitted by Vitest's JSON reporter. Missing, malformed, interrupted, or
+no assertions. A companion reporter records unhandled errors and nested suite
+errors omitted by Vitest's JSON reporter. It also tracks Vitest's public
+`onHookStart`/`onHookEnd` callbacks: failed or incomplete `beforeEach`/`afterEach`
+hooks leave unmatched starts and are rejected even when an expected test name is
+reported as failing. Passing hooks around a genuine assertion failure remain
+valid Red. Missing, malformed, interrupted, or
 inconsistent evidence, duplicate expected test names, and skipped expected tests
 are rejected. Scope checks use the PR merge-base diff with rename detection
 disabled, so renamed files cannot hide an out-of-scope deletion.
@@ -335,8 +354,19 @@ reopens the Intent and restores a remediation branch at the merged commit.
 ## Workflow security
 
 - `pull_request` CI executes PR code with read-only permissions and no secrets.
+- Stage CI checks out PR artifacts into `pr/` and a separate trusted copy into
+  `trusted/`. Validators, reviewer configuration, and the companion reporter are
+  selected from one default-branch SHA pinned by classification, never from the
+  PR head. Trusted validators load configuration relative to their own source;
+  their working directory still points at the PR artifacts under validation.
 - `pull_request_target` workflows coordinate APIs only and never checkout the
   PR head.
+- Before policy success, the trusted coordinator independently enumerates REST
+  PR files and enforces stage boundaries, including `previous_filename` for
+  renames. A lifecycle PR cannot change its validator or workflow to bypass CI.
+  Incomplete file enumeration (including GitHub's file-list limit), malformed
+  rename records, or API failures fail closed. Head, base, and metadata snapshots
+  are refreshed before publishing policy success; changed snapshots stay pending.
 - Review events run a permissionless **Review Signal** workflow. Its completion
   invokes the default-branch coordinator via `workflow_run`; the coordinator
   re-reads all open PRs and their current reviews using live API data, never artifacts or code from
@@ -363,6 +393,12 @@ docker run --rm -p 3000:3000 it-service-desk:local
 
 Then check <http://localhost:3000/api/health> and
 <http://localhost:3000/>.
+
+The lifecycle suite includes real Vitest reporter fixtures for passing hooks,
+controlled assertion Red, failed setup, and failed teardown. These subprocess
+tests use the demo's installed Vitest dependency; if it is absent, they explicitly
+skip until `npm --prefix demos/it-service-desk ci` has been run. Generated reports
+and caches are isolated inside the test scratch directory and removed afterward.
 
 This write-enabled Coding Agent lifecycle is separate from the repository's
 read-only

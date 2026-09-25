@@ -73,8 +73,8 @@ function extractFormSections(body) {
       content?.push(line);
       continue;
     }
-    const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (openingFence) {
+    const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (openingFence && !(openingFence[1][0] === "`" && openingFence[2].includes("`"))) {
       fence = openingFence[1];
       content?.push(line);
       continue;

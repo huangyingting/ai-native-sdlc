@@ -90,6 +90,10 @@ test("validates an implementation PR, retargets it, and requests configured revi
       html_url: `https://github.com/example/repo/issues/${43 + i}`,
     }));
     const parent = { number: 42, state: parentState, labels: [{ name: "brownfield-human-gated-delivery:intent" }] };
+    const files = (stage === "implementation" ? ["demos/it-service-desk/src/ticket.ts"] :
+      stage === "tests" ? ["docs/delivery-runs/brownfield-human-gated-delivery/42/expected-failures.json", "demos/it-service-desk/src/ticket.test.ts"] :
+        [`docs/delivery-runs/brownfield-human-gated-delivery/42/${stage}.md`])
+      .map((filename) => ({ filename, status: "modified" }));
     const pr = {
       number: 77, node_id: "PR_77", state: merged ? "closed" : "open", merged,
       body: metadata(stage, 43 + index), draft: false,
@@ -98,11 +102,12 @@ test("validates an implementation PR, retargets it, and requests configured revi
       merge_commit_sha: merged ? "merge-sha" : null,
       user: { login: "copilot-swe-agent[bot]", type: "Bot" },
       auto_merge: { enabled_at: "today" },
+      changed_files: files.length,
       html_url: "https://github.com/example/repo/pull/77",
     };
     const state = {
       parent, pr, issues, calls: [], comments: [], prComments: [],
-      reviews: [], statuses: [], branchExists: true, deleteFailure: null, reads: 0,
+      reviews: [], statuses: [], files, branchExists: true, deleteFailure: null, reads: 0,
     };
     globalThis.fetch = async (url, options = {}) => {
       const u = new URL(url);
@@ -121,11 +126,18 @@ test("validates an implementation PR, retargets it, and requests configured revi
       }
       if (path === "/repos/example/repo/pulls/77/requested_reviewers") return jsonResponse({});
       if (path === "/repos/example/repo/pulls/77/reviews") return jsonResponse(state.reviews);
+      if (path === "/repos/example/repo/pulls/77/files") {
+        state.onFiles?.();
+        return jsonResponse(state.files);
+      }
       if (path.startsWith("/repos/example/repo/statuses/")) {
         state.statuses.push({ sha: path.split("/").at(-1), ...body });
         return jsonResponse({});
       }
       if (path === "/graphql") {
+        if (body.query.includes("EnableAutoMerge") && state.failEnable) {
+          return jsonResponse({ errors: [{ message: "Cannot enable auto-merge" }] });
+        }
         if (body.query.includes("DisableAutoMerge")) pr.auto_merge = null;
         else if (body.query.includes("EnableAutoMerge")) pr.auto_merge = { enabled_at: "now" };
         else throw new Error(`Unexpected GraphQL ${body.query}`);
@@ -170,7 +182,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
         state.branchExists = true;
         return jsonResponse({});
       }
-      if (path === "/repos/example/repo/pulls") return jsonResponse([{ number: 77 }]);
+      if (path === "/repos/example/repo/pulls") return jsonResponse([pr]);
       if (path === "/repos/example/repo/commits/signal-head/pulls") return jsonResponse([{ number: 77 }]);
       throw new Error(`Unexpected mock request: ${method} ${path}`);
     };
@@ -226,10 +238,10 @@ test("validates an implementation PR, retargets it, and requests configured revi
   test("never publishes success for a head changed while reviews are being evaluated", async () => {
     const state = lifecycleApi();
     state.reviews = [humanReview(1)];
-    state.onRead = (count) => { if (count === 2) state.pr.head.sha = "new-head"; };
+    state.onFiles = () => { state.pr.head.sha = "new-head"; };
     await review();
-    assert.equal(state.statuses.at(-1).sha, "new-head");
-    assert.equal(state.statuses.at(-1).state, "pending");
+    assert.equal(state.statuses.filter((status) => status.sha === "new-head").at(-1).state, "pending");
+    assert.equal(state.statuses.filter((status) => status.sha === "current-head").at(-1).state, "pending");
     assert.equal(state.pr.auto_merge, null);
     assert.ok(state.statuses.every((status) => status.state !== "success"));
   });
@@ -370,6 +382,162 @@ test("enables protected auto-merge while policy is pending before publishing suc
   assert.ok(state.calls.every((call) => !call.path.endsWith("/merge")));
 });
 
+for (const reversed of [false, true]) {
+  test(`ordinary PR cannot overwrite shared-head lifecycle failure (reverse=${reversed})`, async () => {
+    const { first, second, order, requests } = twoPullRequests();
+    second.pr.head.sha = first.pr.head.sha;
+    second.pr.body = "Ordinary maintenance";
+    if (reversed) order.reverse();
+    writeEvent({ workflow_run: { event: "pull_request_review" } });
+    await coordinate();
+    const statuses = requests.filter((request) => request.path === "/repos/example/repo/statuses/current-head");
+    assert.deepEqual(statuses.map((request) => request.body.state), ["pending", "failure"]);
+    assert.ok(statuses.every((request) => request.method === "POST" &&
+      request.body.context === "Brownfield delivery policy"));
+    assert.equal(first.pr.auto_merge, null);
+    assert.equal(second.pr.auto_merge, null);
+  });
+
+  test(`all lifecycle PRs sharing a head must approve (reverse=${reversed})`, async () => {
+    const { first, second, order, requests } = twoPullRequests();
+    second.pr.head.sha = first.pr.head.sha;
+    first.reviews = [humanReview(1)];
+    if (reversed) order.reverse();
+    await coordinate();
+    const statuses = requests.filter((request) => request.path === "/repos/example/repo/statuses/current-head");
+    assert.deepEqual(statuses.map((request) => request.body.state), ["pending", "failure"]);
+    assert.equal(first.pr.auto_merge, null);
+    assert.equal(second.pr.auto_merge, null);
+  });
+
+  test(`shared-head success follows every approved policy and auto-merge mutation (reverse=${reversed})`, async () => {
+    const { first, second, order, requests } = twoPullRequests();
+    second.pr.head.sha = first.pr.head.sha;
+    first.reviews = [humanReview(1)];
+    second.reviews = [humanReview(1)];
+    first.pr.auto_merge = null;
+    second.pr.auto_merge = null;
+    if (reversed) order.reverse();
+    await coordinate();
+    const statuses = requests.filter((request) => request.path === "/repos/example/repo/statuses/current-head");
+    assert.deepEqual(statuses.map((request) => request.body.state), ["pending", "success"]);
+    const success = requests.findIndex((request) => request.body?.state === "success");
+    const enables = requests.flatMap((request, index) =>
+      request.body?.query?.includes("EnableAutoMerge") ? [index] : []);
+    assert.equal(enables.length, 2);
+    assert.ok(enables.every((index) => index < success));
+    assert.ok(first.pr.auto_merge && second.pr.auto_merge);
+  });
+}
+
+test("shared-head mutation failure revokes already-enabled peers without publishing success", async () => {
+  const { first, second, requests } = twoPullRequests();
+  second.pr.head.sha = first.pr.head.sha;
+  first.reviews = [humanReview(1)];
+  second.reviews = [humanReview(1)];
+  first.pr.auto_merge = null;
+  second.pr.auto_merge = null;
+  second.failEnable = true;
+  await assert.rejects(coordinate, /Cannot enable auto-merge/);
+  const statuses = requests.filter((request) => request.path === "/repos/example/repo/statuses/current-head");
+  assert.deepEqual(statuses.map((request) => request.body.state), ["pending", "failure"]);
+  assert.equal(first.pr.auto_merge, null);
+  assert.equal(second.pr.auto_merge, null);
+});
+
+test("closing a blocking lifecycle PR releases an ordinary peer on the shared head", async () => {
+  const { first, second, order, requests } = twoPullRequests();
+  second.pr.head.sha = first.pr.head.sha;
+  second.pr.body = "Ordinary maintenance";
+  writeEvent({ workflow_run: { event: "pull_request_review" } });
+  await coordinate();
+  first.pr.state = "closed";
+  order.splice(0, 1);
+  writeEvent({ action: "closed", pull_request: structuredClone(first.pr) });
+  await coordinate();
+  const statuses = requests.filter((request) => request.path === "/repos/example/repo/statuses/current-head");
+  assert.deepEqual(statuses.map((request) => request.body.state), ["pending", "failure", "pending", "success"]);
+  assert.equal(statuses.at(-1).body.description, "Not a lifecycle pull request");
+});
+
+for (const filename of [
+  ".github/workflows/brownfield-human-gated-delivery-stage-ci.yml",
+  ".github/brownfield-human-gated-delivery/scripts/validate-stage.mjs",
+]) {
+  test(`trusted scope rejects PR-controlled automation even with valid approvals: ${filename}`, async () => {
+    const state = lifecycleApi();
+    state.files = [{ filename, status: "modified" }];
+    state.reviews = [humanReview(1)];
+    await assert.rejects(coordinate, /out-of-scope change/);
+    assert.equal(state.statuses.at(-1).state, "failure");
+    assert.equal(state.pr.auto_merge, null);
+    assert.ok(state.statuses.every((status) => status.state !== "success"));
+  });
+}
+
+for (const stage of ["spec", "plan", "tests", "implementation"]) {
+  test(`trusted REST scope permits legitimate ${stage} files`, async () => {
+    const state = lifecycleApi({ stage });
+    state.reviews = [humanReview(1)];
+    await coordinate();
+    assert.equal(state.statuses.at(-1).state, "success");
+    assert.ok(state.calls.some((call) => call.path === "/repos/example/repo/pulls/77/files"));
+  });
+}
+
+test("trusted REST scope checks rename sources as well as destinations", async () => {
+  const state = lifecycleApi();
+  state.files = [{
+    filename: "demos/it-service-desk/src/new.test.ts",
+    previous_filename: ".github/brownfield-human-gated-delivery/scripts/validate-stage.mjs",
+    status: "renamed",
+  }];
+  state.reviews = [humanReview(1)];
+  await assert.rejects(coordinate, /out-of-scope change/);
+  assert.equal(state.statuses.at(-1).state, "failure");
+  state.files[0].previous_filename = "demos/it-service-desk/src/old.ts";
+  await coordinate();
+  assert.equal(state.statuses.at(-1).state, "success");
+});
+
+test("test-stage rename cannot hide production-code deletion", async () => {
+  const state = lifecycleApi({ stage: "tests" });
+  state.files[1] = {
+    filename: "demos/it-service-desk/src/new.test.ts",
+    previous_filename: "demos/it-service-desk/src/old.ts",
+    status: "renamed",
+  };
+  state.reviews = [humanReview(1)];
+  await assert.rejects(coordinate, /non-test change/);
+  assert.equal(state.statuses.at(-1).state, "failure");
+});
+
+test("incomplete file enumeration, malformed renames and API failures fail closed", async () => {
+  const state = lifecycleApi();
+  state.reviews = [humanReview(1)];
+  state.pr.changed_files = 2;
+  await assert.rejects(coordinate, /Incomplete PR file list/);
+  state.pr.changed_files = 1;
+  state.files[0].status = "renamed";
+  await assert.rejects(coordinate, /missing rename source/);
+  const api = globalThis.fetch;
+  globalThis.fetch = (url, options) => new URL(url).pathname.endsWith("/files")
+    ? Promise.resolve(jsonResponse({ message: "File API unavailable" }, 503)) : api(url, options);
+  await assert.rejects(coordinate, /503/);
+  assert.equal(state.statuses.at(-1).state, "failure");
+  assert.equal(state.pr.auto_merge, null);
+});
+
+test("base changes during trusted file enumeration cannot publish a stale success", async () => {
+  const state = lifecycleApi();
+  state.reviews = [humanReview(1)];
+  state.onFiles = () => { state.pr.base.sha = "changed-base"; };
+  await coordinate();
+  assert.equal(state.statuses.at(-1).state, "pending");
+  assert.ok(state.statuses.every((status) => status.state !== "success"));
+  assert.equal(state.pr.auto_merge, null);
+});
+
 function twoPullRequests() {
   const first = lifecycleApi();
   const firstFetch = globalThis.fetch;
@@ -378,19 +546,28 @@ function twoPullRequests() {
   second.pr.node_id = "PR_88";
   second.pr.head.sha = "second-head";
   const secondFetch = globalThis.fetch;
+  const order = [first.pr, second.pr];
+  const requests = [];
   let activeFetch = firstFetch;
   globalThis.fetch = (url, options = {}) => {
     const parsed = new URL(url);
+    const body = options.body ? JSON.parse(options.body) : null;
+    requests.push({ path: parsed.pathname, method: options.method ?? "GET", body });
     if (parsed.pathname === "/repos/example/repo/pulls") {
-      return Promise.resolve(jsonResponse([first.pr, second.pr]));
+      return Promise.resolve(jsonResponse(order));
     }
     if (parsed.pathname.startsWith("/repos/example/repo/pulls/77")) activeFetch = firstFetch;
     if (parsed.pathname.startsWith("/repos/example/repo/pulls/88")) activeFetch = secondFetch;
+    if (body?.variables?.pullRequestId === "PR_77") activeFetch = firstFetch;
+    if (body?.variables?.pullRequestId === "PR_88") activeFetch = secondFetch;
+    let requestFetch = activeFetch;
+    if (parsed.pathname.endsWith(`/statuses/${first.pr.head.sha}`)) requestFetch = firstFetch;
+    else if (parsed.pathname.endsWith(`/statuses/${second.pr.head.sha}`)) requestFetch = secondFetch;
     parsed.pathname = parsed.pathname.replace("/pulls/88", "/pulls/77").replace("/issues/88/", "/issues/77/");
-    return activeFetch(parsed.href, options);
+    return requestFetch(parsed.href, options);
   };
   writeEvent({ pull_request: structuredClone(second.pr) });
-  return { first, second };
+  return { first, second, order, requests };
 }
 
 test("a surviving event for another PR reconciles approvals missed by the serialized queue", async () => {

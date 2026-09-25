@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "npm run test:automation && npm run test:trace-viewer",
-    "test:automation": "node --test .github/brownfield-human-gated-delivery/tests/core.test.mjs .github/brownfield-human-gated-delivery/tests/github.test.mjs .github/scripts/build-demo-result-comment.test.mjs .github/scripts/prepare-demo-request.test.mjs .github/scripts/publish-trace-site.test.mjs",
+    "test:automation": "node --test .github/brownfield-human-gated-delivery/tests/core.test.mjs .github/brownfield-human-gated-delivery/tests/github.test.mjs .github/scripts/build-demo-result-comment.test.mjs .github/scripts/it-service-desk-ci.test.mjs .github/scripts/prepare-demo-request.test.mjs .github/scripts/publish-trace-site.test.mjs",
     "test:trace-viewer": "npm --prefix tools/trace-viewer test"
   }
 }

@@ -56,6 +56,16 @@ dashboard regressions; they do not modify `data/service-desk.db`. The
 container smoke check targets the stable dashboard HTML marker
 `data-testid="service-desk-dashboard"`, not the visible heading text.
 
+Pull-request CI runs for all changed paths, including documentation, so the
+required `validate` and `container-smoke` checks cannot remain missing. This
+small demo favors reliable required checks over PR path-filter optimization;
+push CI remains path-scoped. Controlled-Red Tests PRs retain their separate
+TDD validation instead of running the normal Green checks on lifecycle branches.
+PRs targeting the default branch always run the Green checks, regardless of
+stage text in the PR body.
+After installing demo dependencies, CI also exercises the lifecycle reporter
+against real Vitest setup/teardown failures and legitimate Red/Green tests.
+
 ## Suggested Brownfield Delivery Intent
 
 Use the repository Intent form with this outcome: add optional assignees to

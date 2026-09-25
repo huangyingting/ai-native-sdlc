@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { join, resolve } from "node:path";
 import { validateApprovedFiles } from "../scripts/validate-stage.mjs";
 import LifecycleErrorsReporter from "../scripts/vitest-errors-reporter.mjs";
 import {
@@ -260,9 +260,10 @@ test("counts only current configured human approvals", () => {
       const reporter = new LifecycleErrorsReporter();
       reporter.onTestRunEnd([], [], "failed");
       validateVitestRunErrors(JSON.parse(readFileSync(path, "utf8")));
-      reporter.onTestRunEnd([{ task: {
-        type: "suite", tasks: [{ type: "suite", result: { errors: [{ message: "beforeAll failed" }] } }],
-      } }], [{ message: "unhandled rejection" }], "failed");
+      reporter.onTestRunEnd([{
+        errors: () => [],
+        children: { allSuites: () => [{ errors: () => [{ message: "beforeAll failed" }] }] },
+      }], [{ message: "unhandled rejection" }], "failed");
       const evidence = JSON.parse(readFileSync(path, "utf8"));
       assert.deepEqual(evidence.suiteErrors, ["beforeAll failed"]);
       assert.deepEqual(evidence.unhandledErrors, ["unhandled rejection"]);
@@ -315,6 +316,72 @@ test("counts only current configured human approvals", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+test("trusted validators load their own configuration rather than PR-working-directory policy", () => {
+  const cwd = join(import.meta.dirname, `.untrusted-config-${process.pid}`);
+  const configDirectory = join(cwd, ".github/brownfield-human-gated-delivery");
+  mkdirSync(configDirectory, { recursive: true });
+  writeFileSync(join(configDirectory, "config.json"), '{"project":{"path":"untrusted"}}');
+  try {
+    const moduleUrl = new URL("../scripts/core.mjs", import.meta.url).href;
+    const result = execFileSync(process.execPath, ["--input-type=module", "-e",
+      `import {loadConfig} from ${JSON.stringify(moduleUrl)}; console.log(loadConfig().project.path);`,
+    ], { cwd, encoding: "utf8" });
+    assert.equal(result.trim(), "demos/it-service-desk");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("installed Vitest runtime distinguishes broken hooks from legitimate Red and Green", {
+  skip: !existsSync("demos/it-service-desk/node_modules/vitest/vitest.mjs") &&
+    "Install the demo dependencies to run the actual Vitest reporter regressions.",
+}, async (t) => {
+  const scratch = join(import.meta.dirname, `.vitest-runtime-${process.pid}`);
+  const fixtures = join(import.meta.dirname, "fixtures/hooks");
+  mkdirSync(scratch);
+  try {
+    for (const [file, hook] of [
+      ["controlled-red", null],
+      ["setup-failure", "beforeEach"],
+      ["teardown-failure", "afterEach"],
+      ["passing", null],
+    ]) {
+      await t.test(file, () => {
+        const reportPath = join(scratch, `${file}.json`);
+        const errorsPath = join(scratch, `${file}-errors.json`);
+        const result = spawnSync(process.execPath, [
+          resolve("demos/it-service-desk/node_modules/vitest/vitest.mjs"),
+          "run", `${file}.test.js`, "--root", fixtures,
+          "--config", join(fixtures, "vitest.config.mjs"),
+          "--reporter=json",
+          `--reporter=${resolve(".github/brownfield-human-gated-delivery/scripts/vitest-errors-reporter.mjs")}`,
+          `--outputFile=${reportPath}`,
+        ], {
+          encoding: "utf8", timeout: 30000,
+          env: { ...process.env, VITEST_ERRORS_REPORT: errorsPath, LIFECYCLE_RUNTIME_SCRATCH: join(scratch, "cache") },
+        });
+        assert.equal(result.status, file === "passing" ? 0 : 1, result.stderr || result.stdout);
+        const report = JSON.parse(readFileSync(reportPath, "utf8"));
+        const evidence = JSON.parse(readFileSync(errorsPath, "utf8"));
+        const expected = new Set(["expected behavior"]);
+        if (hook) {
+          assert.ok(evidence.hookErrors.some((error) => error.name === hook));
+          assert.throws(() => {
+            validateVitestRunErrors(evidence);
+            validateVitestRed(report, expected);
+          }, /runtime, unhandled/);
+        } else {
+          validateVitestRunErrors(evidence);
+          if (file === "passing") validateVitestGreen(report, expected);
+          else validateVitestRed(report, expected);
+        }
+      });
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
 
 test("validates specification scenarios and implementation plan dependencies", () => {
   const acceptance = validateSpecification(specification);
@@ -437,6 +504,7 @@ test("keeps staged workflows and trusted boundaries synchronized", () => {
     /labels: \["brownfield-human-gated-delivery:intent"\]/,
   );
   assert.match(coordinator, /pull_request_target:/);
+  assert.match(coordinator, /types: \[opened, reopened, closed, edited, synchronize/);
   assert.doesNotMatch(coordinator, /pull_request\.head\.sha/);
   assert.match(coordinator, /COPILOT_ASSIGN_TOKEN/);
   assert.match(stageCi, /permissions:\s*\n  contents: read/);
@@ -452,7 +520,14 @@ test("keeps staged workflows and trusted boundaries synchronized", () => {
   assert.doesNotMatch(stageCi, /if: contains\(github.event.pull_request.body/);
   assert.match(stageCi, /git diff --name-only --no-renames/);
   assert.match(stageCi, /base.sha }}\.\.\.\$\{\{ github.event.pull_request.head.sha/);
-  assert.match(stageCi, /validate-stage.mjs approved/);
+  assert.match(stageCi, /validate-stage.mjs" approved/);
+  assert.equal((stageCi.match(/ref: \$\{\{ needs.classify.outputs.trusted-sha \}\}/g) ?? []).length, 3);
+  assert.equal((stageCi.match(/path: trusted/g) ?? []).length, 3);
+  assert.equal((stageCi.match(/working-directory: pr$/gm) ?? []).length, 3);
+  assert.match(stageCi, /trusted-sha=\$\(git rev-parse HEAD\)/);
+  assert.doesNotMatch(stageCi, /node \.github\/.*validate-stage|--reporter=\.\.\/\.\.\/\.github/);
+  assert.match(stageCi, /node "\$GITHUB_WORKSPACE\/trusted\/\.github\/.*validate-stage.mjs" artifacts/);
+  assert.match(stageCi, /--reporter="\$GITHUB_WORKSPACE\/trusted\/\.github\/.*vitest-errors-reporter.mjs"/);
   assert.match(stageCi, /vitest-errors-reporter.mjs/);
   assert.match(coordinator, /statuses: write/);
   assert.match(coordinator, /workflow_run:/);

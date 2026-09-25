@@ -257,3 +257,10 @@ test("keeps provider comparison content out of reusable pattern defaults", () =>
   assert.match(parallelForm, /Block all external URLs[\s\S]*Allow https:\/\/docs\.aws\.amazon\.com/);
   assert.match(parallelForm, /id: allow_url[\s\S]*default: 1/);
 });
+
+test("pairs the validated URL exception with web fetch permission", () => {
+  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  assert.match(workflow, /EXTRA_ARGS\+=\(--allow-url="\$ALLOWED_URL"\)/);
+  assert.match(workflow, /--allow-tool='[^']*web_fetch[^']*'/);
+  assert.doesNotMatch(workflow, /--allow-url='https:\/\/docs\.aws\.amazon\.com'/);
+});

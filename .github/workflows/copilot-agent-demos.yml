@@ -140,7 +140,7 @@ jobs:
           $REQUEST" \
             "${EXTRA_ARGS[@]}" \
             --available-tools='read,search,view,glob,rg,task,read_agent,list_agents,web_fetch,sql,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
-            --allow-tool='read,search,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
+            --allow-tool='read,search,web_fetch,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
             --deny-tool=write --deny-tool=shell | tee trace-report/copilot-response.md
       - name: Render trace viewer
         if: always()

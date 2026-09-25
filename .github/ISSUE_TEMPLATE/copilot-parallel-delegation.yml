@@ -62,6 +62,17 @@ body:
       default: 0
     validations:
       required: true
+  - type: dropdown
+    id: allow_url
+    attributes:
+      label: Internet access
+      description: This AWS/Azure comparison preapproves AWS documentation; choose block all for tasks that do not need it.
+      options:
+        - Block all external URLs
+        - Allow https://docs.aws.amazon.com
+      default: 1
+    validations:
+      required: true
   - type: textarea
     id: task_prompt
     attributes:

@@ -68,6 +68,12 @@ function validateModel(model, field) {
   return model;
 }
 
+function validateAllowedUrl(option) {
+  if (!option || option === "Block all external URLs") return "";
+  if (option === "Allow https://docs.aws.amazon.com") return "https://docs.aws.amazon.com";
+  throw new Error(`Unsupported Internet access option: ${option}`);
+}
+
 function pattern(label) {
   const selectedLabel = label || "Parallel delegation";
   const selected = supportedPatterns.find((candidate) =>
@@ -96,6 +102,7 @@ export function parseIssueRequest(body) {
     orchestratorModel,
     subagentModel,
     prompt,
+    allowedUrl: validateAllowedUrl(section(body, "Internet access")),
     includeMessages: /-\s*\[[xX]\]\s+Include redacted request and response payloads/.test(capture),
   });
 }
@@ -130,6 +137,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         orchestratorModel: validateModel(process.env.INPUT_ORCHESTRATOR_MODEL || "gpt-6-luna", "orchestrator model"),
         subagentModel: validateModel(process.env.INPUT_SUBAGENT_MODEL || "gpt-6-luna", "subagent model"),
         prompt: customPrompt || selectedPattern.defaultPrompt,
+        allowedUrl: "",
         includeMessages: process.env.INPUT_INCLUDE_MESSAGES === "true",
       });
   writeFileSync(process.env.TRACE_PROMPT_PATH, request.prompt);
@@ -140,6 +148,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   appendOutput("orchestrator_model", request.orchestratorModel);
   appendOutput("subagent_model", request.subagentModel);
   appendOutput("required_models", request.requiredModels);
+  appendOutput("allowed_url", request.allowedUrl);
   appendOutput("include_messages", String(request.includeMessages));
   appendOutput("issue_number", String(event.issue?.number ?? ""));
 }

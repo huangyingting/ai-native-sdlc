@@ -118,6 +118,7 @@ jobs:
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
           TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
           EXECUTION_MODE: ${{ steps.request.outputs.execution }}
+          ALLOWED_URL: ${{ steps.request.outputs.allowed_url }}
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
           OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ steps.request.outputs.include_messages }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
@@ -130,13 +131,15 @@ jobs:
           if [ "$EXECUTION_MODE" = "fleet" ]; then
             EXTRA_ARGS+=(--fleet)
           fi
+          if [ -n "$ALLOWED_URL" ]; then
+            EXTRA_ARGS+=(--allow-url="$ALLOWED_URL")
+          fi
           copilot --model "$ORCHESTRATOR_MODEL" -p "$INSTRUCTION
 
           Task:
           $REQUEST" \
             "${EXTRA_ARGS[@]}" \
             --allow-tool='read,search,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
-            --allow-url='https://docs.aws.amazon.com' \
             --deny-tool=write --deny-tool=shell | tee trace-report/comparison-result.md
       - name: Render call chain
         if: always()

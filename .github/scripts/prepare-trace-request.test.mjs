@@ -35,9 +35,37 @@ Focus one reviewer on API compatibility.
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",
+    allowedUrl: "",
     includeMessages: true,
     requiredModels: "gpt-6-sol,claude-sonnet-4.6",
   });
+});
+
+test("validates the optional Parallel delegation URL exception", () => {
+  const base = `### Orchestration pattern
+
+Parallel delegation
+
+### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna
+
+### Internet access
+
+`;
+  assert.equal(parseIssueRequest(`${base}Block all external URLs`).allowedUrl, "");
+  assert.equal(
+    parseIssueRequest(`${base}Allow https://docs.aws.amazon.com`).allowedUrl,
+    "https://docs.aws.amazon.com",
+  );
+  assert.throws(
+    () => parseIssueRequest(`${base}Allow https://example.com`),
+    /Unsupported Internet access option/,
+  );
 });
 
 test("rejects edited issue forms with unsupported models", () => {
@@ -179,4 +207,6 @@ test("keeps provider comparison content out of reusable pattern defaults", () =>
   const parallelForm = readFileSync(".github/ISSUE_TEMPLATE/copilot-parallel-delegation.yml", "utf8");
   assert.match(parallelForm, /Amazon S3/);
   assert.match(parallelForm, /Azure Blob Storage/);
+  assert.match(parallelForm, /Block all external URLs[\s\S]*Allow https:\/\/docs\.aws\.amazon\.com/);
+  assert.match(parallelForm, /id: allow_url[\s\S]*default: 1/);
 });

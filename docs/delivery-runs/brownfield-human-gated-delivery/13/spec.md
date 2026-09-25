@@ -16,7 +16,7 @@ Extend the existing Next.js IT service desk in `demos/it-service-desk` so suppor
 
 - External identity-provider integrations, authentication or authorization changes, notifications, SLA policies, and escalation workflows.
 - Replacing the existing SQLite-backed ticket store, Next.js application, ticket reference format, queue ordering, or status workflow.
-- Changing the existing create-ticket fields or requiring a requester to choose an owner at submission time.
+- Requiring a requester to choose an owner at submission time. The existing create-ticket fields change only if the Human selects optional-creation assignment.
 
 ## Actors
 
@@ -29,8 +29,8 @@ Extend the existing Next.js IT service desk in `demos/it-service-desk` so suppor
 - Existing persisted tickets, including seeded or already-created records, must remain readable after the schema change and appear unassigned when no owner value exists.
 - Ownership is ticket metadata; an ownership-only update must not alter unrelated ticket fields, and normal status updates must preserve ownership.
 - Invalid ownership input or an unknown ticket must be rejected without persisting a partial update or changing the existing owner.
-- The owner source remains a Human decision. Proposed options are a predefined local list validated by the server, or bounded free-text entry validated and normalized by the server. This specification does not select either option.
-- Whether newly created tickets may be explicitly left unassigned remains a Human decision. Existing tickets must remain unassigned until someone assigns an owner.
+- The owner source remains a Human decision. The proposed **predefined local list** option limits assignment and filtering to server-validated local owners. The proposed **bounded free-text** option accepts a non-empty, normalized owner label and filters by the stored label. This specification does not select either option.
+- Whether newly created tickets may remain unassigned is a Human decision. The proposed **default-unassigned** option preserves the current create-ticket form and requires assignment from the detail workflow. The proposed **optional-creation assignment** option adds an owner choice with an unassigned value to that form. Existing tickets must remain unassigned until someone assigns an owner under either option.
 
 ## Acceptance scenarios
 

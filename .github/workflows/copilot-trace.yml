@@ -61,7 +61,7 @@ on:
         type: boolean
         default: false
       task_prompt:
-        description: "Concrete task for this demo; leave empty to use the pattern example"
+        description: "Concrete task for this demo; leave empty to use a generic repository task"
         type: string
         required: false
       agent_instructions:

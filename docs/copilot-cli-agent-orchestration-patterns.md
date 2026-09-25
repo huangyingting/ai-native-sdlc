@@ -22,7 +22,7 @@ Every workflow run has two model inputs:
 
 The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated patterns, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
 
-Each pattern has a dedicated issue form with one runnable, editable task. The form does not expose a separate agent-instructions field: the selected pattern's orchestration contract is injected automatically. Manual workflow dispatch retains an optional advanced guidance input.
+Each pattern has a dedicated issue form with one runnable, editable demonstration task. Those scenarios are template content, not part of the reusable pattern definition. The form does not expose a separate agent-instructions field: the selected pattern's generic orchestration contract is injected automatically. Manual workflow dispatch retains an optional advanced guidance input and uses a generic repository-analysis task when no task is supplied.
 
 ## 1. Direct execution
 

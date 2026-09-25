@@ -162,13 +162,21 @@ test("keeps orchestration pattern labels synchronized", () => {
     .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
     .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
   assert.equal(formSources.length, supportedPatterns.length);
-  for (const { label, defaultPrompt } of supportedPatterns) {
+  for (const { label } of supportedPatterns) {
     const pattern = new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
     assert.match(workflow, pattern);
     const matchingForms = formSources.filter((source) => source.includes(`options: [${label}]`));
     assert.equal(matchingForms.length, 1);
-    assert.match(matchingForms[0], new RegExp(defaultPrompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(matchingForms[0], /id: task_prompt[\s\S]*?value:\s*\|[\s\S]*?\S/);
     assert.doesNotMatch(matchingForms[0], /id: agent_instructions|label: Agent instructions/);
     assert.equal(matchingForms[0].match(/type: textarea/g)?.length, 1);
   }
+});
+
+test("keeps provider comparison content out of reusable pattern defaults", () => {
+  const defaults = supportedPatterns.map(({ defaultPrompt, instruction }) => `${defaultPrompt} ${instruction}`).join("\n");
+  assert.doesNotMatch(defaults, /Amazon|AWS|Azure|Microsoft Learn|docs\.aws/);
+  const parallelForm = readFileSync(".github/ISSUE_TEMPLATE/copilot-parallel-delegation.yml", "utf8");
+  assert.match(parallelForm, /Amazon S3/);
+  assert.match(parallelForm, /Azure Blob Storage/);
 });

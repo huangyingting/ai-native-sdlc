@@ -15,7 +15,7 @@ The issue form and manual dispatch support four reusable orchestration patterns:
 
 The repository stores only these stable orchestration patterns. Each issue supplies an editable task, so every issue can become a new demo without adding implementation files or changing the workflow. Copilot CLI decides the concrete subagent type at runtime.
 
-Every pattern includes a tested default task and an internal orchestration contract. Users can run the default with one click or replace the task while preserving the selected coordination pattern.
+Every reusable pattern includes a generic tested fallback task and an internal orchestration contract. Issue forms provide their editable demonstration scenarios independently, without coupling scenario content to the reusable pattern implementation.
 
 See [Copilot CLI agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md) for execution diagrams, model behavior, validation signals, failure interpretation, and guidance on choosing a pattern.
 

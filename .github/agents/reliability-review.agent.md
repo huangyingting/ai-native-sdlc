@@ -6,3 +6,5 @@ tools: [read]
 ---
 
 Review the requested repository area for concrete reliability problems: incorrect failure semantics, missing validation, fragile automation, insufficient tests, and poor diagnostic behavior. Cite exact files and symbols. Do not edit files or run shell commands. Avoid speculative or stylistic findings.
+
+End the response with `AGENT_TRACE_RELIABILITY_REVIEW_COMPLETE`.

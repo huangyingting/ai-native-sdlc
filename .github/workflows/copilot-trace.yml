@@ -35,7 +35,7 @@ on:
           - grok-4.7
           - mai-code-1.1-flash
       subagent_model:
-        description: "Model shared by the AWS and Azure custom agents"
+        description: "Model shared by the specialist agents"
         type: choice
         default: gpt-6-luna
         options:
@@ -126,7 +126,7 @@ jobs:
             writeFileSync(path, profile.replace(/^model:\s*.+$/m, `model: ${process.env.SUBAGENT_MODEL}`));
           }
           NODE
-      - name: Run parallel read-only analysis
+      - name: Run orchestrated read-only analysis
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model }}
@@ -152,6 +152,11 @@ jobs:
             --allow-tool='read,search,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
             --allow-url='https://docs.aws.amazon.com' \
             --deny-tool=write --deny-tool=shell | tee trace-report/comparison-result.md
+      - name: Validate scenario result
+        env:
+          TRACE_SCENARIO: ${{ steps.request.outputs.scenario }}
+          TRACE_RESULT_PATH: ${{ github.workspace }}/trace-report/comparison-result.md
+        run: node .github/scripts/validate-scenario-result.mjs
       - name: Render call chain
         if: always()
         uses: ./trace-viewer

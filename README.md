@@ -9,7 +9,7 @@ Issue comments always include a GitHub-rendered Mermaid dependency graph. To add
 The issue form and manual dispatch support three trace scenarios:
 
 - **Concurrent research** fans out to the AWS and Azure research agents and validates overlapping execution plus both documentation tools.
-- **Review panel** runs architecture and reliability reviewers in parallel, then asks the orchestrator to reconcile their evidence-backed findings.
+- **Review panel** runs the built-in code-review agent and an architecture reviewer in parallel, then uses the built-in rubber duck critic when available to challenge and de-noise the combined findings.
 - **Lead + specialists** runs a solution architect first and a critical reviewer second, producing a sequential collaboration trace before the orchestrator revises the proposal.
 
 Each scenario has a useful built-in task, or the issue author can provide a custom task. All specialist profiles are read-only and use the selected subagent model.

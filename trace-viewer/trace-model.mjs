@@ -20,7 +20,7 @@ function normalizedModelName(name) {
   return String(name ?? "")
     .trim()
     .toLowerCase()
-    .replace(/^(?:models\/|(?:openai|anthropic|google|xai|microsoft|moonshot|github)[/:])/i, "")
+    .replace(/^(?:models\/|(?:openai|anthropic|google|xai|microsoft|moonshot|github(?:-copilot)?)[/:])/i, "")
     .replace(/\s*\((?:preview|fast mode)\)\s*/g, "-")
     .replace(/[^a-z0-9.]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -65,9 +65,8 @@ function modelPricing(model, index) {
 }
 
 function sameModel(observed, expected) {
-  const left = normalizedModelName(observed);
-  const right = normalizedModelName(expected);
-  return left === right || left.includes(right) || right.includes(left);
+  const withoutVersion = (name) => normalizedModelName(name).replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  return withoutVersion(observed) === withoutVersion(expected);
 }
 
 function value(attribute) {
@@ -392,7 +391,8 @@ export function buildTraceModel(spans, {
   const web = tools.find(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const mcp = tools.find(({ span, attrs, branch }) =>
-    branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search");
+    branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search"
+      && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const concurrentComplete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
   const reviewComplete = peak >= 2 && subagents.length >= 2;
   const collaborationComplete = subagents.length >= 2 && peak === 1;

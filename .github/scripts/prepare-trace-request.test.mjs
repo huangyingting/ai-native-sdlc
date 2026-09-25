@@ -25,7 +25,7 @@ Compare two services safely.
   assert.deepEqual(request, {
     scenario: "review",
     scenarioLabel: "Review panel",
-    instruction: "Use fleet to invoke the repository's architecture-review and reliability-review custom agents concurrently. Give both reviewers the request. Reconcile duplicate or conflicting observations and return a prioritized review containing only evidence-backed findings.",
+    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. After both return, consult the built-in rubber duck critic on the combined findings if it is available. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",

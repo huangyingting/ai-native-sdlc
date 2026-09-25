@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 export function validateScenarioResult(scenario, output) {
   const text = String(output ?? "");
   const required = scenario === "review"
-    ? ["AGENT_TRACE_ARCHITECTURE_REVIEW_COMPLETE", "AGENT_TRACE_RELIABILITY_REVIEW_COMPLETE"]
+    ? ["Code-review (model:", "Architecture-review (model:"]
     : scenario === "collaboration"
-      ? ["AGENT_TRACE_SOLUTION_ARCHITECT_COMPLETE", "AGENT_TRACE_CRITICAL_REVIEW_COMPLETE"]
+      ? ["Solution-architect (model:", "Critical-reviewer (model:"]
       : [];
   for (const marker of required) {
-    if (!text.includes(marker)) throw new Error(`Scenario ${scenario} did not produce ${marker}`);
+    if (!text.includes(marker)) throw new Error(`Scenario ${scenario} did not invoke ${marker.split(" (")[0]}`);
   }
   if (scenario === "collaboration" && text.indexOf(required[0]) >= text.indexOf(required[1])) {
     throw new Error("Collaboration scenario did not complete the solution architect before the critical reviewer");

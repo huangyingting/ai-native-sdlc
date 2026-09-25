@@ -30,7 +30,7 @@ export const supportedScenarios = {
   "Review panel": {
     id: "review",
     prompt: "Review this repository's Agent Trace implementation for architecture, reliability, maintainability, and user-facing failure modes. Report only concrete, actionable findings with file references.",
-    instruction: "Use fleet to invoke the repository's architecture-review and reliability-review custom agents concurrently. Give both reviewers the request. Reconcile duplicate or conflicting observations and return a prioritized review containing only evidence-backed findings.",
+    instruction: "Use fleet to invoke the built-in code-review agent and the repository's architecture-review custom agent concurrently. Give both reviewers the request. After both return, consult the built-in rubber duck critic on the combined findings if it is available. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
   },
   "Lead + specialists": {
     id: "collaboration",

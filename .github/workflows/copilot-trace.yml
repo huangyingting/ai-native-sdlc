@@ -116,7 +116,6 @@ jobs:
             ".github/agents/aws-storage.agent.md",
             ".github/agents/azure-storage.agent.md",
             ".github/agents/architecture-review.agent.md",
-            ".github/agents/reliability-review.agent.md",
             ".github/agents/solution-architect.agent.md",
             ".github/agents/critical-reviewer.agent.md",
           ];
@@ -137,6 +136,7 @@ jobs:
           OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ steps.request.outputs.include_messages }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
         run: |
+          set -o pipefail
           mkdir -p trace-report
           REQUEST="$(cat "$TRACE_PROMPT_PATH")"
           INSTRUCTION="$(cat "$TRACE_INSTRUCTION_PATH")"

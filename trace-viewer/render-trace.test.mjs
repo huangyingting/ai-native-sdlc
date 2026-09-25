@@ -118,6 +118,20 @@ test("validates parent and subagent model selections as an observed set", () => 
   ));
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
+  assert.equal(summarizeTrace(loadSpans(line(
+    span("mini", "", "chat gpt-5.4-mini", 1, 2),
+  )), { expectedModel: "gpt-5.4" }).modelMatches, false);
+});
+
+test("does not accept a failed Microsoft Learn call as concurrent evidence", () => {
+  const spans = loadSpans(line(
+    span("root", "", "invoke_agent", 0, 100),
+    span("aws", "root", "invoke_agent aws-storage", 10, 80),
+    span("azure", "root", "invoke_agent azure-storage", 20, 90),
+    span("web", "aws", "execute_tool web_fetch", 30, 40),
+    { ...span("mcp", "azure", "execute_tool microsoft-learn-microsoft_docs_search", 30, 40), status: { code: 2 } },
+  ));
+  assert.equal(summarizeTrace(spans, { scenario: "concurrent" }).complete, false);
 });
 
 test("validates review and sequential collaboration scenario evidence", () => {

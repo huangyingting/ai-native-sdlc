@@ -263,7 +263,7 @@ export function buildTraceModel(spans, {
     if (kind === "chat") chats.push(node);
     if (["invoke_agent", "execute_tool", "chat"].includes(kind)) {
       const detail = kind === "invoke_agent"
-        ? attrs["gen_ai.agent.name"] ?? span.name.replace(/^invoke_agent ?/, "")
+        ? (attrs["gen_ai.agent.name"] ?? span.name.replace(/^invoke_agent ?/, "")) || (insideAgent ? "Subagent" : "Orchestrator")
         : kind === "execute_tool"
           ? toolName(span, attrs)
           : attrs["gen_ai.response.model"] ?? attrs["gen_ai.request.model"] ?? span.name.replace(/^chat ?/, "");

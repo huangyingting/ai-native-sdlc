@@ -103,9 +103,13 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /data-mode="dependencies"/);
   assert.match(html, /id="span-search"/);
   assert.match(html, /class="inspector-panel"/);
-  assert.match(html, /\.workspace\{[^}]*grid-template-rows:minmax\(0,1fr\)[^}]*overflow:hidden/);
-  assert.match(html, /@media\(min-width:851px\)\{\.main,\.inspector\{height:100%\}\.inspector\{overflow-y:scroll;scrollbar-gutter:stable;contain:size layout\}\}/);
-  assert.match(html, /\.workspace\{display:block;height:auto;overflow:visible\}/);
+  assert.match(html, /\.span-row\.relation-highlight\{/);
+  assert.match(html, /classList\.toggle\("relation-highlight"/);
+  assert.doesNotMatch(html, /\.span-row\.related\{|classList\.toggle\("related"/);
+  assert.match(html, /\.span-row\.active \.span-title strong[^}]*color:var\(--blue\)/);
+  assert.match(html, /\.span-row\.relation-highlight \.span-title strong\{color:var\(--violet\)\}/);
+  assert.match(html, /\.span-row\[data-failed="true"\] \.span-title strong[^}]*color:var\(--red\)/);
+  assert.match(html, /\.span-row\[data-kind="execute_tool"\] \.span-title small\{color:var\(--green\)\}/);
   assert.match(html, /capture-graph \.commandbar[^}]*display:none/);
   assert.match(html, /capture-graph \.graph-wrap\{[^}]*padding:12px/);
   assert.match(html, /class="svg-icon/);

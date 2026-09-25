@@ -284,4 +284,16 @@ test("updates the existing demo result comment instead of duplicating it", () =>
   assert.match(workflow, /issues\/comments\/\$COMMENT_ID/);
   assert.match(workflow, /--method PATCH/);
   assert.match(workflow, /ARTIFACT_URL: \$\{\{ steps\.trace_artifact\.outputs\.artifact-url \}\}/);
+  assert.match(workflow, /PAGES_URL: https:\/\/\$\{\{ github\.repository_owner \}\}\.github\.io\/\$\{\{ github\.event\.repository\.name \}\}\/viewer\/\?run=\$\{\{ github\.run_id \}\}/);
+});
+
+test("publishes successful trace artifacts through the shared Pages SPA", () => {
+  const workflow = readFileSync(".github/workflows/publish-trace-pages.yml", "utf8");
+  assert.match(workflow, /workflow_run:[\s\S]*Copilot CLI Agent Demos/);
+  assert.match(workflow, /conclusion == 'success'/);
+  assert.match(workflow, /group: copilot-trace-pages[\s\S]*cancel-in-progress: false/);
+  assert.match(workflow, /actions\/download-artifact@v8[\s\S]*run-id: \$\{\{ github\.event\.workflow_run\.id \}\}/);
+  assert.match(workflow, /ref: gh-pages/);
+  assert.match(workflow, /publish-trace-pages\.mjs report pages source/);
+  assert.match(workflow, /pages\/builds/);
 });

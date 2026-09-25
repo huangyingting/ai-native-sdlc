@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { dependencyViewport } from "./capture-dependency-map.mjs";
-import { loadSpans, renderTrace, renderGraph, renderHtml, summarizeTrace } from "./render-trace.mjs";
+import { loadSpans, renderTrace, renderGraph, renderHtml, summarizeTrace, traceData } from "./render-trace.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
 const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId = "trace-a") => ({
@@ -106,6 +106,9 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /\.span-row\.relation-highlight\{/);
   assert.match(html, /classList\.toggle\("relation-highlight"/);
   assert.doesNotMatch(html, /\.span-row\.related\{|classList\.toggle\("related"/);
+  assert.match(html, /const replaceLocation =/);
+  assert.match(html, /replaceLocation\(\{ span: id \}\)/);
+  assert.match(html, /replaceLocation\(\{ tab: map \? "dependencies" : "trace" \}\)/);
   assert.match(html, /\.span-row\.active \.span-title strong[^}]*color:var\(--blue\)/);
   assert.match(html, /\.span-row\.relation-highlight \.span-title strong\{color:var\(--violet\)\}/);
   assert.match(html, /\.span-row\[data-failed="true"\] \.span-title strong[^}]*color:var\(--red\)/);
@@ -122,6 +125,12 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /By agent branch/);
   assert.equal(result.costBreakdown.byModel.length, 1);
   assert.equal(result.costBreakdown.byAgent.length, 3);
+  const data = traceData(result);
+  assert.equal(data.schemaVersion, 1);
+  assert.equal(data.events.length, result.events.length);
+  assert.deepEqual(data.timeRange, result.timeRange);
+  assert.equal(data.counts.events, result.events.length);
+  assert.ok(data.dependencies.some((dependency) => dependency.name === "Branch 1 · AWS"));
   assert.match(html, /id="download-png"/);
   assert.match(html, /microsoft-learn\/microsoft_docs_search/);
   assert.match(html, /S3 versioning &lt;verified&gt;/);

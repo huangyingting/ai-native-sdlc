@@ -57,7 +57,7 @@ on:
           - grok-4.7
           - mai-code-1.1-flash
       include_messages:
-        description: "Include redacted request/response payloads in the public HTML artifact"
+        description: "Include redacted request/response payloads in the public Pages report and HTML artifact"
         type: boolean
         default: true
       task_prompt:
@@ -149,7 +149,7 @@ jobs:
         with:
           trace-path: ${{ runner.temp }}/copilot-otel.jsonl
           html-path: ${{ github.workspace }}/trace-report/copilot-trace-report.html
-          data-path: ${{ github.workspace }}/trace-report/trace-summary.json
+          data-path: ${{ github.workspace }}/trace-report/trace-data.json
           include-messages: ${{ steps.request.outputs.include_messages }}
           require-model: ${{ steps.request.outputs.required_models }}
           require-pattern-evidence: ${{ steps.request.outputs.pattern }}
@@ -229,10 +229,11 @@ jobs:
           SUBAGENT_MODEL: ${{ steps.request.outputs.subagent_model || 'unavailable' }}
           PATTERN_LABEL: ${{ steps.request.outputs.pattern_label || 'unavailable' }}
           DEMO_RESULT_PATH: ${{ github.workspace }}/trace-report/copilot-response.md
-          TRACE_DATA_PATH: ${{ github.workspace }}/trace-report/trace-summary.json
+          TRACE_DATA_PATH: ${{ github.workspace }}/trace-report/trace-data.json
           COMMENT_PATH: ${{ runner.temp }}/copilot-demo-comment.md
           MEDIA_URL: ${{ steps.media.outputs.url }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/viewer/?run=${{ github.run_id }}
           ARTIFACT_URL: ${{ steps.trace_artifact.outputs.artifact-url }}
         run: |
           node .github/scripts/build-demo-comment.mjs

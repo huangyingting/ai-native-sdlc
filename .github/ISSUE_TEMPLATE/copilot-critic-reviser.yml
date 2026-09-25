@@ -67,7 +67,7 @@ body:
     id: trace_detail
     attributes:
       label: Trace detail
-      description: Detailed tracing includes redacted request and response payloads in the HTML artifact.
+      description: Detailed tracing includes redacted request and response payloads in the public Pages report and HTML artifact.
       options:
         - Include redacted request and response payloads
         - Metadata only

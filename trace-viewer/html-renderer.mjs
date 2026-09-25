@@ -287,6 +287,15 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
   const focusButtons = [...document.querySelectorAll("[data-focus]")];
   let focus = "all";
   let selectedId = ${JSON.stringify(selectedEvent.id)};
+  const replaceLocation = ({ span, tab } = {}) => {
+    const url = new URL(location.href);
+    if (span !== undefined) url.hash = span ? "#span=" + encodeURIComponent(span) : "";
+    if (tab !== undefined) {
+      if (tab) url.searchParams.set("tab", tab);
+      else url.searchParams.delete("tab");
+    }
+    history.replaceState(null, "", url);
+  };
 
   const relatedIds = (id) => {
     const row = rows.find((candidate) => candidate.dataset.id === id);
@@ -317,7 +326,7 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
     inspectors.forEach((panel) => panel.hidden = panel.dataset.inspector !== id);
     graphNodes.forEach((node) => node.classList.toggle("active", node.dataset.eventId === id));
     if (scroll) selected.scrollIntoView({block:"center",behavior:"smooth"});
-    history.replaceState(null, "", "#span=" + encodeURIComponent(id));
+    replaceLocation({ span: id });
   };
   rows.forEach((row) => {
     row.addEventListener("click", () => selectSpan(row.dataset.id));
@@ -364,7 +373,7 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
     document.querySelector(".search-wrap").hidden = map;
     document.querySelector(".focus").hidden = map;
     document.querySelector(".trace-meta").style.marginLeft = map ? "auto" : "";
-    history.replaceState(null, "", map ? "?tab=dependencies" : "?tab=trace");
+    replaceLocation({ tab: map ? "dependencies" : "trace" });
   }));
 
   const serializeGraph = () => {

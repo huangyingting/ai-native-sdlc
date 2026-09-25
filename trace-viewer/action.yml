@@ -1,5 +1,5 @@
 name: Copilot CLI Trace Viewer
-description: Render Copilot CLI OpenTelemetry JSONL into a GitHub Job Summary and self-contained HTML trace viewer.
+description: Render Copilot CLI OpenTelemetry JSONL into a Job Summary, self-contained HTML viewer, and canonical SPA data.
 inputs:
   trace-path:
     description: Path to the Copilot CLI OpenTelemetry JSONL file.
@@ -8,7 +8,7 @@ inputs:
     description: Destination path for the self-contained HTML viewer.
     required: true
   data-path:
-    description: Optional destination for a machine-readable trace summary.
+    description: Optional destination for the canonical machine-readable trace model used by the online SPA.
     default: ""
   include-messages:
     description: Include redacted request/response payloads with safe hydration of runner-temp tool output.

@@ -14,6 +14,57 @@ export function renderTrace(spans) {
   return buildTraceModel(spans).summary;
 }
 
+export function traceData(result) {
+  const sortedByDuration = [...result.events].sort((left, right) =>
+    (right.end - right.start) - (left.end - left.start));
+  const dependencyNodes = new Map();
+  for (const event of result.events) {
+    const id = event.kind === "invoke_agent" ? event.id : `${event.owner ?? "root"}:${event.kind}:${event.name}`;
+    const existing = dependencyNodes.get(id);
+    if (existing) {
+      existing.calls++;
+      existing.failed ||= event.failed;
+    } else {
+      dependencyNodes.set(id, {
+        id,
+        owner: event.owner,
+        kind: event.kind,
+        name: event.patternRole ? `${event.patternRole} · ${event.name}` : event.name,
+        dependsOn: event.dependsOn,
+        calls: 1,
+        failed: event.failed,
+      });
+    }
+  }
+  return {
+    schemaVersion: 1,
+    ...result,
+    durationText: result.duration < 1000
+      ? `${Math.round(result.duration)} ms`
+      : `${(result.duration / 1000).toFixed(2)} s`,
+    costText: result.counts.totalCost == null ? "unavailable" : `$${result.counts.totalCost.toFixed(6)}`,
+    counts: {
+      ...result.counts,
+      events: result.events.length,
+      errors: result.events.filter((event) => event.failed).length,
+    },
+    signals: {
+      errors: result.events.filter((event) => event.failed).map((event) => ({
+        id: event.id,
+        name: event.name,
+        duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
+        reason: event.errorReason,
+      })),
+      slow: sortedByDuration.slice(0, 3).map((event) => ({
+        id: event.id,
+        name: event.name,
+        duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
+      })),
+    },
+    dependencies: [...dependencyNodes.values()],
+  };
+}
+
 function safeError(text, limit = 280) {
   return String(text).replace(/[^a-zA-Z0-9 _,./:+;=()[\]-]/g, "").slice(0, limit);
 }
@@ -40,61 +91,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       writeFileSync(process.env.TRACE_HTML_PATH, renderHtml(result));
     }
     if (process.env.TRACE_DATA_PATH) {
-      const sortedByDuration = [...result.events].sort((left, right) =>
-        (right.end - right.start) - (left.end - left.start));
-      const dependencyNodes = new Map();
-      for (const event of result.events) {
-        const id = event.kind === "invoke_agent" ? event.id : `${event.owner ?? "root"}:${event.kind}:${event.name}`;
-        const existing = dependencyNodes.get(id);
-        if (existing) {
-          existing.calls++;
-          existing.failed ||= event.failed;
-        } else {
-          dependencyNodes.set(id, {
-            id,
-            owner: event.owner,
-            kind: event.kind,
-            name: event.patternRole ? `${event.patternRole} · ${event.name}` : event.name,
-            dependsOn: event.dependsOn,
-            calls: 1,
-            failed: event.failed,
-          });
-        }
-      }
-      const data = {
-        pattern: result.pattern,
-        complete: result.complete,
-        modelMatches: result.modelMatches,
-        includeMessages: result.includeMessages,
-        messageCount: result.messageCount,
-        duration: result.duration,
-        durationText: result.duration < 1000
-          ? `${Math.round(result.duration)} ms`
-          : `${(result.duration / 1000).toFixed(2)} s`,
-        costText: result.counts.totalCost == null ? "unavailable" : `$${result.counts.totalCost.toFixed(6)}`,
-        counts: {
-          ...result.counts,
-          events: result.events.length,
-          errors: result.events.filter((event) => event.failed).length,
-        },
-        costBreakdown: result.costBreakdown,
-        signals: {
-          errors: result.events.filter((event) => event.failed).map((event) => ({
-            id: event.id,
-            name: event.name,
-            duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
-            reason: event.errorReason,
-          })),
-          slow: sortedByDuration.slice(0, 3).map((event) => ({
-            id: event.id,
-            name: event.name,
-            duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
-          })),
-        },
-        dependencies: [...dependencyNodes.values()],
-      };
       mkdirSync(dirname(process.env.TRACE_DATA_PATH), { recursive: true });
-      writeFileSync(process.env.TRACE_DATA_PATH, JSON.stringify(data, null, 2));
+      writeFileSync(process.env.TRACE_DATA_PATH, JSON.stringify(traceData(result), null, 2));
     }
     const artifactLink = process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `\n[Download the HTML trace viewer](https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)\n`

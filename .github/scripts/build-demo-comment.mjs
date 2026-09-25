@@ -51,6 +51,7 @@ export function buildDemoComment({
   subagentModel,
   patternLabel,
   runUrl,
+  pagesUrl,
   artifactUrl,
   mediaUrl,
 }) {
@@ -101,7 +102,7 @@ ${dependencies}
 
 </details>
 
-[Open workflow run](${runUrl}) · [Download Copilot CLI Trace Viewer](${artifactUrl || `${runUrl}#artifacts`})
+[Open Trace Viewer](${pagesUrl || artifactUrl || `${runUrl}#artifacts`}) · [Open workflow run](${runUrl}) · [Download HTML artifact](${artifactUrl || `${runUrl}#artifacts`})
 `;
 }
 
@@ -114,6 +115,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     subagentModel: process.env.SUBAGENT_MODEL,
     patternLabel: process.env.PATTERN_LABEL,
     runUrl: process.env.RUN_URL,
+    pagesUrl: process.env.PAGES_URL,
     artifactUrl: process.env.ARTIFACT_URL,
     mediaUrl: process.env.MEDIA_URL,
   }));

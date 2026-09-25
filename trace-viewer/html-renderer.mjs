@@ -199,7 +199,7 @@ export function renderHtml(model) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Agent Trace</title>
+<title>Copilot CLI Trace Viewer</title>
 <script>
 (() => {
   const requested = new URLSearchParams(location.search).get("theme") || new URLSearchParams(location.search).get("scoutTheme");

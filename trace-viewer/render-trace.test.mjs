@@ -85,7 +85,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.ok((graph.match(/<path /g) ?? []).length >= 4);
   const html = renderHtml(result);
   assert.match(html, /scoutTheme/);
-  assert.match(html, /Agent Trace/);
+  assert.match(html, /Copilot CLI Trace Viewer/);
   assert.match(html, /data-mode="trace"/);
   assert.match(html, /data-mode="dependencies"/);
   assert.match(html, /id="span-search"/);
@@ -149,7 +149,7 @@ test("does not accept a failed Microsoft Learn call as concurrent evidence", () 
     span("web", "aws", "execute_tool web_fetch", 30, 40),
     { ...span("mcp", "azure", "execute_tool microsoft-learn-microsoft_docs_search", 30, 40), status: { code: 2 } },
   ));
-  assert.equal(summarizeTrace(spans, { scenario: "concurrent" }).complete, false);
+  assert.equal(summarizeTrace(spans, { scenario: "parallel-research" }).complete, false);
 });
 
 test("validates review and sequential collaboration scenario evidence", () => {
@@ -158,19 +158,19 @@ test("validates review and sequential collaboration scenario evidence", () => {
     span("left", "root", "invoke_agent architecture-review", 10, 70),
     span("right", "root", "invoke_agent reliability-review", 20, 80),
   ));
-  assert.equal(summarizeTrace(review, { scenario: "review" }).complete, true);
-  assert.equal(summarizeTrace(review, { scenario: "collaboration" }).complete, false);
+  assert.equal(summarizeTrace(review, { scenario: "parallel-review" }).complete, true);
+  assert.equal(summarizeTrace(review, { scenario: "sequential-handoff" }).complete, false);
 
   const collaboration = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
     span("architect", "root", "invoke_agent solution-architect", 10, 40),
     span("reviewer", "root", "invoke_agent critical-reviewer", 50, 90),
   ));
-  const result = summarizeTrace(collaboration, { scenario: "collaboration" });
+  const result = summarizeTrace(collaboration, { scenario: "sequential-handoff" });
   assert.equal(result.complete, true);
   assert.match(result.summary, /sequential execution: yes/);
-  assert.equal(summarizeTrace(collaboration, { scenario: "review" }).complete, false);
-  assert.equal(summarizeTrace(collaboration, { scenario: "rubber-duck" }).complete, true);
+  assert.equal(summarizeTrace(collaboration, { scenario: "parallel-review" }).complete, false);
+  assert.equal(summarizeTrace(collaboration, { scenario: "critique-and-revision" }).complete, true);
 });
 
 test("validates a single-agent baseline without delegated agents", () => {
@@ -178,8 +178,8 @@ test("validates a single-agent baseline without delegated agents", () => {
     span("root", "", "invoke_agent", 0, 100),
     span("chat", "root", "chat gpt-6-luna", 10, 90),
   ));
-  assert.equal(summarizeTrace(baseline, { scenario: "single" }).complete, true);
-  assert.equal(summarizeTrace(baseline, { scenario: "rubber-duck" }).complete, false);
+  assert.equal(summarizeTrace(baseline, { scenario: "single-agent-baseline" }).complete, true);
+  assert.equal(summarizeTrace(baseline, { scenario: "critique-and-revision" }).complete, false);
 });
 
 test("hydrates file-backed tool output before redaction and rendering", () => {

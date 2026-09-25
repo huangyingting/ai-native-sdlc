@@ -1,0 +1,9 @@
+{
+  "id": "parallel-review",
+  "label": "Parallel review",
+  "legacyLabels": ["Review panel"],
+  "execution": "fleet",
+  "description": "Run independent review perspectives concurrently and reconcile their findings.",
+  "defaultPrompt": "Review this repository's Copilot CLI Trace Viewer implementation for architecture, reliability, maintainability, and user-facing failure modes. Report only concrete, actionable findings with file references.",
+  "instruction": "Dynamically create exactly two read-only review subagents and run them concurrently. Give one a code-correctness and reliability focus and the other an architecture and maintainability focus. Give both the request, then reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review."
+}

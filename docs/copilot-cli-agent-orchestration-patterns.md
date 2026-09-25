@@ -1,18 +1,18 @@
 # Copilot CLI agent orchestration patterns
 
-This guide describes reusable orchestration patterns for GitHub Copilot CLI. Each pattern shows how Copilot can dynamically decompose a task into subagents, coordinate their execution, and synthesize their results. The repository defines the orchestration objective and constraints, but it does not define fixed scenario-specific agent profiles.
+This guide describes reusable orchestration patterns for GitHub Copilot CLI. Each pattern shows how Copilot can dynamically decompose a task into subagents, coordinate their execution, and synthesize their results. The repository defines the orchestration objective and constraints, but it does not define fixed demo-specific agent profiles.
 
-Agent Trace is the observability layer used by this repository to demonstrate and validate these patterns. It records the resulting OpenTelemetry call hierarchy, timing, model usage, tool calls, and cost; it is not the name of the patterns themselves.
+The Copilot CLI Trace Viewer is the observability layer used by this repository to demonstrate and validate these patterns. It records the resulting OpenTelemetry call hierarchy, timing, model usage, tool calls, and cost; it is not the name of the patterns themselves.
 
 ## Pattern comparison
 
 | Pattern | Subagents | Scheduling | Information flow | Best used for |
 |---|---:|---|---|---|
-| Single agent baseline | 0 | Direct | User → orchestrator → result | Establishing latency, token, and cost baselines |
-| Concurrent research | 2 | Parallel | Two independent investigations → synthesis | Comparing products, sources, or independent domains |
-| Review panel | 2 | Parallel | Two review perspectives → reconciliation | Finding defects while reducing single-reviewer bias |
-| Rubber duck critique | 1 | Sequential | Initial position → critic → revised conclusion | Challenging assumptions and simplifying a proposal |
-| Lead + specialists | 2 | Sequential | Design proposal → dependent review → revised plan | Work where the second specialist must inspect the first result |
+| Single-agent baseline | 0 | Direct | User → orchestrator → result | Establishing latency, token, and cost baselines |
+| Parallel research | 2 | Parallel | Two independent investigations → synthesis | Comparing products, sources, or independent domains |
+| Parallel review | 2 | Parallel | Two review perspectives → reconciliation | Finding defects while reducing single-reviewer bias |
+| Critique and revision | 1 | Sequential | Initial position → critic → revised conclusion | Challenging assumptions and simplifying a proposal |
+| Sequential handoff | 2 | Sequential | Design proposal → dependent review → revised plan | Work where the second specialist must inspect the first result |
 
 ## Runtime model selection
 
@@ -23,7 +23,7 @@ Every workflow run has two model inputs:
 
 The defaults are `gpt-6-luna` for both inputs. The trace reports the models actually observed rather than assuming that the requested models were used. For delegated patterns, validation rejects models outside the selected set and requires the selected subagent model to appear. Cost is then calculated independently for every observed model call and aggregated by model and agent branch.
 
-## 1. Single agent baseline
+## 1. Single-agent baseline
 
 The orchestrator handles the task directly and is instructed not to delegate.
 
@@ -42,7 +42,7 @@ Use this pattern to measure the overhead introduced by delegation. It is the ref
 - Only the orchestrator model is required.
 - Peak concurrent subagents is `0`.
 
-## 2. Concurrent research
+## 2. Parallel research
 
 Copilot CLI runs in fleet mode and dynamically creates two focused research subagents. The default demonstration assigns one branch to Amazon S3 and the other to Azure Blob Storage.
 
@@ -66,7 +66,7 @@ Microsoft Learn URLs are intentionally not permitted through `web_fetch`; the Mi
 - A successful AWS `web_fetch` and Microsoft Learn search occur on different branches.
 - The selected subagent model is observed.
 
-## 3. Review panel
+## 3. Parallel review
 
 Copilot CLI runs in fleet mode and dynamically creates two reviewers with different concerns. The default instructions request one correctness/reliability perspective and one architecture/maintainability perspective.
 
@@ -85,7 +85,7 @@ The orchestrator reconciles duplicate findings and disagreements instead of conc
 - No validation depends on predetermined agent names.
 - The selected subagent model is observed.
 
-## 4. Rubber duck critique
+## 4. Critique and revision
 
 The orchestrator first develops an initial position. It then dynamically creates one independent critic with the original request and initial position as context. The final answer must explain how the critique changed the conclusion.
 
@@ -104,7 +104,7 @@ Unlike a review panel, this pattern is intentionally asymmetric: the critic reac
 - The critic executes after the initial reasoning begins.
 - The selected subagent model is observed.
 
-## 5. Lead + specialists
+## 5. Sequential handoff
 
 This pattern demonstrates dependent, sequential collaboration. The orchestrator dynamically creates a solution-design specialist and waits for its proposal. It then creates a fresh critical-review specialist whose input includes both the original request and the first result.
 
@@ -138,10 +138,10 @@ Select the span to view its **Failure reason**. This diagnostic is shown indepen
 
 ## Choosing a pattern
 
-- Choose **Single agent baseline** when measuring whether delegation is worthwhile.
-- Choose **Concurrent research** when subtasks are independent and benefit from parallel execution.
-- Choose **Review panel** when the same artifact should be assessed from different perspectives.
-- Choose **Rubber duck critique** when a proposal needs adversarial reflection rather than another complete solution.
-- Choose **Lead + specialists** when later work must consume and critique an earlier specialist result.
+- Choose **Single-agent baseline** when measuring whether delegation is worthwhile.
+- Choose **Parallel research** when subtasks are independent and benefit from parallel execution.
+- Choose **Parallel review** when the same artifact should be assessed from different perspectives.
+- Choose **Critique and revision** when a proposal needs adversarial reflection rather than another complete solution.
+- Choose **Sequential handoff** when later work must consume and critique an earlier specialist result.
 
-The workflow and issue form label these choices as scenarios because each run demonstrates one pattern with a concrete task. Select one through **Actions → Agent Trace → Run workflow** or the **Agent Trace run** issue form. A custom task can replace the built-in demonstration task without changing the selected orchestration pattern.
+The workflow and issue form label these choices as demos because each run applies one pattern to a concrete task. Select one through **Actions → Copilot CLI Agent Demos → Run workflow** or the **Copilot CLI agent demo** issue form. A custom task can replace the built-in demonstration task without changing the selected orchestration pattern.

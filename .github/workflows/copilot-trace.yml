@@ -1,20 +1,20 @@
-name: Agent Trace
+name: Copilot CLI Agent Demos
 
 on:
   issues:
     types: [opened, reopened]
   workflow_dispatch:
     inputs:
-      scenario:
+      demo:
         description: "Orchestration pattern to demonstrate"
         type: choice
-        default: Concurrent research
+        default: Parallel research
         options:
-          - Single agent baseline
-          - Concurrent research
-          - Review panel
-          - Rubber duck critique
-          - Lead + specialists
+          - Single-agent baseline
+          - Parallel research
+          - Parallel review
+          - Critique and revision
+          - Sequential handoff
       orchestrator_model:
         description: "Model that delegates to subagents and synthesizes the final result"
         type: choice
@@ -62,7 +62,7 @@ on:
         type: boolean
         default: false
       task_prompt:
-        description: "Optional task override; leave empty to use the scenario default"
+        description: "Optional task override; leave empty to use the demo default"
         type: string
         required: false
 
@@ -102,7 +102,7 @@ jobs:
           INPUT_ORCHESTRATOR_MODEL: ${{ inputs.orchestrator_model }}
           INPUT_SUBAGENT_MODEL: ${{ inputs.subagent_model }}
           INPUT_INCLUDE_MESSAGES: ${{ inputs.include_messages }}
-          INPUT_SCENARIO: ${{ inputs.scenario }}
+          INPUT_SCENARIO: ${{ inputs.demo }}
           INPUT_TASK_PROMPT: ${{ inputs.task_prompt }}
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
           TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
@@ -113,7 +113,7 @@ jobs:
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model }}
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
           TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
-          TRACE_SCENARIO: ${{ steps.request.outputs.scenario }}
+          EXECUTION_MODE: ${{ steps.request.outputs.execution }}
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
           OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${{ steps.request.outputs.include_messages }}
           COPILOT_OTEL_FILE_EXPORTER_PATH: ${{ runner.temp }}/copilot-otel.jsonl
@@ -123,7 +123,7 @@ jobs:
           REQUEST="$(cat "$TRACE_PROMPT_PATH")"
           INSTRUCTION="$(cat "$TRACE_INSTRUCTION_PATH")"
           EXTRA_ARGS=()
-          if [ "$TRACE_SCENARIO" = "concurrent" ] || [ "$TRACE_SCENARIO" = "review" ]; then
+          if [ "$EXECUTION_MODE" = "fleet" ]; then
             EXTRA_ARGS+=(--fleet)
           fi
           copilot --model "$ORCHESTRATOR_MODEL" -p "$INSTRUCTION

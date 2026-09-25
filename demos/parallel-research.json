@@ -1,0 +1,9 @@
+{
+  "id": "parallel-research",
+  "label": "Parallel research",
+  "legacyLabels": ["Concurrent research"],
+  "execution": "fleet",
+  "description": "Run independent research branches concurrently and synthesize their evidence.",
+  "defaultPrompt": "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.",
+  "instruction": "Dynamically create exactly two read-only research subagents and run them concurrently. Assign one to Amazon S3 using official docs.aws.amazon.com sources through web_fetch, and the other to Azure Blob Storage using Microsoft Learn tools. Give each only its focused part of the request. Wait for both, then synthesize a concise comparison that explicitly identifies non-equivalent features."
+}

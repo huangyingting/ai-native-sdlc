@@ -56,7 +56,7 @@ export function buildTraceComment({
   const errors = report?.signals?.errors ?? [];
   const slow = report?.signals?.slow ?? [];
   const dependencies = mediaUrl
-    ? `![Agent Trace dependency map](${mediaUrl})`
+    ? `![Copilot CLI trace dependency map](${mediaUrl})`
     : dependencyDiagram(report?.dependencies);
   const diagnosticRows = report ? [
     `| Duration | ${report.durationText} |`,
@@ -72,10 +72,10 @@ export function buildTraceComment({
       .map((event) => `- **Slow span:** \`${event.name}\` · ${event.duration}`),
   ];
   return `<!-- agent-trace-result -->
-## Agent Trace result
+## Copilot CLI agent demo result
 
 **Models:** orchestrator \`${orchestratorModel}\` · subagents \`${subagentModel}\`
-**Scenario:** ${scenarioLabel}
+**Demo:** ${scenarioLabel}
 
 ### Comparison
 
@@ -99,7 +99,7 @@ ${dependencies}
 
 </details>
 
-[Open workflow run](${runUrl}) · [Download interactive Agent Trace report](${runUrl}#artifacts)
+[Open workflow run](${runUrl}) · [Download Copilot CLI Trace Viewer](${runUrl}#artifacts)
 `;
 }
 

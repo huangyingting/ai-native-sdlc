@@ -1,5 +1,5 @@
-name: Render Copilot CLI trace
-description: Render Copilot CLI OpenTelemetry JSONL into a GitHub Job Summary and self-contained HTML viewer.
+name: Copilot CLI Trace Viewer
+description: Render Copilot CLI OpenTelemetry JSONL into a GitHub Job Summary and self-contained HTML trace viewer.
 inputs:
   trace-path:
     description: Path to the Copilot CLI OpenTelemetry JSONL file.
@@ -17,7 +17,7 @@ inputs:
     description: Comma-separated models that must be observed; every model call must use one of them.
     default: ""
   require-demo-evidence:
-    description: Scenario ID whose expected agent pattern must be observed (single, concurrent, review, rubber-duck, or collaboration); false disables validation.
+    description: Demo ID whose expected agent pattern must be observed; false disables validation.
     default: "false"
   pricing-path:
     description: Optional path to a model-keyed pricing JSON file; defaults to the bundled GitHub Copilot catalog.

@@ -411,18 +411,18 @@ export function buildTraceModel(spans, {
   const collaborationComplete = subagents.length >= 2 && peak === 1;
   const rubberDuckComplete = subagents.length >= 1;
   const singleComplete = subagents.length === 0 && chats.length >= 1;
-  const complete = scenario === "review" ? reviewComplete
-    : scenario === "collaboration" ? collaborationComplete
-      : scenario === "rubber-duck" ? rubberDuckComplete
-        : scenario === "single" ? singleComplete
+  const complete = scenario === "parallel-review" ? reviewComplete
+    : scenario === "sequential-handoff" ? collaborationComplete
+      : scenario === "critique-and-revision" ? rubberDuckComplete
+        : scenario === "single-agent-baseline" ? singleComplete
       : concurrentComplete;
-  const evidence = scenario === "review"
+  const evidence = scenario === "parallel-review"
     ? `review branches: ${subagents.length} | overlapping reviewers: ${peak >= 2 ? "yes" : "no"}`
-    : scenario === "collaboration"
+    : scenario === "sequential-handoff"
       ? `specialist branches: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
-      : scenario === "rubber-duck"
-        ? `critic branches: ${subagents.length} | rubber duck result validated separately`
-        : scenario === "single"
+      : scenario === "critique-and-revision"
+        ? `critic branches: ${subagents.length}`
+        : scenario === "single-agent-baseline"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
       : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${webCalls.length ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcpCalls.length ? "observed" : "not observed"} | distinct branches: ${distinctResearchBranches ? "yes" : "no"}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
@@ -439,7 +439,7 @@ export function buildTraceModel(spans, {
     `Model cost: ${costs.length ? `${totalCost} (${costMode})` : "unavailable"} (${costs.length}/${chats.length} chat spans priced)`,
     `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${modelExpectation}`,
     `Demo evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
-    ...(scenario === "concurrent" || !scenario ? ["AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token."] : []),
+    ...(scenario === "parallel-research" || !scenario ? ["AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token."] : []),
     ...(includeMessages ? [`Message payloads: ${messageCount} spans${contentKeys.length ? ` | available attribute names: ${contentKeys.map((key) => safe(key)).join(", ")}` : ""}`] : ["Message content capture: off (enable include_messages when dispatching to see payloads)."]),
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",

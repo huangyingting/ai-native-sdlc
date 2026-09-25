@@ -1,25 +1,25 @@
-name: Agent Trace run
-description: Run a traced Copilot comparison and post the result back to this issue.
-title: "[Agent Trace] "
+name: Copilot CLI agent demo
+description: Run a traced Copilot CLI orchestration demo and post the result back to this issue.
+title: "[Copilot CLI demo] "
 labels:
   - agent-trace
 body:
   - type: markdown
     attributes:
       value: |
-        This form starts the Agent Trace workflow for repository owners, members, and collaborators. The final comparison, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
+        This form starts a Copilot CLI Agent Demos workflow for repository owners, members, and collaborators. The final result, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
 
   - type: dropdown
-    id: orchestration_scenario
+    id: orchestration_demo
     attributes:
-      label: Orchestration scenario
+      label: Orchestration demo
       description: Select the collaboration pattern to demonstrate in the trace.
       options:
-        - Single agent baseline
-        - Concurrent research
-        - Review panel
-        - Rubber duck critique
-        - Lead + specialists
+        - Single-agent baseline
+        - Parallel research
+        - Parallel review
+        - Critique and revision
+        - Sequential handoff
       default: 1
     validations:
       required: true
@@ -54,7 +54,7 @@ body:
     id: subagent_model
     attributes:
       label: Subagent model
-      description: Shared by the specialist agents used in the selected scenario.
+      description: Shared by dynamically created subagents in the selected demo.
       options:
         - gpt-6-luna
         - gpt-6-sol
@@ -80,8 +80,8 @@ body:
     id: task_prompt
     attributes:
       label: Task or question
-      description: Override the selected scenario's default task.
-      placeholder: Leave empty to use the selected scenario's built-in demonstration task.
+      description: Override the selected demo's default task.
+      placeholder: Leave empty to use the selected demo's built-in task.
 
   - type: checkboxes
     id: capture_messages

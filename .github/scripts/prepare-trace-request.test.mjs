@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
+import { demoCatalog, loadDemoCatalog } from "./demo-catalog.mjs";
 import { parseIssueRequest } from "./prepare-trace-request.mjs";
 
-test("parses an Agent Trace issue form", () => {
-  const request = parseIssueRequest(`### Orchestration scenario
+test("parses a Copilot CLI agent demo issue form", () => {
+  const request = parseIssueRequest(`### Orchestration demo
 
-Review panel
+Parallel review
 
 ### Orchestrator model
 
@@ -23,8 +25,9 @@ Compare two services safely.
 
 - [x] Include redacted request and response payloads in the HTML trace artifact`);
   assert.deepEqual(request, {
-    scenario: "review",
-    scenarioLabel: "Review panel",
+    scenario: "parallel-review",
+    scenarioLabel: "Parallel review",
+    execution: "fleet",
     instruction: "Dynamically create exactly two read-only review subagents and run them concurrently. Give one a code-correctness and reliability focus and the other an architecture and maintainability focus. Give both the request, then reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review. Every dynamically created subagent must use the claude-sonnet-4.6 model.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
@@ -48,7 +51,7 @@ gpt-6-luna
 Compare services.`), /Unsupported orchestrator model/);
 });
 
-test("defaults older issue forms to concurrent research", () => {
+test("defaults older issue forms to parallel research", () => {
   const request = parseIssueRequest(`### Orchestrator model
 
 gpt-6-luna
@@ -60,12 +63,13 @@ gpt-6-luna
 ### Comparison task
 
 Compare services.`);
-  assert.equal(request.scenario, "concurrent");
+  assert.equal(request.scenario, "parallel-research");
+  assert.equal(request.scenarioLabel, "Parallel research");
   assert.equal(request.prompt, "Compare services.");
 });
 
-test("rejects unsupported orchestration scenarios", () => {
-  assert.throws(() => parseIssueRequest(`### Orchestration scenario
+test("rejects unsupported orchestration demos", () => {
+  assert.throws(() => parseIssueRequest(`### Orchestration demo
 
 Untrusted workflow
 
@@ -75,13 +79,13 @@ gpt-6-luna
 
 ### Subagent model
 
-gpt-6-luna`), /Unsupported scenario/);
+gpt-6-luna`), /Unsupported demo/);
 });
 
-test("prepares single-agent and rubber-duck scenarios", () => {
-  const single = parseIssueRequest(`### Orchestration scenario
+test("prepares direct and critique demos", () => {
+  const single = parseIssueRequest(`### Orchestration demo
 
-Single agent baseline
+Single-agent baseline
 
 ### Orchestrator model
 
@@ -90,13 +94,13 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`);
-  assert.equal(single.scenario, "single");
+  assert.equal(single.scenario, "single-agent-baseline");
   assert.match(single.instruction, /without invoking any subagents/);
   assert.equal(single.requiredModels, "gpt-6-luna");
 
-  const rubberDuck = parseIssueRequest(`### Orchestration scenario
+  const rubberDuck = parseIssueRequest(`### Orchestration demo
 
-Rubber duck critique
+Critique and revision
 
 ### Orchestrator model
 
@@ -105,7 +109,16 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`);
-  assert.equal(rubberDuck.scenario, "rubber-duck");
+  assert.equal(rubberDuck.scenario, "critique-and-revision");
   assert.match(rubberDuck.instruction, /dynamically create one read-only subagent/);
   assert.match(rubberDuck.instruction, /gpt-6-luna model/);
+});
+
+test("keeps demo labels synchronized with workflow choices", () => {
+  const labels = demoCatalog.map((demo) => demo.label);
+  for (const path of [".github/workflows/copilot-trace.yml", ".github/ISSUE_TEMPLATE/agent-trace.yml"]) {
+    const source = readFileSync(path, "utf8");
+    for (const label of labels) assert.match(source, new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  }
+  assert.equal(loadDemoCatalog().length, 5);
 });

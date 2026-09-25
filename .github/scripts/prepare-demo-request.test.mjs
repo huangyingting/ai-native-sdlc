@@ -264,6 +264,11 @@ test("pairs the validated URL exception with web fetch permission", () => {
   assert.match(workflow, /EXTRA_ARGS\+=\(--allow-url="\$ALLOWED_URL"\)/);
   assert.match(workflow, /else\s+EXTRA_ARGS\+=\(--available-tools='[^']*'\)/);
   assert.doesNotMatch(workflow, /--available-tools='[^']*web_fetch[^']*'/);
+  assert.match(workflow, /--available-tools='[^']*microsoft-learn[^']*'/);
+  assert.match(workflow, /--allow-tool='web_fetch,microsoft-learn'/);
+  assert.doesNotMatch(workflow, /microsoft-learn\(microsoft_docs_(?:search|fetch)\)/);
+  assert.doesNotMatch(workflow, /--(?:available-tools|allow-tool)='[^']*(?:^|,)read(?:,|$)/m);
+  assert.doesNotMatch(workflow, /--(?:available-tools|allow-tool)='[^']*(?:^|,)search(?:,|$)/m);
   assert.match(workflow, /--allow-tool='[^']*web_fetch[^']*'/);
   assert.doesNotMatch(workflow, /--allow-url='https:\/\/docs\.aws\.amazon\.com'/);
 });

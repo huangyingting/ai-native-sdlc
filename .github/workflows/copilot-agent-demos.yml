@@ -134,14 +134,14 @@ jobs:
           if [ -n "$ALLOWED_URL" ]; then
             EXTRA_ARGS+=(--allow-url="$ALLOWED_URL")
           else
-            EXTRA_ARGS+=(--available-tools='read,search,view,glob,rg,task,read_agent,list_agents,sql,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)')
+            EXTRA_ARGS+=(--available-tools='view,glob,rg,task,read_agent,list_agents,sql,microsoft-learn')
           fi
           copilot --model "$ORCHESTRATOR_MODEL" -p "$INSTRUCTION
 
           Task:
           $REQUEST" \
             "${EXTRA_ARGS[@]}" \
-            --allow-tool='read,search,web_fetch,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
+            --allow-tool='web_fetch,microsoft-learn' \
             --deny-tool=write --deny-tool=shell | tee trace-report/copilot-response.md
       - name: Render trace viewer
         if: always()

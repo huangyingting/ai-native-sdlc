@@ -109,7 +109,7 @@ export function parseIssueRequest(body, labels = []) {
   const customPrompt = section(body, "Task or question") || section(body, "Comparison task");
   const prompt = customPrompt || selectedPattern.defaultPrompt;
   const guidance = section(body, "Agent instructions");
-  const capture = section(body, "Trace content");
+  const capture = section(body, "Trace detail") || section(body, "Trace content");
   return finalizeRequest({
     pattern: selectedPattern.id,
     patternLabel: selectedPattern.label,
@@ -119,7 +119,7 @@ export function parseIssueRequest(body, labels = []) {
     subagentModel,
     prompt,
     allowedUrl: validateAllowedUrl(section(body, "Internet access")),
-    includeMessages: /-\s*\[[xX]\]\s+Include redacted request and response payloads/.test(capture),
+    includeMessages: /Include redacted request and response payloads/.test(capture),
   });
 }
 

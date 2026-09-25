@@ -64,9 +64,14 @@ body:
         Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.
     validations:
       required: true
-  - type: checkboxes
-    id: capture_messages
+  - type: dropdown
+    id: trace_detail
     attributes:
-      label: Trace content
+      label: Trace detail
+      description: Detailed tracing includes redacted request and response payloads in the HTML artifact.
       options:
-        - label: Include redacted request and response payloads in the HTML trace artifact
+        - Include redacted request and response payloads
+        - Metadata only
+      default: 0
+    validations:
+      required: true

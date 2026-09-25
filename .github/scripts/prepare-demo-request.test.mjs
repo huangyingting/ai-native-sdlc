@@ -227,6 +227,27 @@ Review two independent concerns.`, [
   );
 });
 
+test("defaults every issue form to detailed request and response tracing", () => {
+  const formSources = readdirSync(".github/ISSUE_TEMPLATE")
+    .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
+    .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
+  for (const source of formSources) {
+    assert.match(source, /id: trace_detail[\s\S]*Include redacted request and response payloads[\s\S]*Metadata only[\s\S]*default: 0/);
+  }
+  const request = parseIssueRequest(`### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna
+
+### Trace detail
+
+Include redacted request and response payloads`);
+  assert.equal(request.includeMessages, true);
+});
+
 test("keeps provider comparison content out of reusable pattern defaults", () => {
   const defaults = supportedPatterns.map(({ defaultPrompt, instruction }) => `${defaultPrompt} ${instruction}`).join("\n");
   assert.doesNotMatch(defaults, /Amazon|AWS|Azure|Microsoft Learn|docs\.aws/);

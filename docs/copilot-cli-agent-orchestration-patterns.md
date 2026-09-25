@@ -24,6 +24,8 @@ The defaults are `gpt-6-luna` for both inputs. The trace reports the models actu
 
 Each pattern has a dedicated issue form with one runnable, editable demonstration task. A template-specific `copilot-pattern:*` label routes the issue internally, so users do not need to repeat the pattern in a dropdown. Those scenarios are template content, not part of the reusable pattern definition. The form does not expose a separate agent-instructions field: the selected pattern's generic orchestration contract is injected automatically. Manual workflow dispatch retains an optional advanced guidance input and uses a generic repository-analysis task when no task is supplied.
 
+All forms default to detailed tracing with redacted request and response payloads. Select **Metadata only** when payload content should not be included in the public HTML artifact.
+
 The Parallel delegation form also has an **Internet access** choice. The generic workflow has no preapproved URL, but the form's AWS/Azure comparison scenario preselects `https://docs.aws.amazon.com` and passes it to the CLI through `--allow-url`; Azure research uses the default-enabled Microsoft Learn MCP. Select **Block all external URLs** when replacing the task with one that does not need AWS documentation. Arbitrary values in edited issue bodies are rejected.
 
 ## 1. Direct execution

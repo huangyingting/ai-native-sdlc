@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 const workflow = readFileSync(".github/workflows/it-service-desk-ci.yml", "utf8");
 const pullRequestTrigger = workflow.match(/^  pull_request:([\s\S]*?)(?=^  push:)/m)?.[1];
@@ -20,13 +21,58 @@ test("application checks re-evaluate edited TDD metadata without requiring anoth
   }
 });
 
-test("application CI retains its controlled-Red exception and path-scoped main pushes", () => {
-  const redException = "!contains(github.event.pull_request.body, 'Delivery Stage: tests')";
-  assert.equal(workflow.split(redException).length - 1, 2);
+test("application CI retains path-scoped main pushes", () => {
   const pushTrigger = workflow.match(/^  push:([\s\S]*?)(?=^permissions:)/m)?.[1];
   assert.ok(pushTrigger);
   assert.match(pushTrigger, /branches: \[main\]/);
   assert.match(pushTrigger, /paths:[\s\S]*"demos\/it-service-desk\/\*\*"/);
+});
+
+test("application jobs skip only pre-implementation lifecycle stages, never default-branch checks", () => {
+  const conditions = ["validate", "container-smoke"].map((job) => {
+    const condition = workflow.match(new RegExp(`^  ${job}:\\n(?:    needs: [^\\n]+\\n)?    if: >-\\n([\\s\\S]*?)(?=^    runs-on:)`, "m"))?.[1];
+    assert.ok(condition, `${job} must have a routing condition`);
+    return condition;
+  });
+  const cases = [];
+  for (const stage of ["spec", "plan", "tests", "implementation", "unknown"]) {
+    const body = `Delivery Demo: brownfield-human-gated-delivery\nDelivery Stage: ${stage}`;
+    const preImplementation = ["spec", "plan", "tests"].includes(stage);
+    cases.push(
+      { base: "brownfield-delivery/7", body, expected: !preImplementation },
+      { base: "brownfield-delivery/7", body: body.toUpperCase(), expected: !preImplementation },
+      { base: "main", body, expected: true },
+      { base: "release", body, expected: true },
+      { base: "brownfield-delivery/7", body: `Delivery Stage: ${stage}`, expected: true },
+    );
+  }
+  cases.push(
+    { base: "main", body: "Documentation update", expected: true },
+    { base: "brownfield-delivery/7", body: "", expected: true },
+    { event: "push", expected: true },
+  );
+  for (const condition of conditions) {
+    for (const { base, body, expected, event = "pull_request" } of cases) {
+      const actual = runInNewContext(condition, {
+        github: { event_name: event, event: {
+          repository: { default_branch: "main" },
+          pull_request: event === "push" ? undefined : { base: { ref: base }, body },
+        } },
+        contains: (value, search) => String(value ?? "").toLowerCase().includes(search.toLowerCase()),
+        startsWith: (value, search) => String(value ?? "").toLowerCase().startsWith(search.toLowerCase()),
+      }, { timeout: 100 });
+      assert.equal(actual, expected, `Unexpected application CI for ${event}, ${base}, ${body}`);
+    }
+  }
+});
+
+test("Spec and Plan stage validation is document-only, not application build or test execution", () => {
+  const stageCi = readFileSync(".github/workflows/brownfield-human-gated-delivery-stage-ci.yml", "utf8");
+  const artifactJob = stageCi.match(/^  artifact-gate:\n([\s\S]*?)(?=^  tdd-red:)/m)?.[1];
+  assert.ok(artifactJob);
+  assert.match(artifactJob, /outputs.stage == 'spec' \|\|\s+needs.classify.outputs.stage == 'plan'/);
+  assert.match(artifactJob, /validate-stage.mjs" artifacts/);
+  assert.doesNotMatch(artifactJob, /\b(?:npm|npx|docker|vitest)\b/);
 });
 
 test("default-branch PRs cannot skip required Green checks through body text", () => {

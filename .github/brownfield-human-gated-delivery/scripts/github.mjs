@@ -1,11 +1,14 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
+  artifactPaths,
   countHumanApprovals,
   isAuthorizedAssociation,
+  isCopilotActor,
   lifecycleBranch,
   loadConfig,
   nextStage,
+  normalizeCopilotStageBody,
   parsePullRequestMetadata,
   renderPrompt,
   stages,
@@ -144,7 +147,9 @@ async function ensureLifecycleBranch(token, owner, repo, defaultBranch, intentNu
 }
 
 function stageIssueTitle(intentNumber, stage, intentTitle) {
-  const label = stage === "tests" ? "TDD Tests" :
+  const label = stage === "spec" ? "Spec review" :
+    stage === "plan" ? "Plan review" :
+    stage === "tests" ? "TDD Tests" :
     stage[0].toUpperCase() + stage.slice(1);
   const conciseIntent = intentTitle
     .replace(/^\[Brownfield delivery\]\s*/i, "")
@@ -237,11 +242,11 @@ function progressBody(parentIssue, stageIssues, current = {}) {
     const status = current.stage === stage
       ? current.status
       : issue.state === "closed" ? "Complete" :
-        issue.assignees?.some((item) => item.login?.includes("copilot-swe-agent"))
+        issue.assignees?.some(isCopilotActor)
           ? "Copilot working"
           : "Waiting";
     const evidence = current.stage === stage && current.pullRequestUrl
-      ? ` · [PR](${current.pullRequestUrl})`
+      ? ` · [PR](${current.pullRequestUrl})${current.documentUrl ? ` · [Read document](${current.documentUrl})` : ""}`
       : "";
     return `| ${stage} | [#${issue.number}](${issue.html_url})${evidence} | ${status} |`;
   });
@@ -268,7 +273,10 @@ async function updateProgress(token, owner, repo, parentIssue, stageIssues, curr
     `/repos/${owner}/${repo}/issues/${parentIssue.number}/comments`,
   );
   const existing = comments.find((comment) => comment.body?.includes(progressMarker));
-  const body = progressBody(parentIssue, stageIssues, current);
+  const documentUrl = current?.headSha && ["spec", "plan"].includes(current.stage)
+    ? `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(current.headSha)}/${artifactPaths(parentIssue.number)[current.stage]}`
+    : null;
+  const body = progressBody(parentIssue, stageIssues, { ...current, documentUrl });
   if (existing) {
     return githubRequest(token, `/repos/${owner}/${repo}/issues/comments/${existing.id}`, {
       method: "PATCH",
@@ -299,7 +307,7 @@ async function assignCopilot(
     token,
     `/repos/${owner}/${repo}/issues/${issue.number}`,
   );
-  if (refreshed.assignees?.some((item) => item.login?.includes("copilot-swe-agent"))) {
+  if (refreshed.assignees?.some(isCopilotActor)) {
     return;
   }
   const actorData = await graphql(token, `
@@ -308,6 +316,7 @@ async function assignCopilot(
         id
         suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
           nodes {
+            __typename
             ... on Bot { id login }
             ... on User { id login }
           }
@@ -316,9 +325,7 @@ async function assignCopilot(
     }
   `, { owner, repo });
   const repository = actorData.repository;
-  const actor = repository?.suggestedActors?.nodes?.find(
-    (item) => item.login === "copilot-swe-agent",
-  );
+  const actor = repository?.suggestedActors?.nodes?.find(isCopilotActor);
   if (!repository?.id || !actor?.id) {
     throw new Error("Copilot Coding Agent is not available for this repository.");
   }
@@ -412,7 +419,7 @@ async function validateStageContext(token, owner, repo, pullRequest, { deliveryR
   }
   if (
     !pullRequest.merged &&
-    !stageIssue.assignees?.some((item) => item.login?.includes("copilot-swe-agent"))
+    !stageIssue.assignees?.some(isCopilotActor)
   ) {
     throw new Error("The stage Issue is not assigned to Copilot Coding Agent.");
   }
@@ -432,7 +439,7 @@ async function validateStageContext(token, owner, repo, pullRequest, { deliveryR
   if (deliveryRetry && pullRequest.base.ref !== repository.default_branch) {
     throw new Error("Delivery requires an implementation merged into the default branch.");
   }
-  if (!pullRequest.user?.login?.includes("copilot-swe-agent")) {
+  if (!isCopilotActor(pullRequest.user)) {
     throw new Error("Stage pull requests must be created by Copilot Coding Agent.");
   }
   return { metadata, stageIssue, stageIssues, parent, repository };
@@ -530,7 +537,20 @@ export async function intake(currentPullRequest) {
   const { owner, repo } = repositoryCoordinates();
   const pullRequest = currentPullRequest ?? event.pull_request;
   if (!pullRequest) throw new Error("Pull request event is required.");
-  const context = await validateStageContext(token, owner, repo, pullRequest);
+  const body = normalizeCopilotStageBody(pullRequest.body, pullRequest.user);
+  const context = await validateStageContext(token, owner, repo, { ...pullRequest, body });
+  if (body !== pullRequest.body) {
+    const current = await getPullRequest(token, owner, repo, pullRequest.number);
+    if (policySnapshot(current) !== policySnapshot(pullRequest)) {
+      throw new Error("PR changed before generated closing suffix repair; retry current metadata.");
+    }
+    // Persist the repair with the user token so body-edited CI runs again.
+    await githubRequest(process.env.COPILOT_ASSIGN_TOKEN, `/repos/${owner}/${repo}/pulls/${pullRequest.number}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body }),
+    });
+    return;
+  }
   if (
     context.metadata.stage === "implementation" &&
     pullRequest.base.ref !== context.repository.default_branch
@@ -541,11 +561,21 @@ export async function intake(currentPullRequest) {
       body: JSON.stringify({ base: context.repository.default_branch }),
     });
   }
+  if (["spec", "plan"].includes(context.metadata.stage)) {
+    const title = stageIssueTitle(context.parent.number, context.metadata.stage, context.parent.title);
+    if (pullRequest.title !== title) {
+      await githubRequest(token, `/repos/${owner}/${repo}/pulls/${pullRequest.number}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+    }
+  }
   if (pullRequest.draft) {
     await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
       stage: context.metadata.stage,
       status: "Copilot working; draft PR",
       pullRequestUrl: pullRequest.html_url,
+      headSha: pullRequest.head.sha,
     });
     return;
   }
@@ -565,6 +595,7 @@ export async function intake(currentPullRequest) {
     stage: context.metadata.stage,
     status: "Human review required",
     pullRequestUrl: pullRequest.html_url,
+    headSha: pullRequest.head.sha,
   });
 }
 
@@ -717,6 +748,7 @@ export async function coordinate() {
         });
       }
       if (!registration.registered || ownEvent.pull_request ||
+          normalizeCopilotStageBody(decision.pr.body, decision.pr.user) !== decision.pr.body ||
           (stageFromBody(decision.pr.body) === "implementation" &&
            decision.pr.base.ref.startsWith("brownfield-delivery/"))) {
         await intake(decision.pr);
@@ -776,6 +808,7 @@ export async function coordinate() {
           status: state === "success" ? "Human approved; waiting for required checks and auto-merge" :
             `Shared-head policy blocked: ${decision.status}`,
           pullRequestUrl: decision.pr.html_url,
+          headSha: decision.pr.head.sha,
         });
       }
     } catch (error) {

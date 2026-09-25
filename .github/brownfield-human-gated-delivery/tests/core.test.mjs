@@ -9,8 +9,10 @@ import {
   artifactPaths,
   countHumanApprovals,
   isAuthorizedAssociation,
+  isCopilotActor,
   lifecycleBranch,
   nextStage,
+  normalizeCopilotStageBody,
   parsePullRequestMetadata,
   renderPrompt,
   validateConfig,
@@ -137,6 +139,54 @@ test("authorizes only trusted repository associations", () => {
   assert.equal(isAuthorizedAssociation("CONTRIBUTOR"), false);
 });
 
+test("recognizes current and legacy Copilot bot actors without accepting lookalike users", () => {
+  for (const login of ["Copilot", "copilot-swe-agent", "copilot-swe-agent[bot]"]) {
+    assert.equal(isCopilotActor({ login, type: "Bot" }), true);
+    assert.equal(isCopilotActor({ login, __typename: "Bot" }), true);
+    assert.equal(isCopilotActor({ login, type: "User" }), false);
+    assert.equal(isCopilotActor({ login }), false);
+  }
+  for (const login of ["my-copilot-swe-agent", "copilot-reviewer[bot]", "dependabot[bot]"]) {
+    assert.equal(isCopilotActor({ login, type: "Bot" }), false);
+  }
+  assert.equal(isCopilotActor(null), false);
+});
+
+test("normalizes only the recognized Copilot suffix referencing this stage Issue", () => {
+  const metadata = [
+    "Delivery Demo: brownfield-human-gated-delivery",
+    "Delivery Intent: #7",
+    "Delivery Stage: spec",
+    "Delivery Stage Issue: #8",
+  ].join("\n");
+  const suffix = "\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #8";
+  const author = { login: "Copilot", type: "Bot" };
+  for (const newline of ["\n", "\r\n"]) {
+    const body = (metadata + suffix).replaceAll("\n", newline);
+    const normalized = normalizeCopilotStageBody(body, author);
+    assert.equal(normalized, body.replace("- Fixes #8", "- References #8"));
+    assert.equal(parsePullRequestMetadata(normalized).stageIssueNumber, 8);
+    assert.throws(() => parsePullRequestMetadata(body), /Closing keywords/);
+    assert.equal(normalizeCopilotStageBody(normalized, author), normalized);
+  }
+  assert.equal(normalizeCopilotStageBody(metadata, author), metadata);
+  assert.equal(normalizeCopilotStageBody(metadata + suffix, { login: "Copilot", type: "User" }), metadata + suffix);
+  for (const body of [
+    metadata + suffix.replace("Fixes #8", "Fixes #7"),
+    metadata + suffix.replace("Fixes #8", "Fixes #999"),
+    metadata + "\n\nFixes #8",
+    metadata + "\n\nFixes #99" + suffix,
+    metadata + suffix + "\n\nFixes #7",
+    metadata + suffix.replace("Fixes #8", "Fixes other/repo#8"),
+    metadata + suffix.replace("Fixes #8", "Fixes https://github.com/example/repo/issues/7"),
+  ]) {
+    assert.throws(
+      () => parsePullRequestMetadata(normalizeCopilotStageBody(body, author)),
+      /Closing keywords|stage Issue/,
+    );
+  }
+});
+
 test("builds lifecycle names and ordered transitions", () => {
   assert.equal(lifecycleBranch(42), "brownfield-delivery/42");
   assert.deepEqual(artifactPaths(42), {
@@ -198,6 +248,13 @@ test("Spec and Plan prompts keep human feedback in the same stage until approval
     assert.match(prompt, /explicit Human approval/);
     assert.match(prompt, /Do not start the next stage/);
     assert.match(prompt, /Do not use closing keywords/);
+    const label = stage === "spec" ? "Spec review" : "Plan review";
+    assert.ok(prompt.includes(`[Brownfield Delivery #42][${label}]`));
+    for (const heading of ["Summary", "Review document", "Open questions", "Review checklist"]) {
+      assert.ok(prompt.includes(`## ${heading}`), `${stage} needs a ${heading} PR section`);
+    }
+    assert.match(prompt, /\/blob\/<current-head-sha>\//);
+    assert.match(prompt, /checklist.*not.*approval/i);
     assert.equal(parsePullRequestMetadata(prompt).stage, stage);
   }
   const spec = readFileSync(config.stages.spec.prompt, "utf8");

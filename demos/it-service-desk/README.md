@@ -59,8 +59,10 @@ container smoke check targets the stable dashboard HTML marker
 Pull-request CI runs for all changed paths, including documentation, so the
 required `validate` and `container-smoke` checks cannot remain missing. This
 small demo favors reliable required checks over PR path-filter optimization;
-push CI remains path-scoped. Controlled-Red Tests PRs retain their separate
-TDD validation instead of running the normal Green checks on lifecycle branches.
+push CI remains path-scoped. On lifecycle branches, Spec and Plan skip
+application tests, builds, and container smoke jobs; their stage workflow checks
+only document structure and scope. Controlled-Red Tests PRs retain their
+separate TDD validation instead of normal Green checks.
 PRs targeting the default branch always run the Green checks, regardless of
 stage text in the PR body.
 After installing demo dependencies, CI also exercises the lifecycle reporter

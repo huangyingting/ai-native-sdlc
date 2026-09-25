@@ -65,7 +65,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
       ].join("\n"),
       base: { ref: "brownfield-delivery/42" },
       head: { sha: "head-sha", repo: { full_name: "example/repo" } },
-      user: { login: "copilot-swe-agent[bot]" },
+      user: { login: "copilot-swe-agent[bot]", type: "Bot" },
       html_url: "https://github.com/example/repo/pull/77",
     },
   });
@@ -86,16 +86,17 @@ test("validates an implementation PR, retargets it, and requests configured revi
       number: 43 + i, node_id: `ISSUE_${43 + i}`, body: metadata(name, 43 + i),
       state: i < index || (merged && i === index) ? "closed" : "open",
       labels: [{ name: `brownfield-human-gated-delivery:${name}` }],
-      assignees: [{ login: "copilot-swe-agent[bot]" }],
+      assignees: [{ login: "copilot-swe-agent[bot]", type: "Bot" }],
       html_url: `https://github.com/example/repo/issues/${43 + i}`,
     }));
-    const parent = { number: 42, state: parentState, labels: [{ name: "brownfield-human-gated-delivery:intent" }] };
+    const parent = { number: 42, title: "[Brownfield delivery] Assign tickets", state: parentState, labels: [{ name: "brownfield-human-gated-delivery:intent" }] };
     const files = (stage === "implementation" ? ["demos/it-service-desk/src/ticket.ts"] :
       stage === "tests" ? ["docs/delivery-runs/brownfield-human-gated-delivery/42/expected-failures.json", "demos/it-service-desk/src/ticket.test.ts"] :
         [`docs/delivery-runs/brownfield-human-gated-delivery/42/${stage}.md`])
       .map((filename) => ({ filename, status: "modified" }));
     const pr = {
       number: 77, node_id: "PR_77", state: merged ? "closed" : "open", merged,
+      title: `[Brownfield Delivery #42][${stage === "spec" ? "Spec review" : stage === "plan" ? "Plan review" : stage}] Assign tickets`,
       body: metadata(stage, 43 + index), draft: false,
       base: { ref: stage === "implementation" ? "main" : "brownfield-delivery/42" },
       head: { sha: "current-head", repo: { full_name: "example/repo" } },
@@ -108,6 +109,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
     const state = {
       parent, pr, issues, calls: [], comments: [], prComments: [],
       reviews: [], statuses: [], files, branchExists: true, deleteFailure: null, reads: 0,
+      suggestedActors: [{ id: "COPILOT_1", login: "copilot-swe-agent", __typename: "Bot" }],
     };
     globalThis.fetch = async (url, options = {}) => {
       const u = new URL(url);
@@ -121,7 +123,10 @@ test("validates an implementation PR, retargets it, and requests configured revi
         return jsonResponse(pr);
       }
       if (path === "/repos/example/repo/pulls/77" && method === "PATCH") {
-        pr.base.ref = body.base;
+        if (body.base !== undefined) pr.base.ref = body.base;
+        if (body.body !== undefined) pr.body = body.body;
+        if (body.title !== undefined) pr.title = body.title;
+        state.onPatch?.();
         return jsonResponse(pr);
       }
       if (path === "/repos/example/repo/pulls/77/requested_reviewers") return jsonResponse({});
@@ -140,7 +145,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
             data: {
               repository: {
                 id: "REPO_1",
-                suggestedActors: { nodes: [{ id: "COPILOT_1", login: "copilot-swe-agent" }] },
+                suggestedActors: { nodes: state.suggestedActors },
               },
             },
           });
@@ -148,7 +153,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
         if (body.query.includes("AssignCopilot")) {
           const issue = issues.find((item) => item.node_id === body.variables.assignableId);
           assert.ok(issue, "Copilot must be assigned to an existing stage Issue");
-          issue.assignees = [{ login: "copilot-swe-agent[bot]" }];
+          issue.assignees = [{ login: "copilot-swe-agent[bot]", type: "Bot" }];
           return jsonResponse({ data: { replaceActorsForAssignable: { assignable: issue } } });
         }
         if (body.query.includes("EnableAutoMerge") && state.failEnable) {
@@ -210,7 +215,126 @@ test("validates an implementation PR, retargets it, and requests configured revi
     return { id, state, commit_id, user: { login, type: "User" } };
   }
 
+test("current REST Copilot identity is valid and assignment retries stay idempotent", async () => {
+  const state = lifecycleApi({ stage: "spec", merged: true });
+  state.pr.user = { login: "Copilot", type: "Bot" };
+  for (const issue of state.issues) issue.assignees = [{ login: "Copilot", type: "Bot" }];
+  writeEvent({ pull_request: structuredClone(state.pr) });
+  await advance();
+  await advance();
+  assert.ok(!state.calls.some((call) => call.body?.query?.includes("AssignCopilot")));
+  assert.match(state.comments[0].body, /\| tests \| .* \| Copilot working \|/);
+});
+
+test("assignment discovery accepts the current GraphQL Copilot bot, not lookalike users", async () => {
+  const state = lifecycleApi({ stage: "spec", merged: true });
+  state.issues[1].assignees = [];
+  state.suggestedActors = [
+    { id: "USER_1", login: "copilot-swe-agent", __typename: "User" },
+    { id: "COPILOT_CURRENT", login: "Copilot", __typename: "Bot" },
+  ];
+  await advance();
+  const assignment = state.calls.find((call) => call.body?.query?.includes("AssignCopilot"));
+  assert.deepEqual(assignment.body.variables.actorIds, ["COPILOT_CURRENT"]);
+});
+
+test("coordinator repairs generated closing suffix before accepting current Copilot metadata", async () => {
+  const state = lifecycleApi({ stage: "spec" });
+  state.pr.user = { login: "Copilot", type: "Bot" };
+  state.issues[0].assignees = [{ login: "Copilot", type: "Bot" }];
+  const cleanBody = state.pr.body;
+  state.pr.body += "\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #43";
+  state.reviews = [humanReview(1)];
+  state.prComments = [{ id: 100, body: "<!-- brownfield-human-gated-delivery-policy -->" }];
+  writeEvent({ workflow_run: { event: "pull_request_review" } });
+  await coordinate();
+  assert.equal(state.pr.body, cleanBody + "\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- References #43");
+  const edits = state.calls.filter((call) => call.path.endsWith("/pulls/77") && call.method === "PATCH");
+  assert.equal(edits.length, 1);
+  assert.ok(edits[0].options.headers.Authorization.endsWith(process.env.COPILOT_ASSIGN_TOKEN));
+  assert.equal(state.statuses.at(-1).state, "pending");
+  assert.ok(state.statuses.every((status) => status.state !== "success"));
+  assert.equal(state.pr.auto_merge, null);
+  await coordinate();
+  assert.equal(state.statuses.at(-1).state, "success");
+  assert.ok(state.pr.auto_merge);
+});
+
+test("closing suffix repair does not overwrite a concurrently edited PR description", async () => {
+  const state = lifecycleApi({ stage: "spec" });
+  state.pr.body += "\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #43";
+  state.onRead = (count) => {
+    if (count === 2) state.pr.body = state.pr.body.replace("spec", "plan");
+  };
+  await assert.rejects(coordinate, /PR changed before generated closing suffix repair/);
+  assert.ok(!state.calls.some((call) => call.method === "PATCH" && call.path.endsWith("/pulls/77")));
+  assert.equal(state.pr.auto_merge, null);
+  assert.ok(state.statuses.every((status) => status.state !== "success"));
+});
+
+test("closing suffix repair failures never enable auto-merge or suppress the error", async () => {
+  const state = lifecycleApi({ stage: "spec" });
+  state.pr.body += "\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #43";
+  state.reviews = [humanReview(1)];
+  const mockFetch = globalThis.fetch;
+  globalThis.fetch = (url, options = {}) => {
+    if (new URL(url).pathname.endsWith("/pulls/77") && options.method === "PATCH") {
+      return Promise.resolve(jsonResponse({ message: "Forbidden" }, 403));
+    }
+    return mockFetch(url, options);
+  };
+  await assert.rejects(coordinate, /403.*Forbidden/);
+  assert.equal(state.statuses.at(-1).state, "failure");
+  assert.equal(state.pr.auto_merge, null);
+});
+
+for (const invalid of ["wrong-stage", "human-author", "unassigned-stage"]) {
+  test(`does not repair closing references for ${invalid}`, async () => {
+    const state = lifecycleApi({ stage: "spec" });
+    state.pr.body += `\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #${invalid === "wrong-stage" ? 42 : 43}`;
+    if (invalid === "human-author") state.pr.user = { login: "copilot-swe-agent[bot]", type: "User" };
+    if (invalid === "unassigned-stage") state.issues[0].assignees = [];
+    state.reviews = [humanReview(1)];
+    await assert.rejects(coordinate, /stage Issue|Closing keywords|not assigned/);
+    assert.ok(!state.calls.some((call) => call.path.endsWith("/pulls/77") && call.method === "PATCH"));
+    assert.equal(state.statuses.at(-1).state, "failure");
+    assert.equal(state.pr.auto_merge, null);
+  });
+}
+
 for (const stage of ["spec", "plan"]) {
+  test(`${stage} intake gives a document-review title and a revision-pinned link without rewriting discussion`, async () => {
+    const state = lifecycleApi({ stage });
+    state.pr.title = "[WIP] Clarify ownership";
+    state.pr.body += "\n\n## Open questions\nShould an owner be optional?";
+    state.pr.draft = true;
+    const originalBody = state.pr.body;
+    await intake(structuredClone(state.pr));
+    await intake(structuredClone(state.pr));
+    const label = stage === "spec" ? "Spec review" : "Plan review";
+    assert.equal(state.pr.title, `[Brownfield Delivery #42][${label}] Assign tickets`);
+    assert.equal(state.pr.body, originalBody);
+    const titleEdits = state.calls.filter((call) => call.method === "PATCH" && call.body?.title);
+    assert.equal(titleEdits.length, 1, "do not repeatedly rewrite an already-correct title");
+    assert.deepEqual(Object.keys(titleEdits[0].body), ["title"]);
+    assert.equal(state.comments.length, 1);
+    assert.ok(state.comments[0].body.includes(
+      `[Read document](https://github.com/example/repo/blob/current-head/docs/delivery-runs/brownfield-human-gated-delivery/42/${stage}.md)`,
+    ));
+    assert.match(state.comments[0].body, /draft PR/);
+    assert.ok(!state.calls.some((call) => call.path.endsWith("/requested_reviewers")));
+    assert.ok(!state.calls.some((call) => call.body?.query?.includes("EnableAutoMerge")));
+
+    state.pr.head.sha = "revised-head";
+    state.pr.draft = false;
+    await intake(structuredClone(state.pr));
+    assert.equal(state.comments.length, 1);
+    assert.ok(state.comments[0].body.includes(`/blob/revised-head/docs/delivery-runs/brownfield-human-gated-delivery/42/${stage}.md`));
+    assert.ok(!state.comments[0].body.includes("/blob/current-head/"));
+    assert.match(state.comments[0].body, /Human review required/);
+    assert.ok(state.calls.some((call) => call.path.endsWith("/requested_reviewers")));
+  });
+
   test(`${stage} iterates in the same PR and advances only after the approved revision merges`, async () => {
     const state = lifecycleApi({ stage });
     const index = stage === "spec" ? 0 : 1;
@@ -232,6 +356,9 @@ for (const stage of ["spec", "plan"]) {
       assert.equal(state.prComments.length, 1, "retain the same PR registration");
       assert.match(state.comments[0].body, /same pull request/);
       assert.match(state.comments[0].body, /@copilot/);
+      assert.ok(state.comments[0].body.includes(
+        `/blob/${state.pr.head.sha}/docs/delivery-runs/brownfield-human-gated-delivery/42/${stage}.md`,
+      ));
       assert.ok(!state.calls.some((call) => call.body?.query?.includes("AssignCopilot")));
     }
 
@@ -709,7 +836,7 @@ async function retargetTestBody() {
           "Delivery Stage Issue: #46",
         ].join("\n"),
         labels: [{ name: "brownfield-human-gated-delivery:implementation" }],
-        assignees: [{ login: "copilot-swe-agent[bot]" }],
+        assignees: [{ login: "copilot-swe-agent[bot]", type: "Bot" }],
       });
     }
     if (path === "/repos/example/repo/issues/46/parent") {

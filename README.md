@@ -23,8 +23,23 @@ npm test
 
 Each demo owns its dependencies and additional validation commands.
 
+## Set up the brownfield demo
+
+With Node.js 24+ and GitHub CLI authenticated as a repository administrator:
+
+```sh
+npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
+```
+
+This previews prerequisites without changing GitHub. Add `--apply` to configure
+missing settings. See the [setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
+for secure token entry, existing-Intent recovery, and remaining manual checks.
+
 ## Documentation
 
+- [Step-by-step brownfield demo](docs/brownfield-human-gated-delivery-walkthrough.md)
+  — run the human Intent, iterative Spec/Plan reviews, TDD, and verified delivery
+  demonstration through GitHub Web.
 - [Repository guide](docs/repository-guide.md) — structure, local development,
   workflows, trace publishing, security, and operations.
 - [Brownfield Human-Gated Delivery demo](docs/brownfield-human-gated-delivery.md)

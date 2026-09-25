@@ -1,5 +1,9 @@
 # Brownfield Human-Gated Delivery demo
 
+For a hands-on session, follow the
+[step-by-step walkthrough](./brownfield-human-gated-delivery-walkthrough.md).
+This page is the setup, policy, and implementation reference.
+
 This demo safely evolves the existing IT service desk from a human-authored Intent into
 a reviewed specification, implementation plan, executable tests, working
 increment, and verified container image.
@@ -62,6 +66,22 @@ the final PR contains the complete reviewed increment.
 
 ## Review artifacts
 
+Spec and Plan each have a separate document-review PR. Their titles identify
+the Intent and say **Spec review** or **Plan review**. The coordinator normalizes
+these titles without rewriting the agent's summary or the review discussion.
+
+Their PR descriptions include **Summary**, **Review document**, **Open
+questions**, and **Review checklist** sections. The agent keeps the document
+link pinned to the current PR commit and summarizes changes for each review
+round. Checklists are reminders, not approval controls: checking every box
+does not satisfy the Human gate.
+
+Use the parent Intent's progress comment as the hub. The active Spec or Plan
+row links to both its PR and the rendered **Read document** snapshot. The
+coordinator refreshes that commit-pinned link as revisions are reconciled.
+Return to the PR's **Files changed** tab to leave inline feedback or submit
+the formal review; the rendered document page itself is not an approval UI.
+
 Each lifecycle stores:
 
 ```text
@@ -86,6 +106,93 @@ rename, or weaken approved tests, even if their test names remain unchanged.
 
 ## One-time repository setup
 
+### Run the setup script
+
+Use the dependency-free
+[`setup.mjs`](../.github/brownfield-human-gated-delivery/scripts/setup.mjs)
+from the repository root. It targets GitHub.com and requires Node.js 24+, GitHub
+CLI (`gh`), and an authenticated **repository administrator**. No root `npm
+install` is needed. The existing demo automation and application must already
+be on `main`, which must be the default branch; setup does not publish local
+code or change branch names.
+
+```sh
+gh auth login --hostname github.com
+
+# Read-only preview, including configured reviewers and missing prerequisites.
+npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
+
+# Apply missing settings, then read them back to verify.
+npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply
+```
+
+Replace `huangyingting/ai-native-sdlc` with your repository when using a fork.
+The explicit repository argument prevents accidental changes to another remote.
+The administrator's CLI credential needs permission to manage repository
+settings/rulesets, Actions settings/secrets, Environments, and Issues. This is
+**separate from** the limited automation PAT below; do not give that PAT
+administration access just to run setup.
+
+The script:
+
+- verifies the configuration, issue form, prompts, validators, workflows, and
+  application manifests/Dockerfile exist on `main`;
+- enables Issues, auto-merge, the configured merge method, and GitHub Actions;
+- enables disabled delivery workflows and IT service desk CI, leaving unrelated
+  workflows alone;
+- creates the Intent label and temporary verification Environment if missing;
+- creates the two named rulesets described below, binding required checks to
+  the verified GitHub Actions app identity, with no bypass actors;
+- checks individual Human reviewers have repository write access, checks for
+  an assignable Copilot Bot, and checks the automation secret **name**, never
+  its stored value.
+
+Existing rulesets and Environment protections are never overwritten. Compliant,
+stronger rules are preserved. Conflicts in the named rulesets stop setup before
+any writes; resolve those conflicts in GitHub settings and rerun. Other or
+inherited rulesets and classic branch protection may impose additional checks
+or prevent lifecycle-branch creation/deletion; inspect those manually. Setup
+does not grant bypasses or relax organization policies.
+
+To create or replace the automation secret, first create the PAT using
+[the permissions below](#configure-the-copilot-token), then use an interactive
+terminal:
+
+```sh
+npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply --set-token
+```
+
+GitHub CLI prompts securely for the value. Do not put the token in command-line
+arguments, files, or chat. Without `--set-token`, an existing secret is untouched.
+Secret presence cannot verify its permissions, expiration, selected repository,
+or Copilot entitlement.
+
+To repair an already-created Intent's missing label:
+
+```sh
+npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply --intent 7
+```
+
+This requires an open Issue from an authorized author. It only adds the label;
+it does **not** dispatch kickoff. The script prints the explicit resume command
+for after setup and manual checks.
+
+Exit codes: **0** means automated checks passed (manual checks still apply),
+**2** means previewed changes or unresolved checks remain, and **1** means an
+error/conflict. Changes are not transactional: if GitHub rejects a later write,
+earlier successful changes remain. Fix the reported error and rerun; resources
+are not duplicated, secrets are not rotated implicitly, and applied settings
+are read back before success is reported.
+
+Manual steps still include account/organization Copilot access and billing,
+PAT creation/authorization, sub-issue availability, GHCR package publication
+permissions, and optional automatic Copilot review. Restricted Actions
+allowlists and team-based reviewer policies are reported as unverified (exit
+2); the script does not expand the allowlist or claim to have validated team
+membership using the secret. Configure the intended Human reviewers through a
+reviewed change to `main`; setup never changes reviewer identities. Local
+application installation is optional and covered by the walkthrough.
+
 ### Enable GitHub features
 
 Enable:
@@ -104,6 +211,11 @@ container verification; it is not a persistent hosting environment.
 
 Create `brownfield-human-gated-delivery:intent` before using the Issue form.
 The kickoff workflow creates the internal stage labels automatically.
+GitHub does not create a missing label from an Issue form: the Issue can be
+submitted without it, and kickoff is then skipped. To recover, create the label,
+apply it to the existing Intent, and manually run **Brownfield Delivery ·
+Kickoff** with that Issue number after completing the remaining setup. Adding
+the label alone does not trigger kickoff.
 
 ### Configure the Copilot token
 
@@ -179,6 +291,11 @@ For both:
 
 Block deletion of `main`. Allow deletion of `brownfield-delivery/**` so
 successful delivery can remove its temporary lifecycle branch.
+For the lifecycle-branch ruleset's required status checks, enable
+`do_not_enforce_on_create` (do not require status checks on branch creation).
+Kickoff must be able to create the initial lifecycle branch from `main` before
+any stage PR exists. Subsequent updates and merges still require the checks.
+Do not add a rule restricting creation of lifecycle branches.
 
 For **both** `brownfield-delivery/**` and `main`, require:
 
@@ -201,9 +318,19 @@ For `main`, require:
 
 The IT service desk CI workflow runs for every PR, without PR-level path filters,
 so these required checks also exist for unrelated documentation or tooling PRs.
-Its intentional controlled-Red stage exemptions apply only on lifecycle branches.
+On lifecycle branches, Spec and Plan skip the application `validate` and
+`container-smoke` jobs: their stage CI validates documents and scope, not
+application code. Tests also skip normal Green CI and use the dedicated
+controlled-Red validation instead.
 PRs targeting the default branch always run the real Green checks, even if their
 body contains `Delivery Stage: tests` as prose.
+
+| Stage | Automated validation | Human gate |
+|---|---|---|
+| Spec | Specification structure, acceptance scenarios, and allowed file scope; no application build | Review and approve the latest Spec |
+| Plan | Task/dependency structure, acceptance mappings, and allowed file scope; no application build | Review and approve the latest Plan |
+| TDD Tests | Green baseline, compilable test changes, and exact controlled-Red evidence | Review and approve tests |
+| Implementation | Immutable contracts, Green tests, lint, build, and container smoke checks | Review and approve implementation |
 
 The native review rule enforces a common floor, **not** the configured reviewer
 identities or higher stage thresholds. The required policy status prevents that
@@ -286,8 +413,10 @@ for review rather than presenting them as agreed requirements.
 
 In GitHub Web:
 
-1. Read the rendered Spec under **Files changed** and inspect scope, non-goals,
-   edge cases, acceptance scenarios, and open questions in the PR description.
+1. Follow **Read document** from the Intent's progress comment, or use the PR's
+   **Review document** link. Inspect scope, non-goals, edge cases, acceptance
+   scenarios, and the **Open questions** and **Review checklist** sections.
+   Return to **Files changed** on the PR to leave review feedback.
 2. Add inline feedback and submit **Request changes** when behavior is
    ambiguous or incomplete.
 3. Post an `@copilot` comment on that PR, for example:
@@ -452,6 +581,16 @@ reopens the Intent and restores a remediation branch at the merged commit.
 - Copilot and bot reviews never satisfy Human approval counts.
 - Closing keywords are forbidden in stage PRs; lifecycle automation owns Issue
   completion.
+- GitHub can append a `START COPILOT CODING AGENT SUFFIX` block containing
+  `Fixes #<stage-issue>` despite the prompt. The trusted coordinator changes
+  only that recognized trailing reference to `References #<stage-issue>` after
+  validating the Copilot bot author and stage context. It uses the user token
+  to trigger body-edited CI and leaves policy pending until the updated PR is
+  reconciled. Other closing references, including parent, unrelated, and
+  cross-repository Issues, remain rejected.
+- Copilot identity checks accept the current REST `Copilot` bot and legacy
+  `copilot-swe-agent` bot names. They require a Bot actor type, not a matching
+  substring in an arbitrary user's login.
 - Kickoff and transition operations are idempotent so retries do not duplicate
   stage Issues or assignments.
 

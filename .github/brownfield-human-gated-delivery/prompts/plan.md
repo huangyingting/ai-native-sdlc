@@ -21,6 +21,35 @@ threads, and passing CI alone are not approval. Do not start the next stage,
 write tests or implementation, approve or merge your own PR, or close the stage
 Issue. Lifecycle automation advances after the approved PR merges.
 
+## Pull-request presentation
+
+Use the title
+`[Brownfield Delivery #{{intent}}][Plan review] <short intent title>`.
+Keep this as a separate document-review PR, not a combined Spec/Plan or code PR.
+
+Include these sections in the PR description before the lifecycle metadata:
+
+- `## Summary`: explain the implementation approach and summarize changes since
+  the previous review. Do not reproduce the entire plan.
+- `## Review document`: link to the rendered plan using
+  `https://github.com/<owner>/<repo>/blob/<current-head-sha>/docs/delivery-runs/brownfield-human-gated-delivery/{{intent}}/plan.md`.
+  Resolve the repository and actual PR head SHA from GitHub; do not guess them
+  or link to `main`. Update the link after every revision. Also link to the
+  approved specification in this revision for context.
+- `## Open questions`: list unresolved trade-offs, risks, or conflicts with
+  the approved Spec. Write "None" only if none remain.
+- `## Review checklist`: include the following unchecked reviewer reminders:
+  - Every approved acceptance scenario maps to executable work.
+  - Tasks are appropriately sized and dependencies are clear and acyclic.
+  - Migration risks, existing-data compatibility, and validation are addressed.
+  - Open questions are resolved and the approved Spec remains unchanged.
+  - Only the plan changed; TDD and implementation have not started.
+
+Also link back to the parent Intent as the progress hub and to this stage's
+Issue. The checklist is guidance, not an approval mechanism; the Human must
+submit a formal approving review of the latest revision. Explain that this
+stage runs document/scope checks, not application builds or container tests.
+
 ## Artifact format
 
 Use these exact top-level sections:

@@ -22,8 +22,8 @@ The repository keeps runnable demonstrations separate from reusable tooling:
 Demo projects are intentionally not npm workspaces. This allows future
 TypeScript and JavaScript demonstrations to use different frameworks,
 dependency versions, and runtimes without coupling their dependency graphs.
-The root package remains dependency-free and only orchestrates repository
-checks.
+The root package remains dependency-free and exposes repository checks and the
+brownfield prerequisite setup command.
 
 ## Naming conventions
 
@@ -88,11 +88,18 @@ artifacts, controlled TDD Red evidence, Copilot Coding Agent implementation,
 GHCR publishing, temporary container verification, and delivery feedback to
 the originating Issue.
 
-See [Brownfield Human-Gated Delivery demo](./brownfield-human-gated-delivery.md)
-for reviewer configuration, credentials, branch rules, stage artifacts, the
-live demonstration script, and failure behavior. This write-enabled Coding
-Agent flow is one AI-native delivery pattern and remains separate from the
-read-only Copilot CLI orchestration workflows below.
+Use the [step-by-step walkthrough](./brownfield-human-gated-delivery-walkthrough.md)
+to run the demo in GitHub Web. See
+[Brownfield Human-Gated Delivery demo](./brownfield-human-gated-delivery.md)
+for reviewer configuration, credentials, branch rules, stage artifacts, and
+failure behavior. This write-enabled Coding Agent flow is one AI-native delivery
+pattern and remains separate from the read-only Copilot CLI orchestration
+workflows below.
+
+For repeatable prerequisite configuration, use
+[`npm run setup:brownfield`](./brownfield-human-gated-delivery.md#run-the-setup-script).
+It previews changes unless explicitly passed `--apply`, preserves existing
+protections, and reports prerequisites that require manual configuration.
 
 ## Copilot CLI demonstration workflow
 

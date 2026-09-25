@@ -8,7 +8,7 @@ export const authorizedAssociations = Object.freeze([
 ]);
 
 const closingReferencePattern =
-  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*#\d+/i;
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:#\d+|[\w.-]+\/[\w.-]+#\d+|https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+)/i;
 const loginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const teamPattern = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,98}[A-Za-z0-9])?$/;
 
@@ -104,6 +104,12 @@ export function isAuthorizedAssociation(association) {
   return authorizedAssociations.includes(String(association ?? "").toUpperCase());
 }
 
+export function isCopilotActor(actor) {
+  return (actor?.type ?? actor?.__typename) === "Bot" &&
+    ["copilot", "copilot-swe-agent", "copilot-swe-agent[bot]"]
+      .includes(String(actor.login ?? "").toLowerCase());
+}
+
 export function lifecycleBranch(intentNumber) {
   if (!Number.isInteger(intentNumber) || intentNumber < 1) {
     throw new Error("Intent number must be a positive integer.");
@@ -163,6 +169,19 @@ export function parsePullRequestMetadata(body) {
     extractSingleMarker(text, "Delivery Stage Issue", "#([1-9]\\d*)"),
   );
   return { demo, intentNumber, stage, stageIssueNumber };
+}
+
+export function normalizeCopilotStageBody(body, author) {
+  if (!isCopilotActor(author) || typeof body !== "string") return body;
+  const suffix = /((?:^|\r?\n)<!-- START COPILOT CODING AGENT SUFFIX -->\r?\n\r?\n- )Fixes #([1-9]\d*)([ \t]*(?:\r?\n)*)$/;
+  const match = body.match(suffix);
+  if (!match) return body;
+  const normalized = body.replace(suffix, "$1References #$2$3");
+  const metadata = parsePullRequestMetadata(normalized);
+  if (Number(match[2]) !== metadata.stageIssueNumber) {
+    throw new Error("Copilot closing suffix must reference only the current stage Issue.");
+  }
+  return normalized;
 }
 
 export function renderPrompt(template, values) {

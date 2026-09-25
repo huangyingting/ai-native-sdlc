@@ -31,7 +31,7 @@ Focus one reviewer on API compatibility.
     pattern: "parallel-delegation",
     patternLabel: "Parallel delegation",
     execution: "fleet",
-    instruction: "Dynamically create at least two read-only subagents and run them concurrently. Give each an independent subtask or perspective, wait for all branches, then synthesize their results and reconcile conflicts. Focus one reviewer on API compatibility. Every dynamically created subagent must use the claude-sonnet-4.6 model.",
+    instruction: "Dynamically create at least two read-only subagents and run them concurrently. Give each an independent subtask or perspective, wait for all branches, then synthesize their results and reconcile conflicts. Use only the available read-only tools; do not attempt shell commands or file writes. Focus one reviewer on API compatibility. Every dynamically created subagent must use the claude-sonnet-4.6 model.",
     orchestratorModel: "gpt-6-sol",
     subagentModel: "claude-sonnet-4.6",
     prompt: "Compare two services safely.",

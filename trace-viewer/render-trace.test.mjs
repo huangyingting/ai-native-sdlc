@@ -71,6 +71,8 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   const result = summarizeTrace(spans, { includeMessages: true, expectedModel: "gpt-6-luna" });
   assert.equal(result.complete, true);
   assert.equal(result.modelMatches, true);
+  assert.equal(result.includeMessages, true);
+  assert.ok(result.messageCount > 0);
   assert.match(result.summary, /Pattern evidence: PASS.*subagents: 2.*peak concurrency: 2/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);

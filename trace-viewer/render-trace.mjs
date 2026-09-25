@@ -64,6 +64,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         pattern: result.pattern,
         complete: result.complete,
         modelMatches: result.modelMatches,
+        includeMessages: result.includeMessages,
+        messageCount: result.messageCount,
         duration: result.duration,
         durationText: result.duration < 1000
           ? `${Math.round(result.duration)} ms`

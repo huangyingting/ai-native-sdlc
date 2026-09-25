@@ -270,6 +270,9 @@ export function buildTraceModel(spans, {
       const mcp = kind === "execute_tool" && (attrs["mcp.server.name"] ?? attrs["github.copilot.mcp.server.name"]);
       const label = mcp && !String(detail).startsWith(`${mcp}/`) ? `${mcp}/${detail}` : detail;
       const failed = Number(span.status?.code) === 2 || Boolean(attrs["error.type"]);
+      const errorReason = failed
+        ? redact(attrs["error.message"] ?? attrs["exception.message"] ?? span.status?.message ?? attrs["error.type"] ?? "OpenTelemetry recorded an error without a message.")
+        : null;
       const status = kind === "execute_tool" ? ` status=${failed ? "error" : "ok"}` : failed ? " ERROR" : "";
       const tokens = kind === "chat" && (attrs["gen_ai.usage.input_tokens"] != null || attrs["gen_ai.usage.output_tokens"] != null)
         ? ` tokens=${attrs["gen_ai.usage.input_tokens"] ?? "?"}/${attrs["gen_ai.usage.output_tokens"] ?? "?"} in/out`
@@ -307,6 +310,7 @@ export function buildTraceModel(spans, {
       events.push({
         id, owner, parentId: parentEventId, kind, depth, text, name: safe(label || "(unnamed)"), failed,
         status: failed ? "error" : "ok",
+        errorReason,
         start: Number(BigInt(span.startTimeUnixNano) / 1_000_000n),
         end: Number(BigInt(span.endTimeUnixNano) / 1_000_000n),
         cost,
@@ -385,15 +389,20 @@ export function buildTraceModel(spans, {
   const models = chats.map(({ span, attrs }) =>
     String(attrs["gen_ai.response.model"] ?? attrs["gen_ai.request.model"] ?? span.name.replace(/^chat ?/, "")));
   const expectedModels = [...new Set(String(expectedModel ?? "").split(",").map((model) => model.trim()).filter(Boolean))];
-  const modelMatches = !expectedModels.length || (models.length > 0
-    && models.every((model) => expectedModels.some((expected) => sameModel(model, expected)))
-    && expectedModels.every((expected) => models.some((model) => sameModel(model, expected))));
-  const web = tools.find(({ span, attrs, branch }) =>
+  const allowedModelsObserved = models.length > 0
+    && models.every((model) => expectedModels.some((expected) => sameModel(model, expected)));
+  const requiredRuntimeModel = expectedModels.length > 1 && subagents.length
+    ? expectedModels.at(-1)
+    : expectedModels[0];
+  const modelMatches = !expectedModels.length || (allowedModelsObserved
+    && models.some((model) => sameModel(model, requiredRuntimeModel)));
+  const webCalls = tools.filter(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
-  const mcp = tools.find(({ span, attrs, branch }) =>
+  const mcpCalls = tools.filter(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search"
       && Number(span.status?.code) !== 2 && !attrs["error.type"]);
-  const concurrentComplete = peak >= 2 && web && mcp && web.branch !== mcp.branch;
+  const distinctResearchBranches = webCalls.some((web) => mcpCalls.some((mcp) => web.branch !== mcp.branch));
+  const concurrentComplete = peak >= 2 && distinctResearchBranches;
   const reviewComplete = peak >= 2 && subagents.length >= 2;
   const collaborationComplete = subagents.length >= 2 && peak === 1;
   const rubberDuckComplete = subagents.length >= 1;
@@ -411,7 +420,7 @@ export function buildTraceModel(spans, {
         ? `critic branches: ${subagents.length} | rubber duck result validated separately`
         : scenario === "single"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
-      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${web ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcp ? "observed" : "not observed"} | distinct branches: ${web && mcp && web.branch !== mcp.branch ? "yes" : "no"}`;
+      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${webCalls.length ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcpCalls.length ? "observed" : "not observed"} | distinct branches: ${distinctResearchBranches ? "yes" : "no"}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
   const contentKeys = includeMessages && !messageCount
     ? [...new Set([...nodes.values()].flatMap((node) => Object.keys(node.attrs)).filter((key) => /message|content|argument|result/i.test(key)))].slice(0, 20)

@@ -111,7 +111,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.doesNotMatch(renderHtml(summarizeTrace(spans)), /S3 versioning &lt;verified&gt;/);
 });
 
-test("validates parent and subagent model selections as an observed set", () => {
+test("validates observed models against the requested runtime model set", () => {
   const spans = loadSpans(line(
     span("parent", "", "chat github-copilot/gpt-6-luna-2026-09-01", 1, 2),
     span("child", "", "chat claude-sonnet-4.6", 3, 4),
@@ -119,8 +119,26 @@ test("validates parent and subagent model selections as an observed set", () => 
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
   assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
   assert.equal(summarizeTrace(loadSpans(line(
+    span("root", "", "invoke_agent", 0, 10),
+    span("agent", "root", "invoke_agent explore", 1, 9),
+    span("child", "agent", "chat claude-sonnet-4.6", 2, 8),
+  )), { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
+  assert.equal(summarizeTrace(loadSpans(line(
     span("mini", "", "chat gpt-5.4-mini", 1, 2),
   )), { expectedModel: "gpt-5.4" }).modelMatches, false);
+});
+
+test("surfaces OTEL failure reasons without message capture", () => {
+  const failed = {
+    ...span("tool", "", "execute_tool web_fetch", 1, 2, [
+      attr("error.type", "permission_denied"),
+      attr("error.message", "URL is not allowed by policy"),
+    ]),
+    status: { code: 2 },
+  };
+  const result = summarizeTrace(loadSpans(line(failed)));
+  assert.equal(result.events[0].errorReason, "URL is not allowed by policy");
+  assert.match(renderHtml(result), /Failure reason[\s\S]*URL is not allowed by policy/);
 });
 
 test("does not accept a failed Microsoft Learn call as concurrent evidence", () => {

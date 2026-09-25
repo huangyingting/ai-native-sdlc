@@ -80,6 +80,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
             id: event.id,
             name: event.name,
             duration: `${Math.max(0, event.end - event.start).toLocaleString()} ms`,
+            reason: event.errorReason,
           })),
           slow: sortedByDuration.slice(0, 3).map((event) => ({
             id: event.id,

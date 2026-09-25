@@ -1,9 +1,0 @@
-{
-  "id": "single-agent-baseline",
-  "label": "Single-agent baseline",
-  "legacyLabels": ["Single agent baseline"],
-  "execution": "direct",
-  "description": "Complete the task without delegation to establish a latency, token, and cost baseline.",
-  "defaultPrompt": "Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.",
-  "instruction": "Handle the task directly without invoking any subagents. Produce a concise evidence-backed answer. This run is the single-agent baseline for comparing latency, token use, and cost with orchestrated patterns."
-}

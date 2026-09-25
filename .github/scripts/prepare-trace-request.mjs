@@ -1,7 +1,6 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { findDemo } from "./demo-catalog.mjs";
 
 export const supportedModels = [
   "gpt-6-luna",
@@ -22,6 +21,49 @@ export const supportedModels = [
   "mai-code-1.1-flash",
 ];
 
+const supportedPatterns = [
+  {
+    id: "single-agent-baseline",
+    label: "Single-agent baseline",
+    legacyLabels: ["Single agent baseline"],
+    execution: "direct",
+    defaultPrompt: "Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.",
+    instruction: "Handle the task directly without invoking any subagents. Produce a concise evidence-backed answer.",
+  },
+  {
+    id: "parallel-research",
+    label: "Parallel research",
+    legacyLabels: ["Concurrent research"],
+    execution: "fleet",
+    defaultPrompt: "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.",
+    instruction: "Dynamically create exactly two read-only research subagents and run them concurrently. Give each a distinct part of the request, wait for both, then synthesize their evidence.",
+  },
+  {
+    id: "parallel-review",
+    label: "Parallel review",
+    legacyLabels: ["Review panel"],
+    execution: "fleet",
+    defaultPrompt: "Review this repository's Copilot CLI Trace Viewer implementation for architecture, reliability, maintainability, and user-facing failure modes. Report only concrete, actionable findings with file references.",
+    instruction: "Dynamically create exactly two read-only review subagents with different concerns and run them concurrently. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
+  },
+  {
+    id: "critique-and-revision",
+    label: "Critique and revision",
+    legacyLabels: ["Rubber duck critique"],
+    execution: "sequential",
+    defaultPrompt: "Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
+    instruction: "First write a concise initial position. Then dynamically create one read-only subagent as an independent critic, give it the request and initial position, and wait for its response. Finish with a revised conclusion that states what changed.",
+  },
+  {
+    id: "sequential-handoff",
+    label: "Sequential handoff",
+    legacyLabels: ["Lead + specialists"],
+    execution: "sequential",
+    defaultPrompt: "Propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.",
+    instruction: "Dynamically create two read-only subagents in sequence. Wait for the first result, then give that result and the original request to a fresh second subagent. Finally synthesize the two stages.",
+  },
+];
+
 function section(body, label) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = String(body ?? "").match(new RegExp(`(?:^|\\n)### ${escaped}\\r?\\n+([\\s\\S]*?)(?=\\r?\\n### |$)`, "i"));
@@ -34,22 +76,30 @@ function validateModel(model, field) {
   return model;
 }
 
-function demo(label) {
-  const selected = findDemo(label);
-  return { ...selected, label: selected.label };
+function pattern(label) {
+  const selectedLabel = label || "Parallel research";
+  const selected = supportedPatterns.find((candidate) =>
+    candidate.label === selectedLabel || candidate.legacyLabels.includes(selectedLabel));
+  if (!selected) throw new Error(`Unsupported orchestration pattern: ${label || "(missing)"}`);
+  return selected;
 }
 
 export function parseIssueRequest(body) {
-  const selectedDemo = demo(section(body, "Orchestration demo") || section(body, "Orchestration scenario"));
+  const selectedPattern = pattern(
+    section(body, "Orchestration pattern")
+      || section(body, "Orchestration demo")
+      || section(body, "Orchestration scenario"),
+  );
   const orchestratorModel = validateModel(section(body, "Orchestrator model"), "orchestrator model");
   const subagentModel = validateModel(section(body, "Subagent model"), "subagent model");
-  const prompt = section(body, "Task or question") || section(body, "Comparison task") || selectedDemo.defaultPrompt;
+  const prompt = section(body, "Task or question") || section(body, "Comparison task") || selectedPattern.defaultPrompt;
+  const guidance = section(body, "Agent instructions");
   const capture = section(body, "Trace content");
   return finalizeRequest({
-    scenario: selectedDemo.id,
-    scenarioLabel: selectedDemo.label,
-    execution: selectedDemo.execution,
-    instruction: selectedDemo.instruction,
+    scenario: selectedPattern.id,
+    scenarioLabel: selectedPattern.label,
+    execution: selectedPattern.execution,
+    instruction: [selectedPattern.instruction, guidance].filter(Boolean).join(" "),
     orchestratorModel,
     subagentModel,
     prompt,
@@ -74,17 +124,18 @@ function appendOutput(name, value) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const selectedDemo = demo(process.env.INPUT_SCENARIO);
+  const selectedPattern = pattern(process.env.INPUT_SCENARIO);
+  const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim();
   const request = process.env.GITHUB_EVENT_NAME === "issues"
     ? parseIssueRequest(event.issue?.body)
     : finalizeRequest({
-        scenario: selectedDemo.id,
-        scenarioLabel: selectedDemo.label,
-        execution: selectedDemo.execution,
-        instruction: selectedDemo.instruction,
+        scenario: selectedPattern.id,
+        scenarioLabel: selectedPattern.label,
+        execution: selectedPattern.execution,
+        instruction: [selectedPattern.instruction, guidance].filter(Boolean).join(" "),
         orchestratorModel: validateModel(process.env.INPUT_ORCHESTRATOR_MODEL || "gpt-6-luna", "orchestrator model"),
         subagentModel: validateModel(process.env.INPUT_SUBAGENT_MODEL || "gpt-6-luna", "subagent model"),
-        prompt: process.env.INPUT_TASK_PROMPT?.trim() || selectedDemo.defaultPrompt,
+        prompt: process.env.INPUT_TASK_PROMPT?.trim() || selectedPattern.defaultPrompt,
         includeMessages: process.env.INPUT_INCLUDE_MESSAGES === "true",
       });
   writeFileSync(process.env.TRACE_PROMPT_PATH, request.prompt);

@@ -1,9 +1,0 @@
-{
-  "id": "critique-and-revision",
-  "label": "Critique and revision",
-  "legacyLabels": ["Rubber duck critique"],
-  "execution": "sequential",
-  "description": "Challenge an initial position with an independent critic before revising the conclusion.",
-  "defaultPrompt": "Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
-  "instruction": "First analyze the request and write a concise initial position. Then dynamically create one read-only subagent to act as an independent rubber-duck critic. Give it the original request and your initial position, ask it to identify hidden assumptions and counterexamples, and wait for its response. Finish with a revised conclusion that clearly states what changed after the critique."
-}

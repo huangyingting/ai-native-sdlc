@@ -403,7 +403,7 @@ export function buildTraceModel(spans, {
   const webCalls = tools.filter(({ span, attrs, branch }) =>
     branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const mcpCalls = tools.filter(({ span, attrs, branch }) =>
-    branch && toolName(span, attrs) === "microsoft-learn/microsoft_docs_search"
+    branch && ["microsoft-learn/microsoft_docs_search", "microsoft-learn/microsoft_docs_fetch"].includes(toolName(span, attrs))
       && Number(span.status?.code) !== 2 && !attrs["error.type"]);
   const distinctResearchBranches = webCalls.some((web) => mcpCalls.some((mcp) => web.branch !== mcp.branch));
   const concurrentComplete = peak >= 2 && distinctResearchBranches;
@@ -424,7 +424,7 @@ export function buildTraceModel(spans, {
         ? `critic branches: ${subagents.length}`
         : scenario === "single-agent-baseline"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
-      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${webCalls.length ? "observed" : "not observed"} | Azure microsoft-learn/microsoft_docs_search: ${mcpCalls.length ? "observed" : "not observed"} | distinct branches: ${distinctResearchBranches ? "yes" : "no"}`;
+      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${webCalls.length ? "observed" : "not observed"} | Azure Microsoft Learn tool: ${mcpCalls.length ? "observed" : "not observed"} | distinct branches: ${distinctResearchBranches ? "yes" : "no"}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
   const contentKeys = includeMessages && !messageCount
     ? [...new Set([...nodes.values()].flatMap((node) => Object.keys(node.attrs)).filter((key) => /message|content|argument|result/i.test(key)))].slice(0, 20)

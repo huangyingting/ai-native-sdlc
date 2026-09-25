@@ -10,9 +10,9 @@ body:
         This form starts a Copilot CLI Agent Demos workflow for repository owners, members, and collaborators. The final result, trace diagnostics, dependency graph, and HTML artifact link are posted as an issue comment.
 
   - type: dropdown
-    id: orchestration_demo
+    id: orchestration_pattern
     attributes:
-      label: Orchestration demo
+      label: Orchestration pattern
       description: Select the collaboration pattern to demonstrate in the trace.
       options:
         - Single-agent baseline
@@ -54,7 +54,7 @@ body:
     id: subagent_model
     attributes:
       label: Subagent model
-      description: Shared by dynamically created subagents in the selected demo.
+      description: Shared by dynamically created subagents in the selected pattern.
       options:
         - gpt-6-luna
         - gpt-6-sol
@@ -80,8 +80,15 @@ body:
     id: task_prompt
     attributes:
       label: Task or question
-      description: Override the selected demo's default task.
-      placeholder: Leave empty to use the selected demo's built-in task.
+      description: Describe the concrete demo task. Leave empty to use the pattern's example task.
+      placeholder: What should Copilot and its dynamic subagents accomplish?
+
+  - type: textarea
+    id: agent_instructions
+    attributes:
+      label: Agent instructions
+      description: Optional task-specific guidance for decomposition, specialist perspectives, sources, or handoff behavior.
+      placeholder: For example, assign one branch to API compatibility and another to migration risk.
 
   - type: checkboxes
     id: capture_messages

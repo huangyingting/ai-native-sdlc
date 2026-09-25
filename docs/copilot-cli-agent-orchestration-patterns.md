@@ -144,4 +144,4 @@ Select the span to view its **Failure reason**. This diagnostic is shown indepen
 - Choose **Critique and revision** when a proposal needs adversarial reflection rather than another complete solution.
 - Choose **Sequential handoff** when later work must consume and critique an earlier specialist result.
 
-The workflow and issue form label these choices as demos because each run applies one pattern to a concrete task. Select one through **Actions → Copilot CLI Agent Demos → Run workflow** or the **Copilot CLI agent demo** issue form. A custom task can replace the built-in demonstration task without changing the selected orchestration pattern.
+Select a pattern through **Actions → Copilot CLI Agent Demos → Run workflow** or the **Copilot CLI agent demo** issue form. The issue supplies the concrete task and can add task-specific agent instructions, so new demos do not require repository files or workflow changes.

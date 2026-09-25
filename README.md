@@ -14,7 +14,7 @@ The issue form and manual dispatch support five orchestration demos:
 - **Critique and revision** dynamically creates an independent critic after the initial position and records how the conclusion changed.
 - **Sequential handoff** dynamically creates a design specialist and then a fresh critical reviewer in sequence before revising the proposal.
 
-Each demo has a useful built-in task, or the issue author can provide a custom task. Definitions live as flat JSON manifests in [`demos/`](demos/), keeping the workflow and request parser small as the catalog grows. The repository does not predefine demo-specific agent profiles: Copilot CLI decides the concrete subagent type at runtime from the task and orchestration instructions.
+The repository stores only these stable orchestration patterns. Each issue supplies its own task and optional agent instructions, so every issue can become a new demo without adding files or changing the workflow. Copilot CLI decides the concrete subagent type at runtime.
 
 See [Copilot CLI agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md) for execution diagrams, model behavior, validation signals, failure interpretation, and guidance on choosing a pattern.
 

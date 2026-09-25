@@ -1,9 +1,0 @@
-{
-  "id": "sequential-handoff",
-  "label": "Sequential handoff",
-  "legacyLabels": ["Lead + specialists"],
-  "execution": "sequential",
-  "description": "Pass one specialist's result into a dependent second specialist before synthesis.",
-  "defaultPrompt": "Propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.",
-  "instruction": "Dynamically create two read-only subagents in sequence, not concurrently. First create a solution-design specialist and wait for its proposal. Then create a fresh critical-review specialist with both the original request and that proposal, asking it to challenge assumptions and identify gaps. Finally synthesize a revised plan that incorporates the valid critique."
-}

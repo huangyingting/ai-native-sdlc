@@ -5,7 +5,7 @@ on:
     types: [opened, reopened]
   workflow_dispatch:
     inputs:
-      demo:
+      pattern:
         description: "Orchestration pattern to demonstrate"
         type: choice
         default: Parallel research
@@ -62,7 +62,11 @@ on:
         type: boolean
         default: false
       task_prompt:
-        description: "Optional task override; leave empty to use the demo default"
+        description: "Concrete task for this demo; leave empty to use the pattern example"
+        type: string
+        required: false
+      agent_instructions:
+        description: "Optional guidance for how Copilot should divide the task among dynamic subagents"
         type: string
         required: false
 
@@ -102,8 +106,9 @@ jobs:
           INPUT_ORCHESTRATOR_MODEL: ${{ inputs.orchestrator_model }}
           INPUT_SUBAGENT_MODEL: ${{ inputs.subagent_model }}
           INPUT_INCLUDE_MESSAGES: ${{ inputs.include_messages }}
-          INPUT_SCENARIO: ${{ inputs.demo }}
+          INPUT_SCENARIO: ${{ inputs.pattern }}
           INPUT_TASK_PROMPT: ${{ inputs.task_prompt }}
+          INPUT_AGENT_INSTRUCTIONS: ${{ inputs.agent_instructions }}
           TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
           TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
         run: node .github/scripts/prepare-trace-request.mjs

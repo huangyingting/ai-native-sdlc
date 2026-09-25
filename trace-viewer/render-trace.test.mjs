@@ -152,6 +152,17 @@ test("does not accept a failed Microsoft Learn call as concurrent evidence", () 
   assert.equal(summarizeTrace(spans, { scenario: "parallel-research" }).complete, false);
 });
 
+test("accepts Microsoft Learn fetch as parallel research evidence", () => {
+  const spans = loadSpans(line(
+    span("root", "", "invoke_agent", 0, 100),
+    span("aws", "root", "invoke_agent research", 10, 80),
+    span("azure", "root", "invoke_agent research", 20, 90),
+    span("web", "aws", "execute_tool web_fetch", 30, 40),
+    span("mcp", "azure", "execute_tool microsoft-learn-microsoft_docs_fetch", 30, 40),
+  ));
+  assert.equal(summarizeTrace(spans, { scenario: "parallel-research" }).complete, true);
+});
+
 test("validates review and sequential collaboration scenario evidence", () => {
   const review = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),

@@ -278,4 +278,5 @@ test("updates the existing demo result comment instead of duplicating it", () =>
   assert.match(workflow, /copilot-agent-demo-result/);
   assert.match(workflow, /issues\/comments\/\$COMMENT_ID/);
   assert.match(workflow, /--method PATCH/);
+  assert.match(workflow, /ARTIFACT_URL: \$\{\{ steps\.trace_artifact\.outputs\.artifact-url \}\}/);
 });

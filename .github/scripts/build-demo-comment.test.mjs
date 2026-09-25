@@ -9,6 +9,7 @@ test("builds an issue comment with a result, diagnostics, and a dependency graph
     patternLabel: "Parallel delegation",
     result: "S3 and Blob Storage differ in lifecycle semantics.",
     runUrl: "https://github.com/example/repo/actions/runs/1",
+    artifactUrl: "https://github.com/example/repo/actions/runs/1/artifacts/42",
     report: {
       durationText: "12.30 s",
       costText: "$0.123000",
@@ -32,6 +33,7 @@ test("builds an issue comment with a result, diagnostics, and a dependency graph
   assert.match(comment, /orchestrator[\s\S]*aws-storage[\s\S]*web_fetch/);
   assert.match(comment, /class n2 failed/);
   assert.match(comment, /Download Copilot CLI Trace Viewer/);
+  assert.match(comment, /Download Copilot CLI Trace Viewer]\(https:\/\/github\.com\/example\/repo\/actions\/runs\/1\/artifacts\/42\)/);
 });
 
 test("uses a GitHub-hosted dependency image when one is available", () => {

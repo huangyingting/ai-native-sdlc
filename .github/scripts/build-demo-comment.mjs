@@ -51,6 +51,7 @@ export function buildDemoComment({
   subagentModel,
   patternLabel,
   runUrl,
+  artifactUrl,
   mediaUrl,
 }) {
   const response = clean(result, 24_000) || "_The orchestrator did not produce a result._";
@@ -100,7 +101,7 @@ ${dependencies}
 
 </details>
 
-[Open workflow run](${runUrl}) · [Download Copilot CLI Trace Viewer](${runUrl}#artifacts)
+[Open workflow run](${runUrl}) · [Download Copilot CLI Trace Viewer](${artifactUrl || `${runUrl}#artifacts`})
 `;
 }
 
@@ -113,6 +114,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     subagentModel: process.env.SUBAGENT_MODEL,
     patternLabel: process.env.PATTERN_LABEL,
     runUrl: process.env.RUN_URL,
+    artifactUrl: process.env.ARTIFACT_URL,
     mediaUrl: process.env.MEDIA_URL,
   }));
 }

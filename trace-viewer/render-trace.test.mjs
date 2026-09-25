@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { dependencyViewport } from "./capture-dependency-map.mjs";
 import { loadSpans, renderTrace, renderGraph, renderHtml, summarizeTrace } from "./render-trace.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
@@ -14,6 +15,14 @@ const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId =
   attributes,
 });
 const line = (...spans) => JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans }] }] });
+
+test("sizes dependency screenshots to the graph instead of the full UI", () => {
+  assert.deepEqual(
+    dependencyViewport('<svg id="dependency-graph" viewBox="0 0 500 158" width="500" height="158">'),
+    { width: 524, height: 182 },
+  );
+  assert.throws(() => dependencyViewport("<html></html>"), /dimensions were not found/);
+});
 
 test("reconstructs shuffled spans, nested agents, tools, models and real overlap", () => {
   const jsonl = [
@@ -94,7 +103,8 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /data-mode="dependencies"/);
   assert.match(html, /id="span-search"/);
   assert.match(html, /class="inspector-panel"/);
-  assert.match(html, /capture-graph \.inspector\{display:none\}/);
+  assert.match(html, /capture-graph \.commandbar[^}]*display:none/);
+  assert.match(html, /capture-graph \.graph-wrap\{[^}]*padding:12px/);
   assert.match(html, /class="svg-icon/);
   assert.match(html, /aria-label="Download PNG"/);
   assert.doesNotMatch(html, /Signals/);

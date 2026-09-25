@@ -160,10 +160,9 @@ jobs:
             echo "HTML trace report is unavailable; skipping dependency-map capture." >&2
             exit 1
           fi
-          google-chrome --headless --no-sandbox --disable-gpu --hide-scrollbars \
-            --window-size=1600,1000 \
-            --screenshot="$GITHUB_WORKSPACE/trace-report/dependency-map.png" \
-            "file://$GITHUB_WORKSPACE/trace-report/copilot-trace-report.html?tab=dependencies&capture=graph"
+          node trace-viewer/capture-dependency-map.mjs \
+            trace-report/copilot-trace-report.html \
+            trace-report/dependency-map.png
       - name: Attach HTML trace viewer
         if: always()
         uses: actions/upload-artifact@v7

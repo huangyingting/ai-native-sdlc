@@ -1,33 +1,43 @@
 name: "Brownfield human-gated delivery: Submit an intent"
 description: Safely evolve an existing application through reviewed specification, plan, tests, implementation, and verified delivery.
-title: "[Brownfield delivery] "
+title: "[Brownfield delivery] Clarify ticket ownership"
 labels: ["brownfield-human-gated-delivery:intent"]
 body:
   - type: markdown
     attributes:
       value: |
-        Describe an outcome for the existing application, not its implementation. This demo creates reviewed Spec, Plan, TDD Tests, and Implementation stages. Only repository owners, members, and collaborators can start the automated lifecycle.
+        You write the Intent: what is needed, why it matters, who is affected, and which constraints apply. The prefilled ticket-ownership example is editable; review it before submitting, or replace it with your own intent.
+
+        Leave unresolved decisions in Open questions instead of writing a specification or implementation plan. After repository setup, submitting starts the AI-written Spec stage. Spec and Plan can each go through multiple feedback and revision rounds in the same pull request. Only explicit approval from the configured Human reviewers and passing required checks allow merging and advancement. TDD Tests and Implementation also require Human review before verified delivery.
+
+        Only repository owners, members, and collaborators can start the automated lifecycle. The Intent author is not automatically a reviewer; configure the intended approver in the repository's delivery configuration.
   - type: textarea
     id: problem
     attributes:
       label: Problem or opportunity
       description: What is difficult today, and who experiences it?
-      placeholder: Support agents cannot see or manage ticket ownership.
+      value: |
+        The existing IT service desk in demos/it-service-desk lets support agents create, search, and update tickets, but tickets have no assignee.
+        Agents and team leads cannot see who owns a ticket or find the tickets assigned to a particular agent, making handoffs unclear.
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
-      label: Desired outcome
-      description: Describe observable user or business value.
-      placeholder: Support agents can understand and update ticket ownership.
+      label: Proposed outcome
+      description: What would a better situation look like? Focus on user or business value rather than a detailed solution.
+      value: |
+        Support agents and team leads can understand who is responsible for a ticket, identify work that has no owner, and coordinate handoffs without losing track of existing requests.
     validations:
       required: true
   - type: textarea
     id: users
     attributes:
-      label: Users and stakeholders
-      placeholder: Service-desk agents, team leads, and ticket requesters.
+      label: Affected users and systems
+      description: Who experiences the problem, and which existing systems are involved?
+      value: |
+        Service-desk agents and team leads using the existing IT service desk in demos/it-service-desk.
+        Ticket requesters benefit from clearer responsibility for their incidents and service requests.
     validations:
       required: true
   - type: textarea
@@ -35,14 +45,20 @@ body:
     attributes:
       label: Constraints and non-goals
       description: Include compatibility, security, scope, or timing constraints. Write "None known" when appropriate.
-      placeholder: Preserve unassigned tickets and the existing SQLite storage.
+      value: |
+        - Preserve existing ticket data and service-desk workflows.
+        - Keep this a small improvement to the existing application, not a replacement.
+        - External identity integrations, authentication changes, notifications, and SLA policies are out of scope for this demo.
     validations:
       required: true
   - type: textarea
-    id: success
+    id: open_questions
     attributes:
-      label: Success signals
-      description: What observable behavior would demonstrate that the intent has been satisfied?
-      placeholder: Agents can view, filter, and update ownership without breaking existing tickets.
+      label: Open questions
+      description: Which decisions need discussion during Spec review? Write "None known" when appropriate.
+      value: |
+        - Can a ticket remain unassigned?
+        - Should owners come from a predefined local list or be entered freely?
+        - Is visibility of ownership enough, or should agents also be able to filter tickets by owner?
     validations:
       required: true

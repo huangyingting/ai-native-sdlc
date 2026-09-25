@@ -1,17 +1,22 @@
 # Brownfield Human-Gated Delivery demo
 
-This demo safely evolves the existing IT service desk from a user Intent into
+This demo safely evolves the existing IT service desk from a human-authored Intent into
 a reviewed specification, implementation plan, executable tests, working
 increment, and verified container image.
 
 ```text
-Intent -> Spec review -> Plan review -> TDD Red review
-       -> Implementation Green review -> Build -> Smoke test -> Feedback
+Human Intent -> AI Spec <-> Human review and revision
+             -> AI Plan <-> Human review and revision
+             -> TDD Red review -> Implementation Green review
+             -> Build -> Smoke test -> Feedback
 ```
 
 Every design and code transition requires a Human approval in the GitHub Web
 UI. GitHub Actions assigns reviewers and advances approved stages; Copilot
 never approves its own work or bypasses branch rules.
+The Human writes the Intent in a GitHub Issue; there is no AI-written Intent
+stage or additional Intent approval gate. AI writes the Spec and Plan, and each
+can be revised in its own PR as many times as needed before Human approval.
 
 ## Lifecycle
 
@@ -28,10 +33,18 @@ sequenceDiagram
     Actions->>Issue: Create lifecycle branch and 4 sub-issues
     Actions->>Copilot: Assign Spec stage
     Copilot->>Reviewer: Open Spec PR
-    Reviewer-->>Copilot: Request changes or Approve
+    loop Spec feedback and revision as needed
+        Reviewer-->>Copilot: Request changes and @copilot feedback
+        Copilot->>Reviewer: Revise same Spec PR for re-review
+    end
+    Reviewer->>Actions: Approve latest Spec revision
     Actions->>Copilot: Merge and assign Plan stage
     Copilot->>Reviewer: Open Plan PR
-    Reviewer-->>Copilot: Request changes or Approve
+    loop Plan feedback and revision as needed
+        Reviewer-->>Copilot: Request changes and @copilot feedback
+        Copilot->>Reviewer: Revise same Plan PR for re-review
+    end
+    Reviewer->>Actions: Approve latest Plan revision
     Actions->>Copilot: Merge and assign TDD Tests stage
     Copilot->>Reviewer: Open Tests PR with controlled Red
     Reviewer-->>Copilot: Request changes or Approve
@@ -135,6 +148,11 @@ Edit
 Each stage supports GitHub user logins, organization team slugs, and its own
 approval threshold. The checked-in default assigns `huangyingting` and
 requires one approval for Spec, Plan, Tests, and Implementation.
+The Intent author is not implicitly an approver. To make an end user's approval
+mandatory for Spec and Plan in this demo, configure that user's GitHub login
+as the sole reviewer for those stages with `minimumApprovals: 1`. With a larger
+reviewer pool, the threshold can be satisfied by any eligible members of that
+pool; it does not require one particular person.
 
 Configuration is loaded from the default branch. A pull request cannot assign
 friendlier reviewers or reduce its own approval threshold.
@@ -223,16 +241,32 @@ Do not delete that registration comment.
 ### 1. Submit an Intent
 
 Open **Issues > New issue**, choose
-**Brownfield human-gated delivery: Submit an intent**, and describe:
+**Brownfield human-gated delivery: Submit an intent**. The title and all five
+fields are prefilled with an example intent: **Clarify ticket ownership** in
+the existing IT service desk. These are editable values, not
+placeholder hints, so they are included in the submitted Issue.
+
+The Human reviews or edits the defaults and clicks **Create**. The Intent
+describes unclear ownership and handoffs, the desired improvement, affected
+users and systems, and constraints. It leaves assignment rules, owner selection,
+and filtering as open questions for Spec review rather than dictating the
+solution. Detailed acceptance scenarios belong in the Spec; test, build, and
+smoke checks are delivery policy, not business intent.
+
+For a different feature, replace the title and all five fields:
 
 - the problem or opportunity;
-- the users and stakeholders;
-- the desired observable outcome;
+- the proposed outcome;
+- affected users and systems;
 - constraints and non-goals;
-- success signals.
+- open questions.
 
 Do not write the implementation plan. Only Issues created by an `OWNER`,
-`MEMBER`, or `COLLABORATOR` can start automation.
+`MEMBER`, or `COLLABORATOR` can start automation. Complete the
+[one-time repository setup](#one-time-repository-setup) first; the prefilled
+form does not configure tokens, reviewers, or branch rules. GitHub uses the
+Issue form from the default branch, so template changes must be merged there
+before they appear under **New issue**.
 
 The **Brownfield Delivery · Kickoff** workflow creates:
 
@@ -247,16 +281,46 @@ Copilot changes only
 `docs/delivery-runs/brownfield-human-gated-delivery/<intent>/spec.md`. CI
 checks the required sections, stable acceptance IDs, and Given/When/Then
 behavior.
+Copilot must identify unanswered Intent questions and label proposed decisions
+for review rather than presenting them as agreed requirements.
 
 In GitHub Web:
 
-1. Inspect scope, non-goals, edge cases, and acceptance scenarios.
-2. Use **Request changes** when behavior is ambiguous or incomplete.
-3. Ask Copilot to address the comments.
-4. Use **Approve** only when the behavioral contract is acceptable.
+1. Read the rendered Spec under **Files changed** and inspect scope, non-goals,
+   edge cases, acceptance scenarios, and open questions in the PR description.
+2. Add inline feedback and submit **Request changes** when behavior is
+   ambiguous or incomplete.
+3. Post an `@copilot` comment on that PR, for example:
+
+   > @copilot Address the submitted review feedback in this same PR. Update
+   > only the specification, summarize the changes and remaining questions,
+   > and wait for my re-review. Do not start the Plan stage.
+
+4. Review the new commits and repeat steps 2-3 as many times as needed.
+5. When no decisions remain unresolved and the behavioral contract is
+   acceptable, ensure the PR is ready for review rather than draft, then
+   submit **Approve** on the latest revision.
 
 After the configured Human approvals and checks are satisfied, GitHub
 auto-merges the PR and the workflow assigns the Plan stage.
+
+#### Rules for every review round
+
+- Keep the same PR, branch, and stage Issue throughout the current stage's
+  iterations. Do not create another lifecycle for each feedback round.
+- The coordinator enforces approval policy; a Human's `@copilot` request drives
+  revisions. It does not launch an autonomous revision loop from every comment.
+- There is no fixed round limit and no timeout that grants approval. Missing
+  approval, outstanding change requests, or a draft PR keep the gate blocked.
+- New commits invalidate previous-head approvals. Re-review and approve the
+  latest revision, even if an earlier one was approved.
+- Comments such as "looks good," resolved threads, and passing CI do not
+  substitute for a formal approving review.
+- Approval enables protected auto-merge; it does not start the next stage
+  until required checks pass and the PR actually merges. Closing a PR without
+  merging does not advance the lifecycle.
+- Existing Issues without an Open questions field remain valid; no migration
+  of earlier human-authored Intents is required.
 
 ### 3. Review the Plan
 
@@ -268,8 +332,20 @@ verifies:
 - task IDs and dependencies are valid and acyclic;
 - affected surfaces and validation are explicit.
 
-Review feasibility, sequencing, migration risk, and unnecessary complexity.
-Approve or request changes through the same GitHub Web review flow.
+Review feasibility, sequencing, migration risk, unnecessary complexity, and
+coverage of the approved Spec. Use the same iterative review flow:
+
+> @copilot Address the submitted review feedback in this same PR. Update only
+> the implementation plan, preserve the approved specification, summarize the
+> changes and remaining questions, and wait for my re-review. Do not start TDD
+> or implementation.
+
+Repeat until the configured Human reviewers approve the latest Plan revision.
+Only after required checks pass and the Plan PR merges does the workflow assign
+TDD Tests. The revision loop covers the current, unmerged stage. If planning
+reveals a conflict with the approved Spec, stop and flag it rather than silently
+rewriting that artifact; automatic rollback to an already completed stage is
+not part of this demo.
 
 ### 4. Review TDD Red
 

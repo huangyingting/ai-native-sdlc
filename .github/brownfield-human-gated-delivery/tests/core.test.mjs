@@ -187,6 +187,24 @@ test("renders stage prompts without leaving unknown placeholders", () => {
   assert.throws(() => renderPrompt("{{missing}}", {}), /Missing prompt value/);
 });
 
+test("Spec and Plan prompts keep human feedback in the same stage until approval", () => {
+  for (const stage of ["spec", "plan"]) {
+    const prompt = renderPrompt(readFileSync(config.stages[stage].prompt, "utf8"), {
+      intent: 42,
+      stage_issue: stage === "spec" ? 43 : 44,
+    });
+    assert.match(prompt, /same pull request/i);
+    assert.match(prompt, /open questions/i);
+    assert.match(prompt, /explicit Human approval/);
+    assert.match(prompt, /Do not start the next stage/);
+    assert.match(prompt, /Do not use closing keywords/);
+    assert.equal(parsePullRequestMetadata(prompt).stage, stage);
+  }
+  const spec = readFileSync(config.stages.spec.prompt, "utf8");
+  assert.match(spec, /human-authored Intent/);
+  assert.match(spec, /Do not rewrite the Intent/);
+});
+
 test("counts only current configured human approvals", () => {
   const policy = {
     minimumApprovals: 2,
@@ -464,6 +482,26 @@ test("restricts files by lifecycle stage", () => {
     ], 42, config.project.path),
     /out-of-scope change/,
   );
+});
+
+test("prefills a complete editable brownfield demo intent rather than placeholder hints", () => {
+  const issueForm = readFileSync(
+    ".github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml",
+    "utf8",
+  );
+
+  assert.match(issueForm, /^title: "\[Brownfield delivery\] Clarify ticket ownership"$/m);
+  const fields = issueForm.split(/^  - type: /m).slice(1);
+  for (const id of ["problem", "outcome", "users", "constraints", "open_questions"]) {
+    const field = fields.find((entry) => entry.includes(`\n    id: ${id}\n`));
+    assert.ok(field?.startsWith("textarea\n"), `${id} must remain editable`);
+    assert.match(field, /^      value: \|\n(?:        .+\n)+/m, `${id} needs submitted default text`);
+    assert.doesNotMatch(field, /^      placeholder:/m, `${id} must not rely on a hint`);
+    assert.match(field, /^      required: true$/m, `${id} must remain required`);
+  }
+  assert.match(issueForm, /label: Affected users and systems/);
+  assert.match(issueForm, /label: Open questions/);
+  assert.doesNotMatch(issueForm, /id: success|Given\/When\/Then|container smoke checks/);
 });
 
 test("keeps staged workflows and trusted boundaries synchronized", () => {

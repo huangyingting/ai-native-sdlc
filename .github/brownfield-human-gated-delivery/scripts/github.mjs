@@ -161,6 +161,8 @@ function stageIssueBody(intentNumber, stage, stageIssueNumber = null) {
     "",
     `This is the **${stage}** stage for Intent #${intentNumber}.`,
     "The workflow assigns this Issue when all preceding human review gates are complete.",
+    "Review is iterative: use Request changes and ask @copilot to address feedback in the same pull request. Repeat until the configured Human reviewers explicitly approve the latest revision.",
+    "Only approval plus passing required checks permits merging; the next stage starts after merge, not after comments or CI alone.",
     "Do not close this Issue from a pull request; lifecycle automation closes it after the stage PR merges.",
   ].filter(Boolean).join("\n");
 }
@@ -252,6 +254,9 @@ function progressBody(parentIssue, stageIssues, current = {}) {
     "| Stage | Work item | Status |",
     "|---|---|---|",
     ...rows,
+    "",
+    "For Spec and Plan, use **Request changes** and an `@copilot` comment to request revisions in the same pull request. Repeat until the configured Human reviewers **Approve** the latest revision; new commits require reapproval.",
+    "The next stage starts only after the approved PR passes required checks and merges. Comments and resolved threads do not count as approval.",
     "",
     "The parent Intent closes only after the final image digest passes delivery verification.",
   ].join("\n");

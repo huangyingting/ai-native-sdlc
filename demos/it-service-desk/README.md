@@ -68,19 +68,22 @@ against real Vitest setup/teardown failures and legitimate Red/Green tests.
 
 ## Suggested Brownfield Delivery Intent
 
-Use the repository Intent form with this outcome: add optional assignees to
-service-desk tickets so support agents can understand and update ownership.
-Useful success signals include:
+Choose **Brownfield human-gated delivery: Submit an intent** under
+**Issues > New issue**. Its title and all five fields are prefilled with this
+outcome: clarify ticket ownership so agents and team leads can understand
+responsibility and coordinate handoffs. The Human reviews and submits the
+Intent; AI writes the Spec, not the Intent. The form captures the problem,
+proposed outcome, affected users and systems, constraints, and open questions:
 
-- unassigned tickets remain valid;
-- the dashboard can filter by assignee;
-- assignment changes are visible on the ticket detail page;
-- assignment is validated and persisted;
-- tests cover assigned and unassigned tickets.
+- can a ticket remain unassigned?
+- should owners come from a predefined local list or be entered freely?
+- is ownership visibility enough, or is filtering by owner needed?
 
-This is large enough to demonstrate repository exploration, planning,
-implementation, tests, and pull-request review, while remaining small enough
-for a short live session.
+After repository setup, submit the defaults to start the Spec stage, or edit
+them for another feature. Resolve these questions through Spec review.
+Spec and Plan each support repeated feedback and Copilot revisions in the same
+PR. Only explicit Human approval of the latest revision, passing checks, and
+merge allow the next stage to start.
 
 See the
 [Brownfield Human-Gated Delivery demo](../../docs/brownfield-human-gated-delivery.md)

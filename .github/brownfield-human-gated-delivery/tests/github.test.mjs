@@ -2,7 +2,7 @@ import { afterEach, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { classify, coordinate, delivery, intake, kickoff, review, verify } from "../scripts/github.mjs";
+import { advance, classify, coordinate, delivery, intake, kickoff, review, verify } from "../scripts/github.mjs";
 
 const unexpectedFetch = () => { throw new Error("Network access is forbidden in lifecycle tests."); };
 globalThis.fetch = unexpectedFetch;
@@ -83,7 +83,7 @@ test("validates an implementation PR, retargets it, and requests configured revi
       `Delivery Stage: ${name}`, `Delivery Stage Issue: #${number}`,
     ].join("\n");
     const issues = names.map((name, i) => ({
-      number: 43 + i, body: metadata(name, 43 + i),
+      number: 43 + i, node_id: `ISSUE_${43 + i}`, body: metadata(name, 43 + i),
       state: i < index || (merged && i === index) ? "closed" : "open",
       labels: [{ name: `brownfield-human-gated-delivery:${name}` }],
       assignees: [{ login: "copilot-swe-agent[bot]" }],
@@ -135,6 +135,22 @@ test("validates an implementation PR, retargets it, and requests configured revi
         return jsonResponse({});
       }
       if (path === "/graphql") {
+        if (body.query.includes("CopilotActor")) {
+          return jsonResponse({
+            data: {
+              repository: {
+                id: "REPO_1",
+                suggestedActors: { nodes: [{ id: "COPILOT_1", login: "copilot-swe-agent" }] },
+              },
+            },
+          });
+        }
+        if (body.query.includes("AssignCopilot")) {
+          const issue = issues.find((item) => item.node_id === body.variables.assignableId);
+          assert.ok(issue, "Copilot must be assigned to an existing stage Issue");
+          issue.assignees = [{ login: "copilot-swe-agent[bot]" }];
+          return jsonResponse({ data: { replaceActorsForAssignable: { assignable: issue } } });
+        }
         if (body.query.includes("EnableAutoMerge") && state.failEnable) {
           return jsonResponse({ errors: [{ message: "Cannot enable auto-merge" }] });
         }
@@ -193,6 +209,80 @@ test("validates an implementation PR, retargets it, and requests configured revi
   function humanReview(id, state = "APPROVED", login = "huangyingting", commit_id = "current-head") {
     return { id, state, commit_id, user: { login, type: "User" } };
   }
+
+for (const stage of ["spec", "plan"]) {
+  test(`${stage} iterates in the same PR and advances only after the approved revision merges`, async () => {
+    const state = lifecycleApi({ stage });
+    const index = stage === "spec" ? 0 : 1;
+    const current = state.issues[index];
+    const following = state.issues[index + 1];
+    for (const issue of state.issues.slice(index + 1)) issue.assignees = [];
+    state.pr.auto_merge = null;
+
+    async function checkRound(expected) {
+      await coordinate();
+      assert.equal(state.statuses.at(-1).state, expected);
+      assert.equal(state.statuses.at(-1).sha, state.pr.head.sha);
+      assert.equal(Boolean(state.pr.auto_merge), expected === "success");
+      assert.equal(current.state, "open");
+      assert.equal(state.parent.state, "open");
+      assert.ok(state.issues.slice(index + 1).every((issue) =>
+        issue.state === "open" && issue.assignees.length === 0));
+      assert.equal(state.comments.length, 1, "update the same progress comment");
+      assert.equal(state.prComments.length, 1, "retain the same PR registration");
+      assert.match(state.comments[0].body, /same pull request/);
+      assert.match(state.comments[0].body, /@copilot/);
+      assert.ok(!state.calls.some((call) => call.body?.query?.includes("AssignCopilot")));
+    }
+
+    await checkRound("failure");
+    state.reviews.push(humanReview(1, "CHANGES_REQUESTED"));
+    await checkRound("failure");
+
+    state.pr.head.sha = "revision-2";
+    state.reviews.push(humanReview(2, "COMMENTED", "huangyingting", "revision-2"));
+    state.reviews.push(humanReview(3, "APPROVED", "outsider", "revision-2"));
+    await checkRound("failure");
+    state.reviews.push(humanReview(4, "CHANGES_REQUESTED", "huangyingting", "revision-2"));
+    await checkRound("failure");
+
+    state.pr.head.sha = "revision-3";
+    state.reviews.push(humanReview(5, "COMMENTED", "huangyingting", "revision-3"));
+    await checkRound("failure");
+    state.reviews.push(humanReview(6, "APPROVED", "huangyingting", "revision-2"));
+    await checkRound("failure");
+    state.reviews.push(humanReview(7, "APPROVED", "huangyingting", "revision-3"));
+    await checkRound("success");
+
+    state.pr.head.sha = "revision-4";
+    await checkRound("failure");
+    state.reviews.push(humanReview(8, "APPROVED", "huangyingting", "revision-4"));
+    await checkRound("success");
+
+    for (const prState of ["open", "closed"]) {
+      writeEvent({ pull_request: { ...structuredClone(state.pr), state: prState } });
+      const callsBefore = state.calls.length;
+      await assert.rejects(advance, /Advance requires a merged pull request/);
+      assert.equal(state.calls.length, callsBefore, "unmerged PRs must not mutate GitHub");
+    }
+
+    state.pr.merged = true;
+    state.pr.state = "closed";
+    writeEvent({ pull_request: structuredClone(state.pr) });
+    await advance();
+    await advance();
+    assert.equal(current.state, "closed");
+    assert.equal(following.state, "open");
+    assert.ok(following.assignees.some((actor) => actor.login === "copilot-swe-agent[bot]"));
+    assert.ok(state.issues.slice(index + 2).every((issue) => issue.assignees.length === 0));
+    const assignments = state.calls.filter((call) => call.body?.query?.includes("AssignCopilot"));
+    assert.equal(assignments.length, 1, "merge retries must not duplicate the next assignment");
+    assert.equal(assignments[0].body.variables.assignableId, following.node_id);
+    assert.equal(assignments[0].body.variables.baseRef, "brownfield-delivery/42");
+    assert.equal(state.comments.length, 1);
+    assert.equal(state.parent.state, "open");
+  });
+}
 
   test("records required policy success on the live head, ignoring comment-only reviews", async () => {
     const state = lifecycleApi();

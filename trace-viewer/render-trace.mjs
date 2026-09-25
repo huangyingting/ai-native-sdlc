@@ -32,7 +32,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const result = buildTraceModel(loadSpans(readFileSync(process.argv[2], "utf8")), {
       includeMessages: process.env.TRACE_INCLUDE_MESSAGES === "true",
       expectedModel: process.env.REQUIRE_MODEL || null,
-      scenario: process.env.TRACE_SCENARIO || null,
+      pattern: process.env.TRACE_PATTERN || null,
       pricingCatalog: configuredPricingCatalog(),
     });
     if (process.env.TRACE_HTML_PATH) {
@@ -61,7 +61,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         }
       }
       const data = {
-        scenario: result.scenario,
+        pattern: result.pattern,
         complete: result.complete,
         modelMatches: result.modelMatches,
         duration: result.duration,
@@ -98,9 +98,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       : "";
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.summary + artifactLink);
     console.log(result.summary + artifactLink);
-    if (process.env.REQUIRE_DEMO_EVIDENCE && process.env.REQUIRE_DEMO_EVIDENCE !== "false"
+    if (process.env.REQUIRE_PATTERN_EVIDENCE && process.env.REQUIRE_PATTERN_EVIDENCE !== "false"
       && (!result.complete || !result.modelMatches || (result.includeMessages && !result.messageCount))) {
-      console.error("Demo evidence missing: the selected orchestration pattern, model constraints, or requested message payloads were not observed.");
+      console.error("Pattern evidence missing: the selected orchestration topology, model constraints, or requested message payloads were not observed.");
       process.exitCode = 1;
     }
   } catch (error) {

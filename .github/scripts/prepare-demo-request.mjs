@@ -82,12 +82,28 @@ function pattern(label) {
   return selected;
 }
 
-export function parseIssueRequest(body) {
-  const selectedPattern = pattern(
-    section(body, "Orchestration pattern")
-      || section(body, "Orchestration demo")
-      || section(body, "Orchestration scenario"),
-  );
+function issuePattern(body, labels = []) {
+  const explicitLabel = section(body, "Orchestration pattern")
+    || section(body, "Orchestration demo")
+    || section(body, "Orchestration scenario");
+  const patternIds = labels
+    .map((label) => typeof label === "string" ? label : label?.name)
+    .filter((label) => label?.startsWith("copilot-pattern:"))
+    .map((label) => label.slice("copilot-pattern:".length));
+  if (patternIds.length > 1) throw new Error(`Multiple orchestration pattern labels: ${patternIds.join(", ")}`);
+  const labeledPattern = patternIds.length
+    ? supportedPatterns.find((candidate) => candidate.id === patternIds[0])
+    : null;
+  if (patternIds.length && !labeledPattern) throw new Error(`Unsupported orchestration pattern label: ${patternIds[0]}`);
+  const bodyPattern = explicitLabel ? pattern(explicitLabel) : null;
+  if (labeledPattern && bodyPattern && labeledPattern.id !== bodyPattern.id) {
+    throw new Error(`Conflicting orchestration patterns: ${labeledPattern.label} and ${bodyPattern.label}`);
+  }
+  return labeledPattern || bodyPattern || pattern("");
+}
+
+export function parseIssueRequest(body, labels = []) {
+  const selectedPattern = issuePattern(body, labels);
   const orchestratorModel = validateModel(section(body, "Orchestrator model"), "orchestrator model");
   const subagentModel = validateModel(section(body, "Subagent model"), "subagent model");
   const customPrompt = section(body, "Task or question") || section(body, "Comparison task");
@@ -95,8 +111,8 @@ export function parseIssueRequest(body) {
   const guidance = section(body, "Agent instructions");
   const capture = section(body, "Trace content");
   return finalizeRequest({
-    scenario: selectedPattern.id,
-    scenarioLabel: selectedPattern.label,
+    pattern: selectedPattern.id,
+    patternLabel: selectedPattern.label,
     execution: selectedPattern.execution,
     instruction: [selectedPattern.instruction, guidance].filter(Boolean).join(" "),
     orchestratorModel,
@@ -124,14 +140,14 @@ function appendOutput(name, value) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const selectedPattern = pattern(process.env.INPUT_SCENARIO);
+  const selectedPattern = pattern(process.env.INPUT_PATTERN);
   const customPrompt = process.env.INPUT_TASK_PROMPT?.trim();
   const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim();
   const request = process.env.GITHUB_EVENT_NAME === "issues"
-    ? parseIssueRequest(event.issue?.body)
+    ? parseIssueRequest(event.issue?.body, event.issue?.labels)
     : finalizeRequest({
-        scenario: selectedPattern.id,
-        scenarioLabel: selectedPattern.label,
+        pattern: selectedPattern.id,
+        patternLabel: selectedPattern.label,
         execution: selectedPattern.execution,
         instruction: [selectedPattern.instruction, guidance].filter(Boolean).join(" "),
         orchestratorModel: validateModel(process.env.INPUT_ORCHESTRATOR_MODEL || "gpt-6-luna", "orchestrator model"),
@@ -142,8 +158,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       });
   writeFileSync(process.env.TRACE_PROMPT_PATH, request.prompt);
   writeFileSync(process.env.TRACE_INSTRUCTION_PATH, request.instruction);
-  appendOutput("scenario", request.scenario);
-  appendOutput("scenario_label", request.scenarioLabel);
+  appendOutput("pattern", request.pattern);
+  appendOutput("pattern_label", request.patternLabel);
   appendOutput("execution", request.execution);
   appendOutput("orchestrator_model", request.orchestratorModel);
   appendOutput("subagent_model", request.subagentModel);

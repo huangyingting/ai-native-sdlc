@@ -228,7 +228,7 @@ export function loadSpans(jsonl) {
 export function buildTraceModel(spans, {
   includeMessages = false,
   expectedModel = null,
-  scenario = null,
+  pattern = null,
   pricingCatalog = defaultPricingCatalog,
 } = {}) {
   const prices = pricingIndex(pricingCatalog);
@@ -404,18 +404,18 @@ export function buildTraceModel(spans, {
   const sequentialComplete = subagents.length >= 2 && peak === 1;
   const criticComplete = subagents.length >= 1;
   const directComplete = subagents.length === 0 && chats.length >= 1;
-  const complete = scenario === "parallel-delegation" ? parallelComplete
-    : scenario === "sequential-pipeline" ? sequentialComplete
-      : scenario === "critic-reviser-loop" ? criticComplete
-        : scenario === "direct-execution" ? directComplete
+  const complete = pattern === "parallel-delegation" ? parallelComplete
+    : pattern === "sequential-pipeline" ? sequentialComplete
+      : pattern === "critic-reviser-loop" ? criticComplete
+        : pattern === "direct-execution" ? directComplete
       : true;
-  const evidence = scenario === "parallel-delegation"
+  const evidence = pattern === "parallel-delegation"
     ? `delegated branches: ${subagents.length} | concurrent execution: ${peak >= 2 ? "yes" : "no"}`
-    : scenario === "sequential-pipeline"
+    : pattern === "sequential-pipeline"
       ? `pipeline stages: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
-      : scenario === "critic-reviser-loop"
+      : pattern === "critic-reviser-loop"
         ? `critic branches: ${subagents.length}`
-        : scenario === "direct-execution"
+        : pattern === "direct-execution"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
           : `subagents: ${subagents.length} | peak concurrency: ${peak}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
@@ -431,7 +431,7 @@ export function buildTraceModel(spans, {
     `Tool calls: ${tools.length} | Failed tool calls: ${tools.filter(({ span, attrs }) => Number(span.status?.code) === 2 || attrs["error.type"]).length} | Chat calls: ${chats.length} | Tokens: ${tokenInfo}`,
     `Model cost: ${costs.length ? `${totalCost} (${costMode})` : "unavailable"} (${costs.length}/${chats.length} chat spans priced)`,
     `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${modelExpectation}`,
-    `Demo evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
+    `Pattern evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
     ...(includeMessages ? [`Message payloads: ${messageCount} spans${contentKeys.length ? ` | available attribute names: ${contentKeys.map((key) => safe(key)).join(", ")}` : ""}`] : ["Message content capture: off (enable include_messages when dispatching to see payloads)."]),
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",
@@ -444,7 +444,7 @@ export function buildTraceModel(spans, {
   ];
   return {
     summary: summary.join("\n"),
-    scenario,
+    pattern,
     complete: Boolean(complete),
     modelMatches,
     events,

@@ -75,15 +75,15 @@ permissions:
   issues: write
 
 concurrency:
-  group: agent-trace-${{ github.event.issue.number || github.run_id }}
+  group: copilot-agent-demo-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  trace:
+  demo:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (
-        contains(github.event.issue.labels.*.name, 'agent-trace') &&
+        contains(github.event.issue.labels.*.name, 'copilot-agent-demo') &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
       )
     runs-on: ubuntu-24.04
@@ -99,24 +99,24 @@ jobs:
           node-version: "22"
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
-      - name: Prepare trace request
+      - name: Prepare demo request
         id: request
         env:
           INPUT_ORCHESTRATOR_MODEL: ${{ inputs.orchestrator_model }}
           INPUT_SUBAGENT_MODEL: ${{ inputs.subagent_model }}
           INPUT_INCLUDE_MESSAGES: ${{ inputs.include_messages }}
-          INPUT_SCENARIO: ${{ inputs.pattern }}
+          INPUT_PATTERN: ${{ inputs.pattern }}
           INPUT_TASK_PROMPT: ${{ inputs.task_prompt }}
           INPUT_AGENT_INSTRUCTIONS: ${{ inputs.agent_instructions }}
-          TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
-          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
-        run: node .github/scripts/prepare-trace-request.mjs
+          TRACE_PROMPT_PATH: ${{ runner.temp }}/copilot-demo-prompt.txt
+          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/copilot-demo-instruction.txt
+        run: node .github/scripts/prepare-demo-request.mjs
       - name: Run orchestrated read-only analysis
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model }}
-          TRACE_PROMPT_PATH: ${{ runner.temp }}/agent-trace-prompt.txt
-          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/agent-trace-instruction.txt
+          TRACE_PROMPT_PATH: ${{ runner.temp }}/copilot-demo-prompt.txt
+          TRACE_INSTRUCTION_PATH: ${{ runner.temp }}/copilot-demo-instruction.txt
           EXECUTION_MODE: ${{ steps.request.outputs.execution }}
           ALLOWED_URL: ${{ steps.request.outputs.allowed_url }}
           GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "true"
@@ -140,8 +140,8 @@ jobs:
           $REQUEST" \
             "${EXTRA_ARGS[@]}" \
             --allow-tool='read,search,microsoft-learn(microsoft_docs_search),microsoft-learn(microsoft_docs_fetch)' \
-            --deny-tool=write --deny-tool=shell | tee trace-report/comparison-result.md
-      - name: Render call chain
+            --deny-tool=write --deny-tool=shell | tee trace-report/copilot-response.md
+      - name: Render trace viewer
         if: always()
         uses: ./trace-viewer
         with:
@@ -150,7 +150,7 @@ jobs:
           data-path: ${{ github.workspace }}/trace-report/trace-summary.json
           include-messages: ${{ steps.request.outputs.include_messages }}
           require-model: ${{ steps.request.outputs.required_models }}
-          require-demo-evidence: ${{ steps.request.outputs.scenario }}
+          require-pattern-evidence: ${{ steps.request.outputs.pattern }}
       - name: Capture dependency map
         if: always()
         run: |
@@ -225,12 +225,12 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ORCHESTRATOR_MODEL: ${{ steps.request.outputs.orchestrator_model || 'unavailable' }}
           SUBAGENT_MODEL: ${{ steps.request.outputs.subagent_model || 'unavailable' }}
-          SCENARIO_LABEL: ${{ steps.request.outputs.scenario_label || 'unavailable' }}
-          TRACE_RESULT_PATH: ${{ github.workspace }}/trace-report/comparison-result.md
+          PATTERN_LABEL: ${{ steps.request.outputs.pattern_label || 'unavailable' }}
+          DEMO_RESULT_PATH: ${{ github.workspace }}/trace-report/copilot-response.md
           TRACE_DATA_PATH: ${{ github.workspace }}/trace-report/trace-summary.json
-          COMMENT_PATH: ${{ runner.temp }}/agent-trace-comment.md
+          COMMENT_PATH: ${{ runner.temp }}/copilot-demo-comment.md
           MEDIA_URL: ${{ steps.media.outputs.url }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          node .github/scripts/build-trace-comment.mjs
+          node .github/scripts/build-demo-comment.mjs
           gh issue comment "$ISSUE_NUMBER" --repo "${{ github.repository }}" --body-file "$COMMENT_PATH"

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
-import { parseIssueRequest, supportedPatterns } from "./prepare-trace-request.mjs";
+import { parseIssueRequest, supportedPatterns } from "./prepare-demo-request.mjs";
 
 test("parses a Copilot CLI agent demo issue form", () => {
   const request = parseIssueRequest(`### Orchestration pattern
@@ -28,8 +28,8 @@ Focus one reviewer on API compatibility.
 
 - [x] Include redacted request and response payloads in the HTML trace artifact`);
   assert.deepEqual(request, {
-    scenario: "parallel-delegation",
-    scenarioLabel: "Parallel delegation",
+    pattern: "parallel-delegation",
+    patternLabel: "Parallel delegation",
     execution: "fleet",
     instruction: "Dynamically create at least two read-only subagents and run them concurrently. Give each an independent subtask or perspective, wait for all branches, then synthesize their results and reconcile conflicts. Focus one reviewer on API compatibility. Every dynamically created subagent must use the claude-sonnet-4.6 model.",
     orchestratorModel: "gpt-6-sol",
@@ -94,8 +94,8 @@ gpt-6-luna
 ### Comparison task
 
 Compare services.`);
-  assert.equal(request.scenario, "parallel-delegation");
-  assert.equal(request.scenarioLabel, "Parallel delegation");
+  assert.equal(request.pattern, "parallel-delegation");
+  assert.equal(request.patternLabel, "Parallel delegation");
   assert.equal(request.prompt, "Compare services.");
 });
 
@@ -125,7 +125,7 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`);
-  assert.equal(single.scenario, "direct-execution");
+  assert.equal(single.pattern, "direct-execution");
   assert.match(single.instruction, /without invoking any subagents/);
   assert.equal(single.requiredModels, "gpt-6-luna");
 
@@ -140,7 +140,7 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`);
-  assert.equal(rubberDuck.scenario, "critic-reviser-loop");
+  assert.equal(rubberDuck.pattern, "critic-reviser-loop");
   assert.match(rubberDuck.instruction, /dynamically create one read-only subagent/);
   assert.match(rubberDuck.instruction, /gpt-6-luna model/);
 });
@@ -178,27 +178,53 @@ gpt-6-luna
 ### Subagent model
 
 gpt-6-luna`);
-    assert.equal(request.scenario, id);
+    assert.equal(request.pattern, id);
     assert.equal(request.prompt, defaultPrompt);
     assert.ok(request.instruction.length > 20);
   }
 });
 
 test("keeps orchestration pattern labels synchronized", () => {
-  const workflow = readFileSync(".github/workflows/copilot-trace.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
   const formSources = readdirSync(".github/ISSUE_TEMPLATE")
     .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
     .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
   assert.equal(formSources.length, supportedPatterns.length);
-  for (const { label } of supportedPatterns) {
+  for (const { id, label } of supportedPatterns) {
     const pattern = new RegExp(`- ${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
     assert.match(workflow, pattern);
-    const matchingForms = formSources.filter((source) => source.includes(`options: [${label}]`));
+    const matchingForms = formSources.filter((source) => source.includes(`"copilot-pattern:${id}"`));
     assert.equal(matchingForms.length, 1);
+    assert.doesNotMatch(matchingForms[0], /id: orchestration_pattern|label: Orchestration pattern/);
     assert.match(matchingForms[0], /id: task_prompt[\s\S]*?value:\s*\|[\s\S]*?\S/);
     assert.doesNotMatch(matchingForms[0], /id: agent_instructions|label: Agent instructions/);
     assert.equal(matchingForms[0].match(/type: textarea/g)?.length, 1);
   }
+});
+
+test("routes dedicated issue forms by their pattern label", () => {
+  const request = parseIssueRequest(`### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna
+
+### Task or question
+
+Review two independent concerns.`, [
+    { name: "copilot-agent-demo" },
+    { name: "copilot-pattern:parallel-delegation" },
+  ]);
+  assert.equal(request.pattern, "parallel-delegation");
+  assert.throws(
+    () => parseIssueRequest("", [
+      { name: "copilot-pattern:parallel-delegation" },
+      { name: "copilot-pattern:direct-execution" },
+    ]),
+    /Multiple orchestration pattern labels/,
+  );
 });
 
 test("keeps provider comparison content out of reusable pattern defaults", () => {

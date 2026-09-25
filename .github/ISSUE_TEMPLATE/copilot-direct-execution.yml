@@ -1,19 +1,12 @@
 name: "Copilot CLI demo: Direct execution"
 description: Run a traced task without subagent delegation.
 title: "[Copilot CLI: Direct] "
-labels: [agent-trace]
+labels: [copilot-agent-demo, "copilot-pattern:direct-execution"]
 body:
   - type: markdown
     attributes:
       value: |
         Runs the task directly to establish a latency, token, and cost baseline. The orchestration behavior is applied automatically.
-  - type: dropdown
-    id: orchestration_pattern
-    attributes:
-      label: Orchestration pattern
-      options: [Direct execution]
-    validations:
-      required: true
   - type: dropdown
     id: orchestrator_model
     attributes:

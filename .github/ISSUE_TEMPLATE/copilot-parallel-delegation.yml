@@ -1,19 +1,12 @@
 name: "Copilot CLI demo: Parallel delegation"
 description: Run independent dynamic subagents concurrently and synthesize their results.
 title: "[Copilot CLI: Parallel] "
-labels: [agent-trace]
+labels: [copilot-agent-demo, "copilot-pattern:parallel-delegation"]
 body:
   - type: markdown
     attributes:
       value: |
         Runs independent subagents concurrently. The orchestration behavior is applied automatically.
-  - type: dropdown
-    id: orchestration_pattern
-    attributes:
-      label: Orchestration pattern
-      options: [Parallel delegation]
-    validations:
-      required: true
   - type: dropdown
     id: orchestrator_model
     attributes:

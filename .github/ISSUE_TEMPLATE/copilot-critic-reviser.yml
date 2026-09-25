@@ -1,19 +1,12 @@
 name: "Copilot CLI demo: Critic-reviser loop"
 description: Challenge an initial position with a dynamic critic before revising it.
 title: "[Copilot CLI: Critic] "
-labels: [agent-trace]
+labels: [copilot-agent-demo, "copilot-pattern:critic-reviser-loop"]
 body:
   - type: markdown
     attributes:
       value: |
         Runs an initial-position, independent-critique, and revision loop. The orchestration behavior is applied automatically.
-  - type: dropdown
-    id: orchestration_pattern
-    attributes:
-      label: Orchestration pattern
-      options: [Critic-reviser loop]
-    validations:
-      required: true
   - type: dropdown
     id: orchestrator_model
     attributes:

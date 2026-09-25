@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { buildTraceComment } from "./build-trace-comment.mjs";
+import { buildDemoComment } from "./build-demo-comment.mjs";
 
-test("builds an issue comment with comparison, diagnostics, and a dependency graph", () => {
-  const comment = buildTraceComment({
+test("builds an issue comment with a result, diagnostics, and a dependency graph", () => {
+  const comment = buildDemoComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "claude-sonnet-4.6",
-    scenarioLabel: "Parallel delegation",
-    comparison: "S3 and Blob Storage differ in lifecycle semantics.",
+    patternLabel: "Parallel delegation",
+    result: "S3 and Blob Storage differ in lifecycle semantics.",
     runUrl: "https://github.com/example/repo/actions/runs/1",
     report: {
       durationText: "12.30 s",
@@ -24,9 +24,9 @@ test("builds an issue comment with comparison, diagnostics, and a dependency gra
       ],
     },
   });
-  assert.match(comment, /### Comparison[\s\S]*S3 and Blob Storage/);
+  assert.match(comment, /### Result[\s\S]*S3 and Blob Storage/);
   assert.match(comment, /orchestrator `gpt-6-luna` · subagents `claude-sonnet-4.6`/);
-  assert.match(comment, /\*\*Demo:\*\* Parallel delegation/);
+  assert.match(comment, /\*\*Pattern:\*\* Parallel delegation/);
   assert.match(comment, /\*\*Error:\*\* `web_fetch`/);
   assert.match(comment, /```mermaid[\s\S]*flowchart LR/);
   assert.match(comment, /orchestrator[\s\S]*aws-storage[\s\S]*web_fetch/);
@@ -35,11 +35,11 @@ test("builds an issue comment with comparison, diagnostics, and a dependency gra
 });
 
 test("uses a GitHub-hosted dependency image when one is available", () => {
-  const comment = buildTraceComment({
+  const comment = buildDemoComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "gpt-6-luna",
-    scenarioLabel: "Parallel delegation",
-    comparison: "Comparison",
+    patternLabel: "Parallel delegation",
+    result: "Result",
     runUrl: "https://github.com/example/repo/actions/runs/1",
     mediaUrl: "https://github.com/user-attachments/assets/dependency-map",
     report: {

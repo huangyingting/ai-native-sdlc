@@ -43,16 +43,16 @@ function dependencyDiagram(dependencies = []) {
   return lines.join("\n");
 }
 
-export function buildTraceComment({
+export function buildDemoComment({
   report,
-  comparison,
+  result,
   orchestratorModel,
   subagentModel,
-  scenarioLabel,
+  patternLabel,
   runUrl,
   mediaUrl,
 }) {
-  const result = clean(comparison, 24_000) || "_The orchestrator did not produce a comparison result._";
+  const response = clean(result, 24_000) || "_The orchestrator did not produce a result._";
   const errors = report?.signals?.errors ?? [];
   const slow = report?.signals?.slow ?? [];
   const dependencies = mediaUrl
@@ -71,15 +71,15 @@ export function buildTraceComment({
     ...slow.filter((event) => !errors.some((error) => error.id === event.id))
       .map((event) => `- **Slow span:** \`${event.name}\` · ${event.duration}`),
   ];
-  return `<!-- agent-trace-result -->
+  return `<!-- copilot-agent-demo-result -->
 ## Copilot CLI agent demo result
 
 **Models:** orchestrator \`${orchestratorModel}\` · subagents \`${subagentModel}\`
-**Demo:** ${scenarioLabel}
+**Pattern:** ${patternLabel}
 
-### Comparison
+### Result
 
-${result}
+${response}
 
 <details>
 <summary>Trace diagnostics</summary>
@@ -105,12 +105,12 @@ ${dependencies}
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const rawReport = read(process.env.TRACE_DATA_PATH);
-  writeFileSync(process.env.COMMENT_PATH, buildTraceComment({
+  writeFileSync(process.env.COMMENT_PATH, buildDemoComment({
     report: rawReport ? JSON.parse(rawReport) : null,
-    comparison: read(process.env.TRACE_RESULT_PATH),
+    result: read(process.env.DEMO_RESULT_PATH),
     orchestratorModel: process.env.ORCHESTRATOR_MODEL,
     subagentModel: process.env.SUBAGENT_MODEL,
-    scenarioLabel: process.env.SCENARIO_LABEL,
+    patternLabel: process.env.PATTERN_LABEL,
     runUrl: process.env.RUN_URL,
     mediaUrl: process.env.MEDIA_URL,
   }));

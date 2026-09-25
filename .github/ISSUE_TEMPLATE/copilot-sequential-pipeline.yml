@@ -1,19 +1,12 @@
 name: "Copilot CLI demo: Sequential pipeline"
 description: Run dependent dynamic subagents as an ordered pipeline.
 title: "[Copilot CLI: Sequential] "
-labels: [agent-trace]
+labels: [copilot-agent-demo, "copilot-pattern:sequential-pipeline"]
 body:
   - type: markdown
     attributes:
       value: |
         Runs two dependent subagent stages in sequence. The orchestration behavior is applied automatically.
-  - type: dropdown
-    id: orchestration_pattern
-    attributes:
-      label: Orchestration pattern
-      options: [Sequential pipeline]
-    validations:
-      required: true
   - type: dropdown
     id: orchestrator_model
     attributes:

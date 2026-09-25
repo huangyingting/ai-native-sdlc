@@ -21,45 +21,41 @@ export const supportedModels = [
   "mai-code-1.1-flash",
 ];
 
-const supportedPatterns = [
+export const supportedPatterns = [
   {
-    id: "single-agent-baseline",
-    label: "Single-agent baseline",
-    legacyLabels: ["Single agent baseline"],
+    id: "direct-execution",
+    label: "Direct execution",
+    legacyLabels: ["Single-agent baseline", "Single agent baseline"],
     execution: "direct",
     defaultPrompt: "Analyze the Copilot CLI Trace Viewer workflow and interface, identify the highest-impact improvement, and support the recommendation with repository evidence.",
+    defaultGuidance: "",
     instruction: "Handle the task directly without invoking any subagents. Produce a concise evidence-backed answer.",
   },
   {
-    id: "parallel-research",
-    label: "Parallel research",
-    legacyLabels: ["Concurrent research"],
+    id: "parallel-delegation",
+    label: "Parallel delegation",
+    legacyLabels: ["Parallel research", "Concurrent research", "Parallel review", "Review panel"],
     execution: "fleet",
     defaultPrompt: "Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Cite sources and clearly identify non-equivalent features.",
-    instruction: "Dynamically create exactly two read-only research subagents and run them concurrently. Give each a distinct part of the request, wait for both, then synthesize their evidence.",
+    defaultGuidance: "Assign one branch to Amazon S3 using official docs.aws.amazon.com sources through web_fetch, and the other to Azure Blob Storage using Microsoft Learn tools.",
+    instruction: "Dynamically create at least two read-only subagents and run them concurrently. Give each an independent subtask or perspective, wait for all branches, then synthesize their results and reconcile conflicts.",
   },
   {
-    id: "parallel-review",
-    label: "Parallel review",
-    legacyLabels: ["Review panel"],
-    execution: "fleet",
-    defaultPrompt: "Review this repository's Copilot CLI Trace Viewer implementation for architecture, reliability, maintainability, and user-facing failure modes. Report only concrete, actionable findings with file references.",
-    instruction: "Dynamically create exactly two read-only review subagents with different concerns and run them concurrently. Reconcile duplicates and disagreements, discard speculative findings, and return a prioritized evidence-backed review.",
-  },
-  {
-    id: "critique-and-revision",
-    label: "Critique and revision",
-    legacyLabels: ["Rubber duck critique"],
+    id: "critic-reviser-loop",
+    label: "Critic-reviser loop",
+    legacyLabels: ["Critique and revision", "Rubber duck critique"],
     execution: "sequential",
     defaultPrompt: "Assess the Copilot CLI Trace Viewer workflow and interface, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
+    defaultGuidance: "Ask the critic to focus on hidden assumptions, counterexamples, and unnecessary complexity.",
     instruction: "First write a concise initial position. Then dynamically create one read-only subagent as an independent critic, give it the request and initial position, and wait for its response. Finish with a revised conclusion that states what changed.",
   },
   {
-    id: "sequential-handoff",
-    label: "Sequential handoff",
-    legacyLabels: ["Lead + specialists"],
+    id: "sequential-pipeline",
+    label: "Sequential pipeline",
+    legacyLabels: ["Sequential handoff", "Lead + specialists"],
     execution: "sequential",
     defaultPrompt: "Propose the next iteration of the Copilot CLI Trace Viewer with clear goals, architecture decisions, risks, and acceptance criteria.",
+    defaultGuidance: "Use a solution-design specialist for the first stage and a critical-review specialist for the dependent second stage.",
     instruction: "Dynamically create two read-only subagents in sequence. Wait for the first result, then give that result and the original request to a fresh second subagent. Finally synthesize the two stages.",
   },
 ];
@@ -77,7 +73,7 @@ function validateModel(model, field) {
 }
 
 function pattern(label) {
-  const selectedLabel = label || "Parallel research";
+  const selectedLabel = label || "Parallel delegation";
   const selected = supportedPatterns.find((candidate) =>
     candidate.label === selectedLabel || candidate.legacyLabels.includes(selectedLabel));
   if (!selected) throw new Error(`Unsupported orchestration pattern: ${label || "(missing)"}`);
@@ -92,8 +88,9 @@ export function parseIssueRequest(body) {
   );
   const orchestratorModel = validateModel(section(body, "Orchestrator model"), "orchestrator model");
   const subagentModel = validateModel(section(body, "Subagent model"), "subagent model");
-  const prompt = section(body, "Task or question") || section(body, "Comparison task") || selectedPattern.defaultPrompt;
-  const guidance = section(body, "Agent instructions");
+  const customPrompt = section(body, "Task or question") || section(body, "Comparison task");
+  const prompt = customPrompt || selectedPattern.defaultPrompt;
+  const guidance = section(body, "Agent instructions") || (!customPrompt ? selectedPattern.defaultGuidance : "");
   const capture = section(body, "Trace content");
   return finalizeRequest({
     scenario: selectedPattern.id,
@@ -125,7 +122,8 @@ function appendOutput(name, value) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
   const selectedPattern = pattern(process.env.INPUT_SCENARIO);
-  const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim();
+  const customPrompt = process.env.INPUT_TASK_PROMPT?.trim();
+  const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim() || (!customPrompt ? selectedPattern.defaultGuidance : "");
   const request = process.env.GITHUB_EVENT_NAME === "issues"
     ? parseIssueRequest(event.issue?.body)
     : finalizeRequest({
@@ -135,7 +133,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         instruction: [selectedPattern.instruction, guidance].filter(Boolean).join(" "),
         orchestratorModel: validateModel(process.env.INPUT_ORCHESTRATOR_MODEL || "gpt-6-luna", "orchestrator model"),
         subagentModel: validateModel(process.env.INPUT_SUBAGENT_MODEL || "gpt-6-luna", "subagent model"),
-        prompt: process.env.INPUT_TASK_PROMPT?.trim() || selectedPattern.defaultPrompt,
+        prompt: customPrompt || selectedPattern.defaultPrompt,
         includeMessages: process.env.INPUT_INCLUDE_MESSAGES === "true",
       });
   writeFileSync(process.env.TRACE_PROMPT_PATH, request.prompt);

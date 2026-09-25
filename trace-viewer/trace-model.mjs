@@ -400,31 +400,24 @@ export function buildTraceModel(spans, {
     : expectedModels.length > 1 && subagents.length
       ? ` | Allowed: ${expectedModels.map((model) => safe(model)).join(", ")} | Delegated: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`
       : ` | Required: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`;
-  const webCalls = tools.filter(({ span, attrs, branch }) =>
-    branch && toolName(span, attrs) === "web_fetch" && Number(span.status?.code) !== 2 && !attrs["error.type"]);
-  const mcpCalls = tools.filter(({ span, attrs, branch }) =>
-    branch && ["microsoft-learn/microsoft_docs_search", "microsoft-learn/microsoft_docs_fetch"].includes(toolName(span, attrs))
-      && Number(span.status?.code) !== 2 && !attrs["error.type"]);
-  const distinctResearchBranches = webCalls.some((web) => mcpCalls.some((mcp) => web.branch !== mcp.branch));
-  const concurrentComplete = peak >= 2 && distinctResearchBranches;
-  const reviewComplete = peak >= 2 && subagents.length >= 2;
-  const collaborationComplete = subagents.length >= 2 && peak === 1;
-  const rubberDuckComplete = subagents.length >= 1;
-  const singleComplete = subagents.length === 0 && chats.length >= 1;
-  const complete = scenario === "parallel-review" ? reviewComplete
-    : scenario === "sequential-handoff" ? collaborationComplete
-      : scenario === "critique-and-revision" ? rubberDuckComplete
-        : scenario === "single-agent-baseline" ? singleComplete
-      : concurrentComplete;
-  const evidence = scenario === "parallel-review"
-    ? `review branches: ${subagents.length} | overlapping reviewers: ${peak >= 2 ? "yes" : "no"}`
-    : scenario === "sequential-handoff"
-      ? `specialist branches: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
-      : scenario === "critique-and-revision"
+  const parallelComplete = peak >= 2 && subagents.length >= 2;
+  const sequentialComplete = subagents.length >= 2 && peak === 1;
+  const criticComplete = subagents.length >= 1;
+  const directComplete = subagents.length === 0 && chats.length >= 1;
+  const complete = scenario === "parallel-delegation" ? parallelComplete
+    : scenario === "sequential-pipeline" ? sequentialComplete
+      : scenario === "critic-reviser-loop" ? criticComplete
+        : scenario === "direct-execution" ? directComplete
+      : true;
+  const evidence = scenario === "parallel-delegation"
+    ? `delegated branches: ${subagents.length} | concurrent execution: ${peak >= 2 ? "yes" : "no"}`
+    : scenario === "sequential-pipeline"
+      ? `pipeline stages: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
+      : scenario === "critic-reviser-loop"
         ? `critic branches: ${subagents.length}`
-        : scenario === "single-agent-baseline"
+        : scenario === "direct-execution"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
-      : `overlapping subagents: ${peak >= 2 ? "yes" : "no"} | AWS web_fetch: ${webCalls.length ? "observed" : "not observed"} | Azure Microsoft Learn tool: ${mcpCalls.length ? "observed" : "not observed"} | distinct branches: ${distinctResearchBranches ? "yes" : "no"}`;
+          : `subagents: ${subagents.length} | peak concurrency: ${peak}`;
   const messageCount = events.filter((event) => event.request || event.response).length;
   const contentKeys = includeMessages && !messageCount
     ? [...new Set([...nodes.values()].flatMap((node) => Object.keys(node.attrs)).filter((key) => /message|content|argument|result/i.test(key)))].slice(0, 20)
@@ -439,7 +432,6 @@ export function buildTraceModel(spans, {
     `Model cost: ${costs.length ? `${totalCost} (${costMode})` : "unavailable"} (${costs.length}/${chats.length} chat spans priced)`,
     `Models: ${[...new Set(models)].map((model) => safe(model)).join(", ") || "unavailable"}${modelExpectation}`,
     `Demo evidence: ${complete ? "PASS" : "MISSING"} | ${evidence}`,
-    ...(scenario === "parallel-research" || !scenario ? ["AWS uses web_fetch on docs.aws.amazon.com; built-in web_search was unavailable with this Actions token."] : []),
     ...(includeMessages ? [`Message payloads: ${messageCount} spans${contentKeys.length ? ` | available attribute names: ${contentKeys.map((key) => safe(key)).join(", ")}` : ""}`] : ["Message content capture: off (enable include_messages when dispatching to see payloads)."]),
     ...(subagents.length ? [] : ["No subagents observed in this trace; --fleet does not guarantee delegation."]),
     "",

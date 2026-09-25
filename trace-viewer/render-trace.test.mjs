@@ -71,7 +71,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   const result = summarizeTrace(spans, { includeMessages: true, expectedModel: "gpt-6-luna" });
   assert.equal(result.complete, true);
   assert.equal(result.modelMatches, true);
-  assert.match(result.summary, /Demo evidence: PASS.*distinct branches: yes/);
+  assert.match(result.summary, /Demo evidence: PASS.*subagents: 2.*peak concurrency: 2/);
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.doesNotMatch(result.summary, /status=unknown/);
@@ -141,26 +141,18 @@ test("surfaces OTEL failure reasons without message capture", () => {
   assert.match(renderHtml(result), /Failure reason[\s\S]*URL is not allowed by policy/);
 });
 
-test("does not accept a failed Microsoft Learn call as concurrent evidence", () => {
+test("requires overlapping branches for parallel delegation", () => {
   const spans = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
     span("aws", "root", "invoke_agent aws-storage", 10, 80),
     span("azure", "root", "invoke_agent azure-storage", 20, 90),
-    span("web", "aws", "execute_tool web_fetch", 30, 40),
-    { ...span("mcp", "azure", "execute_tool microsoft-learn-microsoft_docs_search", 30, 40), status: { code: 2 } },
   ));
-  assert.equal(summarizeTrace(spans, { scenario: "parallel-research" }).complete, false);
-});
-
-test("accepts Microsoft Learn fetch as parallel research evidence", () => {
-  const spans = loadSpans(line(
+  assert.equal(summarizeTrace(spans, { scenario: "parallel-delegation" }).complete, true);
+  assert.equal(summarizeTrace(loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
-    span("aws", "root", "invoke_agent research", 10, 80),
-    span("azure", "root", "invoke_agent research", 20, 90),
-    span("web", "aws", "execute_tool web_fetch", 30, 40),
-    span("mcp", "azure", "execute_tool microsoft-learn-microsoft_docs_fetch", 30, 40),
-  ));
-  assert.equal(summarizeTrace(spans, { scenario: "parallel-research" }).complete, true);
+    span("first", "root", "invoke_agent explore", 10, 40),
+    span("second", "root", "invoke_agent explore", 50, 90),
+  )), { scenario: "parallel-delegation" }).complete, false);
 });
 
 test("validates review and sequential collaboration scenario evidence", () => {
@@ -169,19 +161,19 @@ test("validates review and sequential collaboration scenario evidence", () => {
     span("left", "root", "invoke_agent architecture-review", 10, 70),
     span("right", "root", "invoke_agent reliability-review", 20, 80),
   ));
-  assert.equal(summarizeTrace(review, { scenario: "parallel-review" }).complete, true);
-  assert.equal(summarizeTrace(review, { scenario: "sequential-handoff" }).complete, false);
+  assert.equal(summarizeTrace(review, { scenario: "parallel-delegation" }).complete, true);
+  assert.equal(summarizeTrace(review, { scenario: "sequential-pipeline" }).complete, false);
 
   const collaboration = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
     span("architect", "root", "invoke_agent solution-architect", 10, 40),
     span("reviewer", "root", "invoke_agent critical-reviewer", 50, 90),
   ));
-  const result = summarizeTrace(collaboration, { scenario: "sequential-handoff" });
+  const result = summarizeTrace(collaboration, { scenario: "sequential-pipeline" });
   assert.equal(result.complete, true);
   assert.match(result.summary, /sequential execution: yes/);
-  assert.equal(summarizeTrace(collaboration, { scenario: "parallel-review" }).complete, false);
-  assert.equal(summarizeTrace(collaboration, { scenario: "critique-and-revision" }).complete, true);
+  assert.equal(summarizeTrace(collaboration, { scenario: "parallel-delegation" }).complete, false);
+  assert.equal(summarizeTrace(collaboration, { scenario: "critic-reviser-loop" }).complete, true);
 });
 
 test("validates a single-agent baseline without delegated agents", () => {
@@ -189,8 +181,8 @@ test("validates a single-agent baseline without delegated agents", () => {
     span("root", "", "invoke_agent", 0, 100),
     span("chat", "root", "chat gpt-6-luna", 10, 90),
   ));
-  assert.equal(summarizeTrace(baseline, { scenario: "single-agent-baseline" }).complete, true);
-  assert.equal(summarizeTrace(baseline, { scenario: "critique-and-revision" }).complete, false);
+  assert.equal(summarizeTrace(baseline, { scenario: "direct-execution" }).complete, true);
+  assert.equal(summarizeTrace(baseline, { scenario: "critic-reviser-loop" }).complete, false);
 });
 
 test("hydrates file-backed tool output before redaction and rendering", () => {

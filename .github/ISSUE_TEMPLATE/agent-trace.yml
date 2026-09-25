@@ -15,11 +15,10 @@ body:
       label: Orchestration pattern
       description: Select the collaboration pattern to demonstrate in the trace.
       options:
-        - Single-agent baseline
-        - Parallel research
-        - Parallel review
-        - Critique and revision
-        - Sequential handoff
+        - Direct execution
+        - Parallel delegation
+        - Critic-reviser loop
+        - Sequential pipeline
       default: 1
     validations:
       required: true

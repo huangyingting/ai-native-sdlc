@@ -100,7 +100,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.log(result.summary + artifactLink);
     if (process.env.REQUIRE_DEMO_EVIDENCE && process.env.REQUIRE_DEMO_EVIDENCE !== "false"
       && (!result.complete || !result.modelMatches || (result.includeMessages && !result.messageCount))) {
-      console.error("Demo evidence missing: require overlapping subagents, both research tools, all selected models, and message payloads when requested.");
+      console.error("Demo evidence missing: the selected orchestration pattern, model constraints, or requested message payloads were not observed.");
       process.exitCode = 1;
     }
   } catch (error) {

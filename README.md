@@ -6,15 +6,16 @@ Repository collaborators can also open the **Copilot CLI agent demo** issue form
 
 Issue comments always include a GitHub-rendered Mermaid dependency graph. To additionally embed the generated PNG as a GitHub user attachment, configure the optional `AGENT_TRACE_MEDIA_TOKEN` Actions secret with a user token that can access this repository. GitHub's short-lived Actions `GITHUB_TOKEN` is not accepted by the user-attachments upload endpoint and returns 404; the workflow therefore never uses it for media upload and safely falls back to Mermaid if the optional upload is unavailable.
 
-The issue form and manual dispatch support five orchestration demos:
+The issue form and manual dispatch support four reusable orchestration patterns:
 
-- **Single-agent baseline** handles the task directly, providing a cost and latency baseline for comparison.
-- **Parallel research** asks Copilot CLI to dynamically create two focused researchers and validates overlapping execution plus both documentation tools.
-- **Parallel review** dynamically creates two reviewers with different concerns in parallel, then reconciles their findings.
-- **Critique and revision** dynamically creates an independent critic after the initial position and records how the conclusion changed.
-- **Sequential handoff** dynamically creates a design specialist and then a fresh critical reviewer in sequence before revising the proposal.
+- **Direct execution** handles the task without delegation, providing a cost and latency baseline.
+- **Parallel delegation** fans out independent subtasks or perspectives and synthesizes their results.
+- **Critic-reviser loop** challenges an initial position before producing a revised conclusion.
+- **Sequential pipeline** passes one subagent's result into the next stage before final synthesis.
 
 The repository stores only these stable orchestration patterns. Each issue supplies its own task and optional agent instructions, so every issue can become a new demo without adding files or changing the workflow. Copilot CLI decides the concrete subagent type at runtime.
+
+Every pattern also includes a tested default task and default agent guidance. Leaving the issue fields empty produces a one-click demonstration; entering a custom task replaces the example-specific guidance while preserving the selected orchestration contract.
 
 See [Copilot CLI agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md) for execution diagrams, model behavior, validation signals, failure interpretation, and guidance on choosing a pattern.
 

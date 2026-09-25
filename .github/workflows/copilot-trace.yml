@@ -8,13 +8,12 @@ on:
       pattern:
         description: "Orchestration pattern to demonstrate"
         type: choice
-        default: Parallel research
+        default: Parallel delegation
         options:
-          - Single-agent baseline
-          - Parallel research
-          - Parallel review
-          - Critique and revision
-          - Sequential handoff
+          - Direct execution
+          - Parallel delegation
+          - Critic-reviser loop
+          - Sequential pipeline
       orchestrator_model:
         description: "Model that delegates to subagents and synthesizes the final result"
         type: choice

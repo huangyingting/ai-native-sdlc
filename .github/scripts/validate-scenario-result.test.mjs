@@ -19,7 +19,10 @@ test("does not impose output markers on concurrent research", () => {
   assert.equal(validateScenarioResult("single", "baseline complete"), true);
 });
 
-test("requires the built-in rubber duck in its dedicated scenario", () => {
-  assert.equal(validateScenarioResult("rubber-duck", "● Rubber-duck agent — challenge assumptions"), true);
-  assert.throws(() => validateScenarioResult("rubber-duck", "No critic was used"), /required agent/);
+test("requires the repository rubber-duck agent in its dedicated scenario", () => {
+  assert.equal(validateScenarioResult("rubber-duck", "● Rubber-duck (model: gpt-6-luna) Challenge assumptions"), true);
+  assert.throws(
+    () => validateScenarioResult("rubber-duck", "A dedicated rubber-duck agent was unavailable"),
+    /required agent/,
+  );
 });

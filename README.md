@@ -11,7 +11,7 @@ The issue form and manual dispatch support five trace scenarios:
 - **Single agent baseline** handles the task directly, providing a cost and latency baseline for comparison.
 - **Concurrent research** fans out to the AWS and Azure research agents and validates overlapping execution plus both documentation tools.
 - **Review panel** runs the built-in code-review agent and an architecture reviewer in parallel, then reconciles their findings.
-- **Rubber duck critique** makes the orchestrator state an initial position, invokes the built-in rubber duck as an independent critic, and records how the conclusion changed.
+- **Rubber duck critique** makes the orchestrator state an initial position, invokes a dedicated repository critic, and records how the conclusion changed.
 - **Lead + specialists** runs a solution architect first and a critical reviewer second, producing a sequential collaboration trace before the orchestrator revises the proposal.
 
 Each scenario has a useful built-in task, or the issue author can provide a custom task. All specialist profiles are read-only and use the selected subagent model.

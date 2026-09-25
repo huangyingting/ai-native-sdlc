@@ -8,7 +8,7 @@ export function validateScenarioResult(scenario, output) {
     : scenario === "collaboration"
       ? [/Solution-architect \(model:/i, /Critical-reviewer \(model:/i]
       : scenario === "rubber-duck"
-        ? [/Rubber[- ]duck(?: agent)?/i]
+        ? [/Rubber-duck \(model:/i]
         : [];
   for (const pattern of required) {
     if (!pattern.test(text)) throw new Error(`Scenario ${scenario} did not invoke the required agent matching ${pattern}`);

@@ -104,5 +104,5 @@ gpt-6-luna
 
 gpt-6-luna`);
   assert.equal(rubberDuck.scenario, "rubber-duck");
-  assert.match(rubberDuck.instruction, /built-in rubber duck agent/);
+  assert.match(rubberDuck.instruction, /repository's rubber-duck custom agent/);
 });

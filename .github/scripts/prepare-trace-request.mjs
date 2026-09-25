@@ -40,7 +40,7 @@ export const supportedScenarios = {
   "Rubber duck critique": {
     id: "rubber-duck",
     prompt: "Assess the Agent Trace workflow and viewer design, state an initial recommendation, then challenge its assumptions and revise it into a simpler and more defensible proposal.",
-    instruction: "First analyze the request and write a concise initial position. Then explicitly consult the built-in rubber duck agent as an independent critic. Give it the original request and your initial position, ask it to identify hidden assumptions and counterexamples, and wait for its response. Finish with a revised conclusion that clearly states what changed after the critique.",
+    instruction: "First analyze the request and write a concise initial position. Then invoke the repository's rubber-duck custom agent as an independent critic. Give it the original request and your initial position, ask it to identify hidden assumptions and counterexamples, and wait for its response. Finish with a revised conclusion that clearly states what changed after the critique.",
   },
   "Lead + specialists": {
     id: "collaboration",

@@ -1,0 +1,12 @@
+{
+  "runId": "36092002982",
+  "title": "[Validation] Direct execution template",
+  "createdAt": "2026-09-25T03:50:39Z",
+  "runUrl": "https://github.com/huangyingting/ai-native-sdlc/actions/runs/36092002982",
+  "pattern": "direct-execution",
+  "durationText": "33.24 s",
+  "errors": 0,
+  "peak": 0,
+  "costText": "$0.020295",
+  "includeMessages": true
+}

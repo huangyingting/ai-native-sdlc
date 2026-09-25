@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { createTicketAction, type TicketFormState } from "./actions";
+import { CustomSelect } from "./custom-select";
+import { CheckIcon, XIcon } from "./icons";
 import { ticketCategories, ticketPriorities } from "@/lib/ticket";
 
 const initialState: TicketFormState = {};
@@ -17,6 +19,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button className="button button-primary" disabled={pending} type="submit">
+      <CheckIcon />
       {pending ? "Submitting..." : "Submit ticket"}
     </button>
   );
@@ -45,31 +48,48 @@ export function TicketForm() {
         </div>
         <div className="field">
           <label htmlFor="category">Category</label>
-          <select id="category" name="category" defaultValue={ticketCategories[0]} required>
-            {ticketCategories.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
+          <CustomSelect
+            defaultValue={ticketCategories[0]}
+            id="category"
+            name="category"
+            options={ticketCategories.map((category) => ({
+              value: category,
+              label: category,
+            }))}
+          />
           <FieldError errors={state.errors?.category} />
         </div>
         <div className="field">
           <label htmlFor="priority">Priority</label>
-          <select id="priority" name="priority" defaultValue="medium" required>
-            {ticketPriorities.map((priority) => (
-              <option key={priority} value={priority}>{priority}</option>
-            ))}
-          </select>
+          <CustomSelect
+            defaultValue="medium"
+            id="priority"
+            name="priority"
+            options={ticketPriorities.map((priority) => ({
+              value: priority,
+              label: priority,
+            }))}
+          />
           <FieldError errors={state.errors?.priority} />
         </div>
         <div className="field field-full">
           <label htmlFor="description">Describe the issue or request</label>
-          <textarea id="description" name="description" maxLength={4000} required />
+          <textarea
+            className="description-field"
+            id="description"
+            name="description"
+            maxLength={4000}
+            required
+          />
           <FieldError errors={state.errors?.description} />
         </div>
       </div>
       {state.message ? <p className="form-error" role="alert">{state.message}</p> : null}
       <div className="form-actions">
-        <Link className="button" href="/">Cancel</Link>
+        <Link className="button" href="/">
+          <XIcon />
+          Cancel
+        </Link>
         <SubmitButton />
       </div>
     </form>

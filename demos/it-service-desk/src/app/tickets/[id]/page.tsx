@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTicketStatusAction } from "@/app/actions";
+import { ArrowLeftIcon, CheckIcon } from "@/app/icons";
+import { CustomSelect } from "@/app/custom-select";
 import { getTicketStore } from "@/lib/ticket-store";
 import { formatTicketStatus, ticketStatuses } from "@/lib/ticket";
 
@@ -28,22 +30,27 @@ export default async function TicketPage({
   return (
     <main>
       <div className="shell">
-        <Link className="back-link" href="/">← Back to tickets</Link>
-        <div className="page-heading">
+        <Link className="back-link" href="/">
+          <ArrowLeftIcon />
+          Back to tickets
+        </Link>
+        <div className="page-heading detail-heading">
           <div>
             <p className="eyebrow">{ticket.reference}</p>
             <h1>{ticket.title}</h1>
-            <p className="lead">Submitted by {ticket.requesterName} on {formatDate(ticket.createdAt)}</p>
+            <p className="lead">Submitted by {ticket.requesterName} · {formatDate(ticket.createdAt)}</p>
           </div>
           <span className={`badge badge-status-${ticket.status}`}>{formatTicketStatus(ticket.status)}</span>
         </div>
 
         <div className="detail-layout">
-          <section className="detail-card">
+          <section className="detail-card detail-primary">
+            <p className="section-label">Request context</p>
             <h2>Description</h2>
             <p className="ticket-description">{ticket.description}</p>
           </section>
           <aside className="detail-card">
+            <p className="section-label">Record</p>
             <h2>Ticket details</h2>
             <dl className="detail-list">
               <div><dt>Requester</dt><dd>{ticket.requesterName}</dd></div>
@@ -55,12 +62,19 @@ export default async function TicketPage({
             <form action={updateTicketStatusAction} className="status-form">
               <input name="id" type="hidden" value={ticket.id} />
               <label htmlFor="status">Update status</label>
-              <select id="status" name="status" defaultValue={ticket.status}>
-                {ticketStatuses.map((status) => (
-                  <option key={status} value={status}>{formatTicketStatus(status)}</option>
-                ))}
-              </select>
-              <button className="button button-primary" type="submit">Save status</button>
+              <CustomSelect
+                defaultValue={ticket.status}
+                id="status"
+                name="status"
+                options={ticketStatuses.map((status) => ({
+                  value: status,
+                  label: formatTicketStatus(status),
+                }))}
+              />
+              <button className="button button-primary" type="submit">
+                <CheckIcon />
+                Save status
+              </button>
             </form>
           </aside>
         </div>

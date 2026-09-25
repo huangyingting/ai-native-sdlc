@@ -71,7 +71,7 @@ body:
     attributes:
       label: Task or question
       value: |
-        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Use official AWS and Microsoft Learn sources, cite them, and clearly identify non-equivalent features.
+        Compare Amazon S3 and Azure Blob Storage versioning, encryption, lifecycle/access tiers, and access control. Use only docs.aws.amazon.com for AWS and Microsoft Learn MCP for Azure, cite the sources, and clearly identify non-equivalent features.
     validations:
       required: true
   - type: dropdown

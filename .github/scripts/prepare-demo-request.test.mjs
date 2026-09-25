@@ -254,6 +254,7 @@ test("keeps provider comparison content out of reusable pattern defaults", () =>
   const parallelForm = readFileSync(".github/ISSUE_TEMPLATE/copilot-parallel-delegation.yml", "utf8");
   assert.match(parallelForm, /Amazon S3/);
   assert.match(parallelForm, /Azure Blob Storage/);
+  assert.match(parallelForm, /Use only docs\.aws\.amazon\.com for AWS and Microsoft Learn MCP for Azure/);
   assert.match(parallelForm, /Block all external URLs[\s\S]*Allow https:\/\/docs\.aws\.amazon\.com/);
   assert.match(parallelForm, /id: allow_url[\s\S]*default: 1/);
 });

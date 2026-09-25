@@ -1,5 +1,12 @@
 # ai-native-sdlc
 
+## Example application
+
+[`demos/it-service-desk`](demos/it-service-desk) is a compact Next.js and
+SQLite IT service desk for Issue-to-PR Copilot demonstrations. It includes
+ticket intake, filtering, details, status updates, seeded data, tests, and
+path-scoped CI.
+
 Manually run **Copilot CLI Agent Demos** from Actions. Open the completed run's **Job Summary** to see the observed parent/subagent/model/tool hierarchy, timestamps, durations, parallel-agent peak, token counts, and cost. Each successful run uploads a **copilot-trace-viewer** artifact containing the offline HTML report and canonical trace data. A separate publisher consumes that artifact and stores only the redacted canonical JSON on GitHub Pages. The shared **Copilot CLI Trace Viewer** SPA loads `/traces/<run-id>.json`, so one renderer serves every historical run and UI improvements apply without regenerating old reports. The viewer provides **Trace** and **Dependencies** tabs, correlated selection, filtering, model-aware cost, and SVG/PNG graph export.
 
 Repository collaborators can choose one of four **Copilot CLI demo** issue forms. Each form represents exactly one orchestration pattern, exposes one editable task, and carries an internal `copilot-pattern:*` routing label instead of showing a redundant pattern dropdown. Creating or reopening the resulting `copilot-agent-demo` issue starts the shared workflow. Both model selectors remain available, and detailed tracing with redacted request/response payloads is selected by default. When the run finishes, the workflow posts the final result, trace diagnostics, dependency graph, workflow link, one-click online Trace Viewer link, and downloadable offline HTML artifact back to the originating issue.

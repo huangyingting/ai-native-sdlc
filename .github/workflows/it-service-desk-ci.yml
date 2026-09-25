@@ -16,6 +16,10 @@ permissions:
 
 jobs:
   validate:
+    if: >-
+      github.event_name == 'push' ||
+      !contains(github.event.pull_request.body, 'Delivery Demo: brownfield-human-gated-delivery') ||
+      !contains(github.event.pull_request.body, 'Delivery Stage: tests')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -32,3 +36,42 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run build
+
+  container-smoke:
+    needs: validate
+    if: >-
+      github.event_name == 'push' ||
+      !contains(github.event.pull_request.body, 'Delivery Demo: brownfield-human-gated-delivery') ||
+      !contains(github.event.pull_request.body, 'Delivery Stage: tests')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build container
+        run: docker build --tag it-service-desk:ci demos/it-service-desk
+      - name: Start container
+        id: container
+        run: |
+          container_id="$(docker run --detach --publish 3000:3000 it-service-desk:ci)"
+          echo "container-id=${container_id}" >> "$GITHUB_OUTPUT"
+      - name: Wait for health
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health \
+              | jq -e '.status == "ok"' >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Service desk did not become healthy." >&2
+          exit 1
+      - name: Smoke test dashboard
+        run: |
+          curl --fail --silent http://127.0.0.1:3000/ \
+            | grep --fixed-strings "IT support tickets" >/dev/null
+      - name: Show container logs
+        if: failure() && steps.container.outputs.container-id != ''
+        run: docker logs "${{ steps.container.outputs.container-id }}"
+      - name: Stop container
+        if: always() && steps.container.outputs.container-id != ''
+        run: docker stop "${{ steps.container.outputs.container-id }}"

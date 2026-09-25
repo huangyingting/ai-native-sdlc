@@ -1,0 +1,151 @@
+name: Brownfield Delivery · Publish
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+    paths:
+      - "demos/it-service-desk/**"
+
+concurrency:
+  group: brownfield-delivery-publish-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-issue:
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.body, 'Delivery Demo: brownfield-human-gated-delivery') &&
+      contains(github.event.pull_request.body, 'Delivery Stage: implementation')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      intent: ${{ steps.lifecycle.outputs.intent }}
+      stage-issue: ${{ steps.lifecycle.outputs.stage-issue }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Validate implementation lifecycle
+        id: lifecycle
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/brownfield-human-gated-delivery/scripts/github.mjs verify
+      - name: Require implementation stage
+        env:
+          DELIVERY_STAGE: ${{ steps.lifecycle.outputs.stage }}
+        run: |
+          if [[ "$DELIVERY_STAGE" != "implementation" ]]; then
+            echo "Only an implementation stage can enter delivery." >&2
+            exit 1
+          fi
+
+  publish:
+    needs: resolve-issue
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Resolve image name
+        id: image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY}-it-service-desk"
+          echo "name=${image,,}" >> "$GITHUB_OUTPUT"
+      - name: Sign in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build and publish merged image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: demos/it-service-desk
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.event.pull_request.merge_commit_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.merge_commit_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  verify:
+    needs: [resolve-issue, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: it-service-desk-demo
+    permissions:
+      packages: read
+    steps:
+      - name: Sign in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Pull published digest
+        run: docker pull "${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}"
+      - name: Start published digest
+        id: container
+        run: |
+          container_id="$(
+            docker run --detach --publish 3000:3000 \
+              "${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}"
+          )"
+          echo "container-id=${container_id}" >> "$GITHUB_OUTPUT"
+      - name: Wait for health
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health \
+              | jq -e '.status == "ok"' >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Published service desk did not become healthy." >&2
+          exit 1
+      - name: Smoke test dashboard
+        run: |
+          curl --fail --silent http://127.0.0.1:3000/ \
+            | grep --fixed-strings "IT support tickets" >/dev/null
+      - name: Show container logs
+        if: failure() && steps.container.outputs.container-id != ''
+        run: docker logs "${{ steps.container.outputs.container-id }}"
+      - name: Stop container
+        if: always() && steps.container.outputs.container-id != ''
+        run: docker stop "${{ steps.container.outputs.container-id }}"
+
+  report:
+    if: always() && needs.resolve-issue.result != 'skipped'
+    needs: [resolve-issue, publish, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Report delivery result
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE: ${{ needs.publish.outputs.image }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DELIVERY_SUCCESS: ${{ needs.publish.result == 'success' && needs.verify.result == 'success' }}
+        run: |
+          node .github/brownfield-human-gated-delivery/scripts/github.mjs delivery

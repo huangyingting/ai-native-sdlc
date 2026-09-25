@@ -27,6 +27,9 @@ Each demo owns its dependencies and additional validation commands.
 
 - [Repository guide](docs/repository-guide.md) — structure, local development,
   workflows, trace publishing, security, and operations.
+- [Brownfield Human-Gated Delivery demo](docs/brownfield-human-gated-delivery.md)
+  — safely evolve an existing application through Intent, Spec, Plan, TDD,
+  implementation, delivery, and Human Review gates.
 - [Agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md)
   — pattern selection, execution diagrams, and trace evidence.
 - [Adding a demo](docs/repository-guide.md#adding-a-demo)

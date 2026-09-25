@@ -38,9 +38,11 @@ npm run lint
 npm run build
 ```
 
-## Suggested first Copilot demo Issue
+## Suggested Brownfield Delivery Intent
 
-Add an assignee to each ticket:
+Use the repository Intent form with this outcome: add optional assignees to
+service-desk tickets so support agents can understand and update ownership.
+Useful success signals include:
 
 - unassigned tickets remain valid;
 - the dashboard can filter by assignee;
@@ -51,3 +53,7 @@ Add an assignee to each ticket:
 This is large enough to demonstrate repository exploration, planning,
 implementation, tests, and pull-request review, while remaining small enough
 for a short live session.
+
+See the
+[Brownfield Human-Gated Delivery demo](../../docs/brownfield-human-gated-delivery.md)
+for the complete Intent, Spec, Plan, TDD, implementation, and delivery loop.

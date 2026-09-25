@@ -1,0 +1,48 @@
+name: "Brownfield human-gated delivery: Submit an intent"
+description: Safely evolve an existing application through reviewed specification, plan, tests, implementation, and verified delivery.
+title: "[Brownfield delivery] "
+labels: ["brownfield-human-gated-delivery:intent"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe an outcome for the existing application, not its implementation. This demo creates reviewed Spec, Plan, TDD Tests, and Implementation stages. Only repository owners, members, and collaborators can start the automated lifecycle.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What is difficult today, and who experiences it?
+      placeholder: Support agents cannot see or manage ticket ownership.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable user or business value.
+      placeholder: Support agents can understand and update ticket ownership.
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Users and stakeholders
+      placeholder: Service-desk agents, team leads, and ticket requesters.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and non-goals
+      description: Include compatibility, security, scope, or timing constraints. Write "None known" when appropriate.
+      placeholder: Preserve unassigned tickets and the existing SQLite storage.
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success signals
+      description: What observable behavior would demonstrate that the intent has been satisfied?
+      placeholder: Agents can view, filter, and update ownership without breaking existing tickets.
+    validations:
+      required: true

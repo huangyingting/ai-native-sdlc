@@ -80,6 +80,20 @@ The service desk uses the built-in `node:sqlite` module. It creates and seeds
 `data/service-desk.db` automatically; delete that local file to reset the
 data.
 
+## Brownfield Human-Gated Delivery demo
+
+The IT service desk is the existing application in a brownfield, human-gated
+delivery loop. A GitHub Intent moves through AI-authored Spec and Plan
+artifacts, controlled TDD Red evidence, Copilot Coding Agent implementation,
+GHCR publishing, temporary container verification, and delivery feedback to
+the originating Issue.
+
+See [Brownfield Human-Gated Delivery demo](./brownfield-human-gated-delivery.md)
+for reviewer configuration, credentials, branch rules, stage artifacts, the
+live demonstration script, and failure behavior. This write-enabled Coding
+Agent flow is one AI-native delivery pattern and remains separate from the
+read-only Copilot CLI orchestration workflows below.
+
 ## Copilot CLI demonstration workflow
 
 The **Copilot CLI Agent Demos** workflow can run through manual dispatch or an

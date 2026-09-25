@@ -4,9 +4,16 @@ on:
   pull_request:
     paths:
       - ".github/ISSUE_TEMPLATE/**"
+      - ".github/brownfield-human-gated-delivery/**"
       - ".github/mcp.json"
       - ".github/scripts/**"
+      - ".github/workflows/brownfield-human-gated-delivery-advance.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-kickoff.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-pr-coordinator.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-publish.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-stage-ci.yml"
       - ".github/workflows/copilot-cli-agent-demos.yml"
+      - ".github/workflows/it-service-desk-ci.yml"
       - ".github/workflows/publish-trace-site.yml"
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"
@@ -16,9 +23,16 @@ on:
     branches: [main]
     paths:
       - ".github/ISSUE_TEMPLATE/**"
+      - ".github/brownfield-human-gated-delivery/**"
       - ".github/mcp.json"
       - ".github/scripts/**"
+      - ".github/workflows/brownfield-human-gated-delivery-advance.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-kickoff.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-pr-coordinator.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-publish.yml"
+      - ".github/workflows/brownfield-human-gated-delivery-stage-ci.yml"
       - ".github/workflows/copilot-cli-agent-demos.yml"
+      - ".github/workflows/it-service-desk-ci.yml"
       - ".github/workflows/publish-trace-site.yml"
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"

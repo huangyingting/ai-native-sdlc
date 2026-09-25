@@ -7,7 +7,8 @@ tools, GitHub workflow automation, and documentation.
 
 - Keep complete demo applications under `demos/<name>/`.
 - Keep repository utilities under `tools/<name>/`.
-- Keep workflow-specific adapters under `.github/scripts/`.
+- Keep shared workflow adapters under `.github/scripts/` and demo-specific
+  automation inside that demo's `.github/<demo-name>/` directory.
 - Add shared packages only when multiple projects genuinely consume them.
 
 Demo projects are intentionally not npm workspaces. Each demo owns its
@@ -26,6 +27,10 @@ Do not add demo dependencies to the root package.
   points without a demonstrated need.
 - Do not commit generated build output, local databases, logs, or credentials.
 - Keep changes focused and follow the style already used in the target project.
+- For Brownfield Human-Gated Delivery stage work, follow the assigned prompt
+  under `.github/brownfield-human-gated-delivery/prompts/`. Do not change
+  approved lifecycle artifacts or production code outside the current stage's
+  allowed boundary.
 
 ## Validation
 

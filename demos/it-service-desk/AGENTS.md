@@ -1,3 +1,14 @@
+# IT service desk instructions
+
+This directory is an independently installable Next.js demonstration project.
+
+- Use Node.js 24 or newer.
+- Keep application dependencies and lockfile changes inside this directory.
+- Use the built-in `node:sqlite` storage implementation; do not commit local
+  files from `data/`.
+- Preserve server-side validation and cover persistence behavior with tests.
+- Run `npm test`, `npm run lint`, and `npm run build` for completed changes.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

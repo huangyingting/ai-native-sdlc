@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
-const configured = JSON.parse(readFileSync(new URL("../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
+const configured = JSON.parse(readFileSync(new URL("../../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
 export const defaultPricingCatalog = JSON.parse(
   readFileSync(new URL("./model-pricing.json", import.meta.url), "utf8"));
 const hash = (name) => createHash("sha256").update(name).digest("hex");

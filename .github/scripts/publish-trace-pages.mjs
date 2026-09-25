@@ -60,9 +60,9 @@ export function publishTracePages({ reportDirectory, pagesDirectory, sourceDirec
   mkdirSync(metadataDirectory, { recursive: true });
   mkdirSync(viewerDirectory, { recursive: true });
   copyFileSync(reportPath, join(tracesDirectory, `${runId}.json`));
-  copyFileSync(join(resolve(sourceDirectory), "trace-viewer", "web", "index.html"), join(viewerDirectory, "index.html"));
-  copyFileSync(join(resolve(sourceDirectory), "trace-viewer", "web", "app.mjs"), join(viewerDirectory, "app.mjs"));
-  copyFileSync(join(resolve(sourceDirectory), "trace-viewer", "html-renderer.mjs"), join(viewerDirectory, "html-renderer.mjs"));
+  copyFileSync(join(resolve(sourceDirectory), "tools", "trace-viewer", "web", "index.html"), join(viewerDirectory, "index.html"));
+  copyFileSync(join(resolve(sourceDirectory), "tools", "trace-viewer", "web", "app.mjs"), join(viewerDirectory, "app.mjs"));
+  copyFileSync(join(resolve(sourceDirectory), "tools", "trace-viewer", "html-renderer.mjs"), join(viewerDirectory, "html-renderer.mjs"));
 
   const entry = {
     runId,

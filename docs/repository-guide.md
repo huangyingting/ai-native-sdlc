@@ -1,0 +1,181 @@
+# Repository guide
+
+This guide covers the repository structure, local development, GitHub
+workflows, trace processing, publishing, and operational safeguards.
+
+## Repository structure
+
+The repository keeps runnable demonstrations separate from reusable tooling:
+
+- [`.github/`](../.github/) contains issue forms, workflows, MCP configuration,
+  and small Node.js adapters for request preparation, issue comments, and Pages
+  publishing.
+- [`demos/`](../demos/) contains independently installable applications. Each
+  demo owns its manifest, lockfile, runtime requirements, documentation, and
+  path-scoped CI.
+- [`tools/trace-viewer/`](../tools/trace-viewer/) contains the dependency-free
+  trace model, renderer, local composite action, and shared Pages client.
+- [`docs/`](./) contains operational and orchestration documentation.
+- [`AGENTS.md`](../AGENTS.md) defines repository-wide agent guidance. Nested
+  instruction files add project-specific rules.
+
+Demo projects are intentionally not npm workspaces. This allows future
+TypeScript and JavaScript demonstrations to use different frameworks,
+dependency versions, and runtimes without coupling their dependency graphs.
+The root package remains dependency-free and only orchestrates repository
+checks.
+
+## Local development
+
+Node.js 24 is the recommended repository runtime.
+
+Run repository automation and trace-viewer tests from the root:
+
+```sh
+npm test
+```
+
+Validate the IT service desk independently:
+
+```sh
+cd demos/it-service-desk
+npm ci
+npm test
+npm run lint
+npm run build
+```
+
+The service desk uses the built-in `node:sqlite` module. It creates and seeds
+`data/service-desk.db` automatically; delete that local file to reset the
+data.
+
+## Copilot CLI demonstration workflow
+
+The **Copilot CLI Agent Demos** workflow can run through manual dispatch or an
+authorized issue carrying the `copilot-agent-demo` label. Each dedicated issue
+form represents one orchestration pattern, exposes an editable task, and uses
+an internal `copilot-pattern:*` label for routing.
+
+The workflow:
+
+1. Validates and prepares the selected task and orchestration contract.
+2. Runs Copilot CLI with the selected orchestrator and subagent models.
+3. Captures OpenTelemetry JSONL in the runner's temporary directory.
+4. Builds a Job Summary, canonical trace data, an offline HTML report, and a
+   dependency graph.
+5. Uploads the report artifact and posts the result and trace diagnostics back
+   to the originating issue.
+6. Publishes successful canonical trace data through the separate Pages
+   workflow.
+
+The available patterns are direct execution, parallel delegation,
+critic-reviser, and sequential pipeline. See
+[Copilot CLI agent orchestration patterns](./copilot-cli-agent-orchestration-patterns.md)
+for their execution models, selection guidance, and validation evidence.
+
+## Models and execution
+
+Every run selects an **Orchestrator model** and a **Subagent model**. Both
+currently default to `gpt-6-luna`. The orchestrator plans delegation and
+synthesizes the final response; dynamically created subagents are instructed
+to use the selected subagent model.
+
+Parallel demonstrations use `--fleet`. Sequential demonstrations allow the
+orchestrator to create each subagent after the preceding stage returns.
+Validation uses observed OpenTelemetry evidence rather than predetermined
+agent names.
+
+The repository owner needs a Copilot entitlement and available usage.
+Organization repositories also need the Copilot CLI organization billing
+policy.
+
+## Tool and network access
+
+The workflow authenticates Copilot with the run's short-lived `GITHUB_TOKEN`
+and grants only the permissions required by the workflow. The checked-in
+[`.github/mcp.json`](../.github/mcp.json) exposes two read-only tools from the
+public Microsoft Learn MCP server.
+
+External URLs are not preapproved by the generic workflow. The default
+parallel AWS/Azure scenario can explicitly allow `docs.aws.amazon.com`; Azure
+research uses Microsoft Learn MCP. Select **Block all external URLs** when a
+task does not require AWS documentation.
+
+## Trace viewer
+
+[`tools/trace-viewer/`](../tools/trace-viewer/) is both a local composite action
+and a standalone command-line implementation:
+
+- `trace-model.mjs` normalizes direct CLI JSONL and OTLP
+  `resourceSpans[].scopeSpans[].spans[]` envelopes.
+- `html-renderer.mjs` renders trace and dependency views.
+- `render-trace.mjs` is the action and CLI adapter.
+- `capture-dependency-map.mjs` captures the graph used in issue comments.
+- `web/` contains the shared GitHub Pages application.
+
+The viewer supports correlated trace and dependency selection, filtering,
+model-aware cost, inspector rollups, and SVG/PNG graph export. Missing or
+malformed traces fail visibly, including when Copilot itself fails.
+
+OpenTelemetry status `UNSET` (`code: 0`) is treated as successful unless an
+error status or error attribute is present. Failed spans retain their failure
+reason even when message capture is disabled. A fast failed tool call can be
+an intentional permission-policy rejection rather than an infrastructure
+failure.
+
+## Message capture and redaction
+
+Detailed request and response capture is enabled by default for demonstration
+forms. Select **Metadata only** when payloads should not be included in the
+public report or artifact.
+
+Raw OpenTelemetry JSONL is never uploaded. The trace model can hydrate large
+Copilot tool results only from approved runner-temporary files, redacts the
+content, and embeds payloads up to a 1 MiB safety ceiling. Absolute runner
+paths are not published.
+
+Redaction is best-effort. Treat GitHub Pages reports, workflow artifacts, and
+Job Summaries as public in this repository, and use metadata-only mode for
+private prompts, sensitive repositories, or sessions that may contain
+secrets.
+
+## Cost calculation
+
+The viewer uses `gen_ai.usage.cost` when OpenTelemetry provides it. Otherwise,
+it normalizes the observed model name, reads
+[`model-pricing.json`](../tools/trace-viewer/model-pricing.json), selects the
+default or long-context tier, and estimates cost from observed input, output,
+and cache token counts.
+
+Unknown models and calls without token usage display `—` and are excluded from
+the total instead of inheriting an unrelated model's rate. Workflows can pass
+`pricing-path` to replace the bundled catalog.
+
+## GitHub Pages publishing
+
+Each successful demo run uploads a `copilot-trace-viewer` artifact containing
+the offline HTML report and canonical trace data. The Pages publisher:
+
+1. Downloads the artifact with its workflow token.
+2. Validates the canonical schema.
+3. Publishes only `trace-data.json` under `/traces/<run-id>.json`.
+4. Refreshes the shared `/viewer/` application from the newest successful run.
+
+The browser never receives a GitHub token and does not fetch Actions artifacts
+directly. GitHub Pages deploys from the root of the `gh-pages` branch.
+Publishing is serialized so concurrent runs cannot overwrite one another, and
+each run keeps an immutable trace URL.
+
+Issue comments always include a Mermaid dependency graph. To additionally use
+a generated PNG, configure `AGENT_TRACE_MEDIA_TOKEN` with a user token that
+can access the repository. The short-lived Actions token is not accepted by
+the user-attachments endpoint, so the workflow falls back to Mermaid when the
+optional token or upload is unavailable.
+
+## References
+
+- [Copilot CLI in GitHub Actions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions)
+- [Copilot CLI tool permissions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [Copilot CLI workspace MCP configuration](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers)
+- [Microsoft Learn MCP tools](https://learn.microsoft.com/en-us/training/support/mcp-developer-reference)
+- [Copilot Actions billing](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/copilot-cli-in-github-actions)

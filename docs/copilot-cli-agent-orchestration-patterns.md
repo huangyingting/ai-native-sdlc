@@ -1,5 +1,8 @@
 # Copilot CLI agent orchestration patterns
 
+For repository setup, workflow operations, trace publishing, and security
+guidance, see the [repository guide](./repository-guide.md).
+
 This guide describes reusable orchestration patterns for GitHub Copilot CLI. Each pattern shows how Copilot can dynamically decompose a task into subagents, coordinate their execution, and synthesize their results. The repository defines the orchestration objective and constraints, but it does not define fixed demo-specific agent profiles.
 
 The Copilot CLI Trace Viewer is the observability layer used by this repository to demonstrate and validate these patterns. It records the resulting OpenTelemetry call hierarchy, timing, model usage, tool calls, and cost; it is not the name of the patterns themselves.

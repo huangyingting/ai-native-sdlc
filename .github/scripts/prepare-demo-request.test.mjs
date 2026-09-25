@@ -275,7 +275,7 @@ test("pairs the validated URL exception with web fetch permission", () => {
 
 test("captures only the dependency canvas for issue images", () => {
   const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
-  assert.match(workflow, /node trace-viewer\/capture-dependency-map\.mjs/);
+  assert.match(workflow, /node tools\/trace-viewer\/capture-dependency-map\.mjs/);
 });
 
 test("updates the existing demo result comment instead of duplicating it", () => {

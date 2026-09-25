@@ -25,7 +25,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Render trace
+    - name: Render trace report
       shell: bash
       env:
         TRACE_HTML_PATH: ${{ inputs.html-path }}
@@ -35,4 +35,4 @@ runs:
         REQUIRE_PATTERN_EVIDENCE: ${{ inputs.require-pattern-evidence }}
         TRACE_PATTERN: ${{ inputs.require-pattern-evidence }}
         PRICING_PATH: ${{ inputs.pricing-path }}
-      run: node "$GITHUB_ACTION_PATH/render-trace.mjs" "${{ inputs.trace-path }}"
+      run: node "$GITHUB_ACTION_PATH/render-trace-report.mjs" "${{ inputs.trace-path }}"

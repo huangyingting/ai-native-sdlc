@@ -7,8 +7,8 @@ import {
   type TicketPriority,
   type TicketStatus,
   type TicketSummary,
-  ticketReference,
-} from "./tickets";
+  formatTicketReference,
+} from "./ticket";
 
 type TicketRow = {
   id: number;
@@ -23,17 +23,17 @@ type TicketRow = {
   updated_at: string;
 };
 
-type SummaryRow = {
+type TicketSummaryRow = {
   open_count: number;
   in_progress_count: number;
   resolved_count: number;
   urgent_count: number;
 };
 
-function mapTicket(row: TicketRow): Ticket {
+function mapTicketRow(row: TicketRow): Ticket {
   return {
     id: row.id,
-    reference: ticketReference(row.id),
+    reference: formatTicketReference(row.id),
     title: row.title,
     description: row.description,
     category: row.category,
@@ -164,12 +164,12 @@ export class TicketStore {
         CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
         datetime(created_at) DESC
     `).all(...values) as unknown as TicketRow[];
-    return rows.map(mapTicket);
+    return rows.map(mapTicketRow);
   }
 
   find(id: number) {
     const row = this.database.prepare("SELECT * FROM tickets WHERE id = ?").get(id) as TicketRow | undefined;
-    return row ? mapTicket(row) : null;
+    return row ? mapTicketRow(row) : null;
   }
 
   summary(): TicketSummary {
@@ -180,7 +180,7 @@ export class TicketStore {
         SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved_count,
         SUM(CASE WHEN priority IN ('high', 'critical') AND status NOT IN ('resolved', 'closed') THEN 1 ELSE 0 END) AS urgent_count
       FROM tickets
-    `).get() as SummaryRow;
+    `).get() as TicketSummaryRow;
     return {
       open: row.open_count,
       inProgress: row.in_progress_count,

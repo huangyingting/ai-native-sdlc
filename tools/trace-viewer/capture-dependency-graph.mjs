@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
-export function dependencyViewport(html, padding = 24) {
+export function dependencyGraphViewport(html, padding = 24) {
   const match = String(html).match(
     /<svg id="dependency-graph"[^>]*\bwidth="(\d+)"[^>]*\bheight="(\d+)"/,
   );
@@ -17,9 +17,9 @@ export function dependencyViewport(html, padding = 24) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [htmlPath, outputPath] = process.argv.slice(2);
   if (!htmlPath || !outputPath) {
-    throw new Error("Usage: capture-dependency-map.mjs <trace-report.html> <dependency-map.png>");
+    throw new Error("Usage: capture-dependency-graph.mjs <trace-report.html> <dependency-graph.png>");
   }
-  const { width, height } = dependencyViewport(readFileSync(htmlPath, "utf8"));
+  const { width, height } = dependencyGraphViewport(readFileSync(htmlPath, "utf8"));
   const url = pathToFileURL(resolve(htmlPath));
   url.searchParams.set("tab", "dependencies");
   url.searchParams.set("capture", "graph");

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { createTicketAction, type TicketFormState } from "./actions";
-import { ticketCategories, ticketPriorities } from "@/lib/tickets";
+import { ticketCategories, ticketPriorities } from "@/lib/ticket";
 
 const initialState: TicketFormState = {};
 

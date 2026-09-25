@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { buildDemoComment } from "./build-demo-comment.mjs";
+import { buildDemoResultComment } from "./build-demo-result-comment.mjs";
 
 test("builds an issue comment with a result, diagnostics, and a dependency graph", () => {
-  const comment = buildDemoComment({
+  const comment = buildDemoResultComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "claude-sonnet-4.6",
     patternLabel: "Parallel delegation",
@@ -38,13 +38,13 @@ test("builds an issue comment with a result, diagnostics, and a dependency graph
 });
 
 test("uses a GitHub-hosted dependency image when one is available", () => {
-  const comment = buildDemoComment({
+  const comment = buildDemoResultComment({
     orchestratorModel: "gpt-6-luna",
     subagentModel: "gpt-6-luna",
     patternLabel: "Parallel delegation",
     result: "Result",
     runUrl: "https://github.com/example/repo/actions/runs/1",
-    mediaUrl: "https://github.com/user-attachments/assets/dependency-map",
+    mediaUrl: "https://github.com/user-attachments/assets/dependency-graph",
     report: {
       durationText: "1.00 s",
       costText: "$0.001000",
@@ -53,6 +53,6 @@ test("uses a GitHub-hosted dependency image when one is available", () => {
       dependencies: [],
     },
   });
-  assert.match(comment, /!\[Copilot CLI trace dependency map\]\(https:\/\/github.com\/user-attachments\/assets\/dependency-map\)/);
+  assert.match(comment, /!\[Copilot CLI trace dependency graph\]\(https:\/\/github.com\/user-attachments\/assets\/dependency-graph\)/);
   assert.doesNotMatch(comment, /```mermaid/);
 });

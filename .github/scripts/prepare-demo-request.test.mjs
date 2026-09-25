@@ -185,7 +185,7 @@ gpt-6-luna`);
 });
 
 test("keeps orchestration pattern labels synchronized", () => {
-  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/copilot-cli-agent-demos.yml", "utf8");
   const formSources = readdirSync(".github/ISSUE_TEMPLATE")
     .filter((name) => name.startsWith("copilot-") && name.endsWith(".yml"))
     .map((name) => readFileSync(`.github/ISSUE_TEMPLATE/${name}`, "utf8"));
@@ -251,7 +251,7 @@ Include redacted request and response payloads`);
 test("keeps provider comparison content out of reusable pattern defaults", () => {
   const defaults = supportedPatterns.map(({ defaultPrompt, instruction }) => `${defaultPrompt} ${instruction}`).join("\n");
   assert.doesNotMatch(defaults, /Amazon|AWS|Azure|Microsoft Learn|docs\.aws/);
-  const parallelForm = readFileSync(".github/ISSUE_TEMPLATE/copilot-parallel-delegation.yml", "utf8");
+  const parallelForm = readFileSync(".github/ISSUE_TEMPLATE/copilot-cli-parallel-delegation.yml", "utf8");
   assert.match(parallelForm, /Amazon S3/);
   assert.match(parallelForm, /Azure Blob Storage/);
   assert.match(parallelForm, /Use only docs\.aws\.amazon\.com for AWS and Microsoft Learn MCP for Azure/);
@@ -260,7 +260,7 @@ test("keeps provider comparison content out of reusable pattern defaults", () =>
 });
 
 test("pairs the validated URL exception with web fetch permission", () => {
-  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/copilot-cli-agent-demos.yml", "utf8");
   assert.match(workflow, /EXTRA_ARGS\+=\(--allow-url="\$ALLOWED_URL"\)/);
   assert.match(workflow, /else\s+EXTRA_ARGS\+=\(--available-tools='[^']*'\)/);
   assert.doesNotMatch(workflow, /--available-tools='[^']*web_fetch[^']*'/);
@@ -273,13 +273,13 @@ test("pairs the validated URL exception with web fetch permission", () => {
   assert.doesNotMatch(workflow, /--allow-url='https:\/\/docs\.aws\.amazon\.com'/);
 });
 
-test("captures only the dependency canvas for issue images", () => {
-  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
-  assert.match(workflow, /node tools\/trace-viewer\/capture-dependency-map\.mjs/);
+test("captures only the dependency graph for issue images", () => {
+  const workflow = readFileSync(".github/workflows/copilot-cli-agent-demos.yml", "utf8");
+  assert.match(workflow, /node tools\/trace-viewer\/capture-dependency-graph\.mjs/);
 });
 
 test("updates the existing demo result comment instead of duplicating it", () => {
-  const workflow = readFileSync(".github/workflows/copilot-agent-demos.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/copilot-cli-agent-demos.yml", "utf8");
   assert.match(workflow, /copilot-agent-demo-result/);
   assert.match(workflow, /issues\/comments\/\$COMMENT_ID/);
   assert.match(workflow, /--method PATCH/);
@@ -287,13 +287,13 @@ test("updates the existing demo result comment instead of duplicating it", () =>
   assert.match(workflow, /PAGES_URL: https:\/\/\$\{\{ github\.repository_owner \}\}\.github\.io\/\$\{\{ github\.event\.repository\.name \}\}\/viewer\/\?run=\$\{\{ github\.run_id \}\}/);
 });
 
-test("publishes successful trace artifacts through the shared Pages SPA", () => {
-  const workflow = readFileSync(".github/workflows/publish-trace-pages.yml", "utf8");
+test("publishes successful trace artifacts through the shared trace site", () => {
+  const workflow = readFileSync(".github/workflows/publish-trace-site.yml", "utf8");
   assert.match(workflow, /workflow_run:[\s\S]*Copilot CLI Agent Demos/);
   assert.match(workflow, /conclusion == 'success'/);
   assert.match(workflow, /group: copilot-trace-pages[\s\S]*cancel-in-progress: false/);
   assert.match(workflow, /actions\/download-artifact@v8[\s\S]*run-id: \$\{\{ github\.event\.workflow_run\.id \}\}/);
   assert.match(workflow, /ref: gh-pages/);
-  assert.match(workflow, /publish-trace-pages\.mjs report pages source/);
+  assert.match(workflow, /publish-trace-site\.mjs report pages source/);
   assert.match(workflow, /pages\/builds/);
 });

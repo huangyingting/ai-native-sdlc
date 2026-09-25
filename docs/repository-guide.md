@@ -25,6 +25,23 @@ dependency versions, and runtimes without coupling their dependency graphs.
 The root package remains dependency-free and only orchestrates repository
 checks.
 
+## Naming conventions
+
+- Use lowercase kebab-case for project folders, scripts, workflows, issue
+  forms, and documentation files.
+- Name scripts for the artifact or action they produce, such as
+  `build-demo-result-comment.mjs`, `render-trace-report.mjs`, and
+  `publish-trace-site.mjs`.
+- Include `copilot-cli` in filenames for workflows and forms that specifically
+  invoke Copilot CLI.
+- Use singular names for domain modules, such as `ticket.ts`, and role-based
+  suffixes for implementations such as `ticket-store.ts`.
+- Keep framework-required names such as `page.tsx`, `layout.tsx`, `actions.ts`,
+  `action.yml`, and `index.html`.
+- Use **Copilot CLI Trace Viewer** for the interactive product, **trace report**
+  for one rendered run, **trace site** for the published report collection,
+  and **dependency graph** for the agent/model/tool visualization.
+
 ## Local development
 
 Node.js 24 is the recommended repository runtime.
@@ -109,8 +126,8 @@ and a standalone command-line implementation:
 - `trace-model.mjs` normalizes direct CLI JSONL and OTLP
   `resourceSpans[].scopeSpans[].spans[]` envelopes.
 - `html-renderer.mjs` renders trace and dependency views.
-- `render-trace.mjs` is the action and CLI adapter.
-- `capture-dependency-map.mjs` captures the graph used in issue comments.
+- `render-trace-report.mjs` generates summaries, HTML, and canonical trace data.
+- `capture-dependency-graph.mjs` captures the graph used in issue comments.
 - `web/` contains the shared GitHub Pages application.
 
 The viewer supports correlated trace and dependency selection, filtering,

@@ -1,19 +1,19 @@
 import { renderHtml } from "./html-renderer.mjs";
 
-const state = document.querySelector(".state");
+const stateElement = document.querySelector(".state");
 const runId = new URLSearchParams(location.search).get("run") ?? "";
 
-function fail(message) {
-  state.classList.add("error");
+function showError(message) {
+  stateElement.classList.add("error");
   const title = document.createElement("h1");
   const detail = document.createElement("p");
   title.textContent = "Trace Viewer unavailable";
   detail.textContent = message;
-  state.replaceChildren(title, detail);
+  stateElement.replaceChildren(title, detail);
 }
 
 if (!/^\d+$/.test(runId)) {
-  fail("The URL must include a numeric workflow run ID.");
+  showError("The URL must include a numeric workflow run ID.");
 } else {
   try {
     const response = await fetch(`../traces/${encodeURIComponent(runId)}.json`, {
@@ -28,6 +28,6 @@ if (!/^\d+$/.test(runId)) {
     document.write(renderHtml(model));
     document.close();
   } catch (error) {
-    fail(error.message);
+    showError(error.message);
   }
 }

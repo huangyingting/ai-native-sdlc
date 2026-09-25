@@ -21,6 +21,9 @@ Do not add demo dependencies to the root package.
   changing a public path.
 - Preserve existing behavior and compatibility unless a change explicitly
   requires otherwise.
+- Avoid over-engineering. Prefer the simplest design that fully satisfies the
+  current requirement, and do not add abstractions, dependencies, or extension
+  points without a demonstrated need.
 - Do not commit generated build output, local databases, logs, or credentials.
 - Keep changes focused and follow the style already used in the target project.
 

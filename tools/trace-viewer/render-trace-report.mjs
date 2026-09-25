@@ -2,19 +2,19 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildTraceModel, loadSpans } from "./trace-model.mjs";
-import { renderGraph, renderHtml } from "./html-renderer.mjs";
+import { renderDependencyGraph, renderHtml } from "./html-renderer.mjs";
 
-export { loadSpans, renderGraph, renderHtml };
+export { loadSpans, renderDependencyGraph, renderHtml };
 
-export function summarizeTrace(spans, options) {
+export function buildTraceReport(spans, options) {
   return buildTraceModel(spans, options);
 }
 
-export function renderTrace(spans) {
+export function renderTraceSummary(spans) {
   return buildTraceModel(spans).summary;
 }
 
-export function traceData(result) {
+export function buildTraceData(result) {
   const sortedByDuration = [...result.events].sort((left, right) =>
     (right.end - right.start) - (left.end - left.start));
   const dependencyNodes = new Map();
@@ -92,7 +92,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     }
     if (process.env.TRACE_DATA_PATH) {
       mkdirSync(dirname(process.env.TRACE_DATA_PATH), { recursive: true });
-      writeFileSync(process.env.TRACE_DATA_PATH, JSON.stringify(traceData(result), null, 2));
+      writeFileSync(process.env.TRACE_DATA_PATH, JSON.stringify(buildTraceData(result), null, 2));
     }
     const artifactLink = process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `\n[Download the HTML trace viewer](https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)\n`

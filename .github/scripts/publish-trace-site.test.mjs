@@ -3,9 +3,9 @@ import { strict as assert } from "node:assert";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { publishTracePages } from "./publish-trace-pages.mjs";
+import { publishTraceSite } from "./publish-trace-site.mjs";
 
-test("publishes artifact data for the shared Pages SPA", () => {
+test("publishes artifact data for the shared trace site", () => {
   const root = mkdtempSync(join(tmpdir(), "trace-pages-"));
   const report = join(root, "report");
   const pages = join(root, "pages");
@@ -23,7 +23,7 @@ test("publishes artifact data for the shared Pages SPA", () => {
       costBreakdown: { byAgent: [], byModel: [] },
     };
     writeFileSync(join(report, "trace-data.json"), JSON.stringify(data));
-    const result = publishTracePages({
+    const result = publishTraceSite({
       reportDirectory: report,
       pagesDirectory: pages,
       sourceDirectory: resolve("."),
@@ -40,10 +40,11 @@ test("publishes artifact data for the shared Pages SPA", () => {
     assert.match(readFileSync(join(pages, "viewer", "app.mjs"), "utf8"), /renderHtml\(model\)/);
     assert.match(readFileSync(join(pages, "viewer", "html-renderer.mjs"), "utf8"), /export function renderHtml/);
     const index = readFileSync(join(pages, "index.html"), "utf8");
+    assert.match(index, /Copilot CLI Trace Reports/);
     assert.match(index, /href="\.\/viewer\/\?run=123"/);
     assert.match(index, /Parallel storage comparison/);
     assert.equal(readFileSync(join(pages, ".nojekyll"), "utf8"), "");
-    assert.throws(() => publishTracePages({
+    assert.throws(() => publishTraceSite({
       reportDirectory: report,
       pagesDirectory: pages,
       sourceDirectory: resolve("."),

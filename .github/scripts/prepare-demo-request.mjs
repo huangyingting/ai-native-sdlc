@@ -56,7 +56,7 @@ export const supportedPatterns = [
   },
 ];
 
-function section(body, label) {
+function extractFormSection(body, label) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = String(body ?? "").match(new RegExp(`(?:^|\\n)### ${escaped}\\r?\\n+([\\s\\S]*?)(?=\\r?\\n### |$)`, "i"));
   const content = match?.[1].trim();
@@ -74,7 +74,7 @@ function validateAllowedUrl(option) {
   throw new Error(`Unsupported Internet access option: ${option}`);
 }
 
-function pattern(label) {
+function findPattern(label) {
   const selectedLabel = label || "Parallel delegation";
   const selected = supportedPatterns.find((candidate) =>
     candidate.label === selectedLabel || candidate.legacyLabels.includes(selectedLabel));
@@ -82,10 +82,10 @@ function pattern(label) {
   return selected;
 }
 
-function issuePattern(body, labels = []) {
-  const explicitLabel = section(body, "Orchestration pattern")
-    || section(body, "Orchestration demo")
-    || section(body, "Orchestration scenario");
+function resolveIssuePattern(body, labels = []) {
+  const explicitLabel = extractFormSection(body, "Orchestration pattern")
+    || extractFormSection(body, "Orchestration demo")
+    || extractFormSection(body, "Orchestration scenario");
   const patternIds = labels
     .map((label) => typeof label === "string" ? label : label?.name)
     .filter((label) => label?.startsWith("copilot-pattern:"))
@@ -95,22 +95,22 @@ function issuePattern(body, labels = []) {
     ? supportedPatterns.find((candidate) => candidate.id === patternIds[0])
     : null;
   if (patternIds.length && !labeledPattern) throw new Error(`Unsupported orchestration pattern label: ${patternIds[0]}`);
-  const bodyPattern = explicitLabel ? pattern(explicitLabel) : null;
+  const bodyPattern = explicitLabel ? findPattern(explicitLabel) : null;
   if (labeledPattern && bodyPattern && labeledPattern.id !== bodyPattern.id) {
     throw new Error(`Conflicting orchestration patterns: ${labeledPattern.label} and ${bodyPattern.label}`);
   }
-  return labeledPattern || bodyPattern || pattern("");
+  return labeledPattern || bodyPattern || findPattern("");
 }
 
 export function parseIssueRequest(body, labels = []) {
-  const selectedPattern = issuePattern(body, labels);
-  const orchestratorModel = validateModel(section(body, "Orchestrator model"), "orchestrator model");
-  const subagentModel = validateModel(section(body, "Subagent model"), "subagent model");
-  const customPrompt = section(body, "Task or question") || section(body, "Comparison task");
+  const selectedPattern = resolveIssuePattern(body, labels);
+  const orchestratorModel = validateModel(extractFormSection(body, "Orchestrator model"), "orchestrator model");
+  const subagentModel = validateModel(extractFormSection(body, "Subagent model"), "subagent model");
+  const customPrompt = extractFormSection(body, "Task or question") || extractFormSection(body, "Comparison task");
   const prompt = customPrompt || selectedPattern.defaultPrompt;
-  const guidance = section(body, "Agent instructions");
-  const capture = section(body, "Trace detail") || section(body, "Trace content");
-  return finalizeRequest({
+  const guidance = extractFormSection(body, "Agent instructions");
+  const capture = extractFormSection(body, "Trace detail") || extractFormSection(body, "Trace content");
+  return completeRequest({
     pattern: selectedPattern.id,
     patternLabel: selectedPattern.label,
     execution: selectedPattern.execution,
@@ -118,12 +118,12 @@ export function parseIssueRequest(body, labels = []) {
     orchestratorModel,
     subagentModel,
     prompt,
-    allowedUrl: validateAllowedUrl(section(body, "Internet access")),
+    allowedUrl: validateAllowedUrl(extractFormSection(body, "Internet access")),
     includeMessages: /Include redacted request and response payloads/.test(capture),
   });
 }
 
-function finalizeRequest(request) {
+function completeRequest(request) {
   if (request.execution !== "direct") {
     request.instruction += ` Every dynamically created subagent must use the ${request.subagentModel} model.`;
   }
@@ -133,19 +133,19 @@ function finalizeRequest(request) {
   return request;
 }
 
-function appendOutput(name, value) {
+function appendWorkflowOutput(name, value) {
   const delimiter = `TRACE_${randomUUID()}`;
   appendFileSync(process.env.GITHUB_OUTPUT, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const selectedPattern = pattern(process.env.INPUT_PATTERN);
+  const selectedPattern = findPattern(process.env.INPUT_PATTERN);
   const customPrompt = process.env.INPUT_TASK_PROMPT?.trim();
   const guidance = process.env.INPUT_AGENT_INSTRUCTIONS?.trim();
   const request = process.env.GITHUB_EVENT_NAME === "issues"
     ? parseIssueRequest(event.issue?.body, event.issue?.labels)
-    : finalizeRequest({
+    : completeRequest({
         pattern: selectedPattern.id,
         patternLabel: selectedPattern.label,
         execution: selectedPattern.execution,
@@ -158,13 +158,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       });
   writeFileSync(process.env.TRACE_PROMPT_PATH, request.prompt);
   writeFileSync(process.env.TRACE_INSTRUCTION_PATH, request.instruction);
-  appendOutput("pattern", request.pattern);
-  appendOutput("pattern_label", request.patternLabel);
-  appendOutput("execution", request.execution);
-  appendOutput("orchestrator_model", request.orchestratorModel);
-  appendOutput("subagent_model", request.subagentModel);
-  appendOutput("required_models", request.requiredModels);
-  appendOutput("allowed_url", request.allowedUrl);
-  appendOutput("include_messages", String(request.includeMessages));
-  appendOutput("issue_number", String(event.issue?.number ?? ""));
+  appendWorkflowOutput("pattern", request.pattern);
+  appendWorkflowOutput("pattern_label", request.patternLabel);
+  appendWorkflowOutput("execution", request.execution);
+  appendWorkflowOutput("orchestrator_model", request.orchestratorModel);
+  appendWorkflowOutput("subagent_model", request.subagentModel);
+  appendWorkflowOutput("required_models", request.requiredModels);
+  appendWorkflowOutput("allowed_url", request.allowedUrl);
+  appendWorkflowOutput("include_messages", String(request.includeMessages));
+  appendWorkflowOutput("issue_number", String(event.issue?.number ?? ""));
 }

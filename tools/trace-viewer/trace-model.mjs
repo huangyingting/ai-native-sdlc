@@ -3,13 +3,13 @@ import { readFileSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
-const configured = JSON.parse(readFileSync(new URL("../../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
+const configuredMcpServers = JSON.parse(readFileSync(new URL("../../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
 export const defaultPricingCatalog = JSON.parse(
   readFileSync(new URL("./model-pricing.json", import.meta.url), "utf8"));
-const hash = (name) => createHash("sha256").update(name).digest("hex");
-const mcpNames = new Map(Object.entries(configured).flatMap(([server, config]) =>
+const hashIdentifier = (name) => createHash("sha256").update(name).digest("hex");
+const mcpToolNames = new Map(Object.entries(configuredMcpServers).flatMap(([server, config]) =>
   config.tools.flatMap((tool) => [
-    [`${hash(server)}/${hash(tool).slice(0, 35)}`, `${server}/${tool}`],
+    [`${hashIdentifier(server)}/${hashIdentifier(tool).slice(0, 35)}`, `${server}/${tool}`],
     [`${server}-${tool}`, `${server}/${tool}`],
   ])));
 
@@ -97,9 +97,9 @@ function operation(span, attrs) {
 function toolName(span, attrs) {
   const observed = [attrs["gen_ai.tool.name"], span.name.replace(/^execute_tool ?/, "")];
   for (const candidate of observed) {
-    if (mcpNames.has(candidate)) return mcpNames.get(candidate);
+    if (mcpToolNames.has(candidate)) return mcpToolNames.get(candidate);
     const digest = String(candidate ?? "").match(/[a-f0-9]{64}\/[a-f0-9]{35}/)?.[0];
-    if (digest && mcpNames.has(digest)) return mcpNames.get(digest);
+    if (digest && mcpToolNames.has(digest)) return mcpToolNames.get(digest);
   }
   return String(observed[0] ?? observed[1]);
 }

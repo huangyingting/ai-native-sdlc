@@ -10,11 +10,11 @@ workspaces.
 - `action.yml` exposes the renderer as a local composite GitHub Action.
 - `trace-model.mjs` normalizes JSONL and OTLP spans into the canonical model.
 - `html-renderer.mjs` renders the trace and dependency views.
-- `render-trace.mjs` provides the action and command-line adapter.
-- `capture-dependency-map.mjs` captures a dependency graph from generated HTML.
+- `render-trace-report.mjs` generates summaries, HTML, and canonical trace data.
+- `capture-dependency-graph.mjs` captures a dependency graph from generated HTML.
 - `web/` contains the shared GitHub Pages application.
 - `model-pricing.json` contains fallback model pricing.
-- `render-trace.test.mjs` covers normalization, validation, rendering, and
+- `render-trace-report.test.mjs` covers normalization, validation, rendering, and
   capture behavior.
 
 Workflow-specific request preparation, issue comments, and Pages publishing

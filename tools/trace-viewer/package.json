@@ -7,6 +7,6 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test render-trace.test.mjs"
+    "test": "node --test render-trace-report.test.mjs"
   }
 }

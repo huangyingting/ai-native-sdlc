@@ -4,8 +4,15 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { dependencyViewport } from "./capture-dependency-map.mjs";
-import { loadSpans, renderTrace, renderGraph, renderHtml, summarizeTrace, traceData } from "./render-trace.mjs";
+import { dependencyGraphViewport } from "./capture-dependency-graph.mjs";
+import {
+  buildTraceData,
+  buildTraceReport,
+  loadSpans,
+  renderDependencyGraph,
+  renderHtml,
+  renderTraceSummary,
+} from "./render-trace-report.mjs";
 
 const attr = (key, stringValue) => ({ key, value: { stringValue } });
 const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId = "trace-a") => ({
@@ -18,10 +25,10 @@ const line = (...spans) => JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spa
 
 test("sizes dependency screenshots to the graph instead of the full UI", () => {
   assert.deepEqual(
-    dependencyViewport('<svg id="dependency-graph" viewBox="0 0 500 158" width="500" height="158">'),
+    dependencyGraphViewport('<svg id="dependency-graph" viewBox="0 0 500 158" width="500" height="158">'),
     { width: 524, height: 182 },
   );
-  assert.throws(() => dependencyViewport("<html></html>"), /dimensions were not found/);
+  assert.throws(() => dependencyGraphViewport("<html></html>"), /dimensions were not found/);
 });
 
 test("reconstructs shuffled spans, nested agents, tools, models and real overlap", () => {
@@ -32,14 +39,14 @@ test("reconstructs shuffled spans, nested agents, tools, models and real overlap
     line(span("root", "", "invoke_agent parent", 1000, 2000)),
     line(span("left", "root", "invoke_agent research-a", 1100, 1600)),
   ].join("\n");
-  const result = renderTrace(loadSpans(jsonl));
+  const result = renderTraceSummary(loadSpans(jsonl));
   assert.match(result, /Subagents: 2 \| Peak concurrent subagents: 2/);
   assert.match(result, /Tool calls: 1 .* Tokens: 12\/4/);
   assert.match(result, /invoke_agent parent[\s\S]*  invoke_agent research-a[\s\S]*    execute_tool web_search .* status=ok[\s\S]*    chat gpt-5[\s\S]*  invoke_agent research-b/);
 });
 
 test("reports no invented subagents and isolates parent identifiers by trace", () => {
-  const result = renderTrace(loadSpans([
+  const result = renderTraceSummary(loadSpans([
     line(span("same", "", "invoke_agent parent", 1000, 2000)),
     line(span("other", "same", "execute_tool view", 1100, 1200, [], "trace-b")),
   ].join("\n")));
@@ -50,9 +57,9 @@ test("reports no invented subagents and isolates parent identifiers by trace", (
 });
 
 test("accepts the CLI's direct JSONL span records with hrtime and attribute objects", () => {
-  const hash = (name) => createHash("sha256").update(name).digest("hex");
-  const id = (server, tool) => `${hash(server)}/${hash(tool).slice(0, 35)}`;
-  assert.equal(id("microsoft-learn", "microsoft_docs_search"),
+  const hashIdentifier = (name) => createHash("sha256").update(name).digest("hex");
+  const toolId = (server, tool) => `${hashIdentifier(server)}/${hashIdentifier(tool).slice(0, 35)}`;
+  assert.equal(toolId("microsoft-learn", "microsoft_docs_search"),
     "13b8ca8a502562dbd2771a98ddffb2928c5f332b9613385401698065fc630761/9eda69db084fe3d07903b420273b6010da2");
   const direct = (id, parent, name, start, end, attributes = {}) => JSON.stringify({
     type: "span", traceId: "direct-trace", spanId: id, parentSpanId: parent, name,
@@ -61,8 +68,8 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   });
   const spans = loadSpans([
     direct("web", "aws", "execute_tool web_fetch", 250000000, 350000000),
-    direct("mcp", "azure", `execute_tool ${id("microsoft-learn", "microsoft_docs_search")}`, 260000000, 360000000,
-      { "gen_ai.tool.name": `${id("microsoft-learn", "microsoft_docs_search")}\u200b` }),
+    direct("mcp", "azure", `execute_tool ${toolId("microsoft-learn", "microsoft_docs_search")}`, 260000000, 360000000,
+      { "gen_ai.tool.name": `${toolId("microsoft-learn", "microsoft_docs_search")}\u200b` }),
     direct("aws-chat", "aws", "chat gpt-6-luna", 400000000, 450000000, {
       "gen_ai.input.messages": JSON.stringify([{ role: "system", content: "internal instructions" },
         { role: "user", content: "Fetch public S3 docs using ghs_12345678901234567890" }]),
@@ -77,7 +84,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
     direct("aws", "root", "invoke_agent AWS", 100000000, 600000000),
     direct("root", "", "invoke_agent parent", 0, 900000000, { "gen_ai.input.messages": "private prompt must never be rendered" }),
   ].join("\n"));
-  const result = summarizeTrace(spans, { includeMessages: true, expectedModel: "gpt-6-luna", pattern: "parallel-delegation" });
+  const result = buildTraceReport(spans, { includeMessages: true, expectedModel: "gpt-6-luna", pattern: "parallel-delegation" });
   assert.equal(result.complete, true);
   assert.equal(result.modelMatches, true);
   assert.equal(result.includeMessages, true);
@@ -86,12 +93,12 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(result.summary, /execute_tool web_fetch/);
   assert.match(result.summary, /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.doesNotMatch(result.summary, /status=unknown/);
-  assert.match(renderTrace(loadSpans(line(span("x", "", "execute_tool microsoft-learn-microsoft_docs_search", 1, 2)))),
+  assert.match(renderTraceSummary(loadSpans(line(span("x", "", "execute_tool microsoft-learn-microsoft_docs_search", 1, 2)))),
     /execute_tool microsoft-learn\/microsoft_docs_search/);
   assert.match(result.summary, /Peak concurrent subagents: 2/);
   assert.match(result.summary, /Required: gpt-6-luna \(PASS\)/);
-  const graph = renderGraph(result.events, result.pattern);
-  assert.match(graph, /aria-label="Agent, model, and tool dependency map"/);
+  const graph = renderDependencyGraph(result.events, result.pattern);
+  assert.match(graph, /aria-label="Agent, model, and tool dependency graph"/);
   assert.match(graph, /microsoft-learn\/microsoft_docs_search/);
   assert.match(graph, /Branch 1 · AWS/);
   assert.match(graph, /Branch 2 · Azure/);
@@ -125,7 +132,7 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /By agent branch/);
   assert.equal(result.costBreakdown.byModel.length, 1);
   assert.equal(result.costBreakdown.byAgent.length, 3);
-  const data = traceData(result);
+  const data = buildTraceData(result);
   assert.equal(data.schemaVersion, 1);
   assert.equal(data.events.length, result.events.length);
   assert.deepEqual(data.timeRange, result.timeRange);
@@ -137,9 +144,9 @@ test("accepts the CLI's direct JSONL span records with hrtime and attribute obje
   assert.match(html, /\[REDACTED TOKEN\]/);
   assert.doesNotMatch(html, /ghs_12345678901234567890|internal instructions/);
   assert.doesNotMatch(html, /private prompt must never be rendered/);
-  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-5" }).modelMatches, false);
-  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-5" }).modelMatches, false);
-  assert.doesNotMatch(renderHtml(summarizeTrace(spans)), /S3 versioning &lt;verified&gt;/);
+  assert.equal(buildTraceReport(spans, { expectedModel: "gpt-5" }).modelMatches, false);
+  assert.equal(buildTraceReport(spans, { expectedModel: "gpt-6-luna,gpt-5" }).modelMatches, false);
+  assert.doesNotMatch(renderHtml(buildTraceReport(spans)), /S3 versioning &lt;verified&gt;/);
 });
 
 test("validates observed models against the requested runtime model set", () => {
@@ -147,14 +154,14 @@ test("validates observed models against the requested runtime model set", () => 
     span("parent", "", "chat github-copilot/gpt-6-luna-2026-09-01", 1, 2),
     span("child", "", "chat claude-sonnet-4.6", 3, 4),
   ));
-  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
-  assert.equal(summarizeTrace(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
-  assert.equal(summarizeTrace(loadSpans(line(
+  assert.equal(buildTraceReport(spans, { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
+  assert.equal(buildTraceReport(spans, { expectedModel: "gpt-6-luna,gpt-6-sol" }).modelMatches, false);
+  assert.equal(buildTraceReport(loadSpans(line(
     span("root", "", "invoke_agent", 0, 10),
     span("agent", "root", "invoke_agent explore", 1, 9),
     span("child", "agent", "chat claude-sonnet-4.6", 2, 8),
   )), { expectedModel: "gpt-6-luna,claude-sonnet-4.6" }).modelMatches, true);
-  assert.equal(summarizeTrace(loadSpans(line(
+  assert.equal(buildTraceReport(loadSpans(line(
     span("mini", "", "chat gpt-5.4-mini", 1, 2),
   )), { expectedModel: "gpt-5.4" }).modelMatches, false);
 });
@@ -167,7 +174,7 @@ test("surfaces OTEL failure reasons without message capture", () => {
     ]),
     status: { code: 2 },
   };
-  const result = summarizeTrace(loadSpans(line(failed)));
+  const result = buildTraceReport(loadSpans(line(failed)));
   assert.equal(result.events[0].errorReason, "URL is not allowed by policy");
   assert.match(renderHtml(result), /Failure reason[\s\S]*URL is not allowed by policy/);
 });
@@ -178,8 +185,8 @@ test("requires overlapping branches for parallel delegation", () => {
     span("aws", "root", "invoke_agent aws-storage", 10, 80),
     span("azure", "root", "invoke_agent azure-storage", 20, 90),
   ));
-  assert.equal(summarizeTrace(spans, { pattern: "parallel-delegation" }).complete, true);
-  assert.equal(summarizeTrace(loadSpans(line(
+  assert.equal(buildTraceReport(spans, { pattern: "parallel-delegation" }).complete, true);
+  assert.equal(buildTraceReport(loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
     span("first", "root", "invoke_agent explore", 10, 40),
     span("second", "root", "invoke_agent explore", 50, 90),
@@ -192,25 +199,25 @@ test("validates review and sequential orchestration pattern evidence", () => {
     span("left", "root", "invoke_agent architecture-review", 10, 70),
     span("right", "root", "invoke_agent reliability-review", 20, 80),
   ));
-  assert.equal(summarizeTrace(review, { pattern: "parallel-delegation" }).complete, true);
-  assert.equal(summarizeTrace(review, { pattern: "sequential-pipeline" }).complete, false);
+  assert.equal(buildTraceReport(review, { pattern: "parallel-delegation" }).complete, true);
+  assert.equal(buildTraceReport(review, { pattern: "sequential-pipeline" }).complete, false);
 
   const collaboration = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
     span("architect", "root", "invoke_agent solution-architect", 10, 40),
     span("reviewer", "root", "invoke_agent critical-reviewer", 50, 90),
   ));
-  const result = summarizeTrace(collaboration, { pattern: "sequential-pipeline" });
+  const result = buildTraceReport(collaboration, { pattern: "sequential-pipeline" });
   assert.equal(result.complete, true);
-  const graph = renderGraph(result.events, result.pattern);
+  const graph = renderDependencyGraph(result.events, result.pattern);
   assert.match(graph, /Stage 1/);
   assert.match(graph, /Stage 2/);
   assert.match(graph, /class="flow-edge"/);
   assert.match(result.summary, /sequential execution: yes/);
-  assert.equal(summarizeTrace(collaboration, { pattern: "parallel-delegation" }).complete, false);
-  const critic = summarizeTrace(collaboration, { pattern: "critic-reviser-loop" });
+  assert.equal(buildTraceReport(collaboration, { pattern: "parallel-delegation" }).complete, false);
+  const critic = buildTraceReport(collaboration, { pattern: "critic-reviser-loop" });
   assert.equal(critic.complete, true);
-  assert.match(renderGraph(critic.events, critic.pattern), /Critic 2 · critical-reviewer/);
+  assert.match(renderDependencyGraph(critic.events, critic.pattern), /Critic 2 · critical-reviewer/);
 });
 
 test("validates a single-agent baseline without delegated agents", () => {
@@ -218,8 +225,8 @@ test("validates a single-agent baseline without delegated agents", () => {
     span("root", "", "invoke_agent", 0, 100),
     span("chat", "root", "chat gpt-6-luna", 10, 90),
   ));
-  assert.equal(summarizeTrace(baseline, { pattern: "direct-execution" }).complete, true);
-  assert.equal(summarizeTrace(baseline, { pattern: "critic-reviser-loop" }).complete, false);
+  assert.equal(buildTraceReport(baseline, { pattern: "direct-execution" }).complete, true);
+  assert.equal(buildTraceReport(baseline, { pattern: "critic-reviser-loop" }).complete, false);
 });
 
 test("hydrates file-backed tool output before redaction and rendering", () => {
@@ -231,7 +238,7 @@ test("hydrates file-backed tool output before redaction and rendering", () => {
     const trace = line(span("tool", "", "execute_tool microsoft_docs_search", 1, 2, [
       attr("gen_ai.tool.call.result", `Output too large to read at once (4 KB). Saved to: ${outputPath}\n\nPreview (first 500 chars): partial only`),
     ]));
-    const model = summarizeTrace(loadSpans(trace), { includeMessages: true });
+    const model = buildTraceReport(loadSpans(trace), { includeMessages: true });
     assert.equal(model.events[0].response, fullOutput);
     const html = renderHtml(model);
     assert.match(html, /END-OF-FILE/);
@@ -254,7 +261,7 @@ test("estimates mixed-model cost from the model pricing catalog", () => {
     attr("gen_ai.usage.input_tokens", "1000000"),
     attr("gen_ai.usage.output_tokens", "2000000"),
   ]);
-  const model = summarizeTrace(loadSpans(line(gpt, claude, unknownSpan)));
+  const model = buildTraceReport(loadSpans(line(gpt, claude, unknownSpan)));
   assert.equal(model.events[0].cost, 1.7);
   assert.equal(model.events[0].pricedModel, "gpt-6-luna");
   assert.equal(model.events[1].cost, 33);
@@ -267,7 +274,7 @@ test("estimates mixed-model cost from the model pricing catalog", () => {
   assert.equal(model.costBreakdown.byModel.find((group) => group.label === "private-model").cost, null);
   assert.match(renderHtml(model), /estimated cost/i);
   assert.match(renderHtml(model), /\$34\.7000/);
-  const unknown = summarizeTrace(loadSpans(line(span("unknown", "", "chat private-model", 1, 2))));
+  const unknown = buildTraceReport(loadSpans(line(span("unknown", "", "chat private-model", 1, 2))));
   assert.equal(unknown.events[0].cost, null);
   assert.equal(unknown.counts.totalCost, null);
 });
@@ -277,5 +284,5 @@ test("fails clearly on missing or malformed traces", () => {
   assert.throws(() => loadSpans("{broken"), /Invalid JSON/);
   assert.throws(() => loadSpans("null"), /Invalid OTLP entry/);
   assert.throws(() => loadSpans(line()), /No trace spans/);
-  assert.throws(() => renderTrace(loadSpans(line(span("x", "", "unrelated", 1, 2)))), /no invoke_agent/);
+  assert.throws(() => renderTraceSummary(loadSpans(line(span("x", "", "unrelated", 1, 2)))), /no invoke_agent/);
 });

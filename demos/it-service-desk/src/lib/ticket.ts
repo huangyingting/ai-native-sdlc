@@ -45,17 +45,17 @@ export const createTicketSchema = z.object({
   requesterEmail: z.string().trim().email("Enter a valid email address.").max(200),
 });
 
-export const updateStatusSchema = z.object({
+export const updateTicketStatusSchema = z.object({
   id: z.coerce.number().int().positive(),
   status: z.enum(ticketStatuses),
 });
 
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 
-export function ticketReference(id: number) {
+export function formatTicketReference(id: number) {
   return `INC-${String(id).padStart(4, "0")}`;
 }
 
-export function displayStatus(status: TicketStatus) {
+export function formatTicketStatus(status: TicketStatus) {
   return status.replace("_", " ");
 }

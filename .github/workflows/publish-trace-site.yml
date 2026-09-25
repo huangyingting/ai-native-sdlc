@@ -1,4 +1,4 @@
-name: Publish Copilot Trace Viewers
+name: Publish Copilot Trace Site
 
 on:
   workflow_run:
@@ -39,13 +39,13 @@ jobs:
         with:
           ref: gh-pages
           path: pages
-      - name: Publish trace data
+      - name: Build trace site
         env:
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_TITLE: ${{ github.event.workflow_run.display_title }}
           RUN_CREATED_AT: ${{ github.event.workflow_run.created_at }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
-        run: node source/.github/scripts/publish-trace-pages.mjs report pages source
+        run: node source/.github/scripts/publish-trace-site.mjs report pages source
       - name: Push Pages update
         working-directory: pages
         env:
@@ -55,9 +55,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           if git diff --cached --quiet; then
-            echo "Trace Viewer Pages site is already current."
+            echo "Copilot trace site is already current."
             exit 0
           fi
-          git commit -m "Publish trace viewer for run ${{ github.event.workflow_run.id }}"
+          git commit -m "Publish trace report for run ${{ github.event.workflow_run.id }}"
           git push origin HEAD:gh-pages
           gh api --method POST "repos/${{ github.repository }}/pages/builds" >/dev/null

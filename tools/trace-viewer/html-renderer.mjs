@@ -42,7 +42,7 @@ function icon(name, className = "") {
   return `<svg class="svg-icon ${className}" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
 }
 
-export function renderGraph(events, pattern = null) {
+export function renderDependencyGraph(events, pattern = null) {
   const nodes = new Map();
   for (const event of events) {
     const id = event.kind === "invoke_agent" ? event.id : `${event.owner ?? "root"}:${event.kind}:${event.name}`;
@@ -124,8 +124,8 @@ export function renderGraph(events, pattern = null) {
         : pattern === "direct-execution"
           ? "Direct execution · no subagent delegation"
           : "";
-  return `<svg id="dependency-graph" class="graph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Agent, model, and tool dependency map">
-    <title>${escapeHtml(patternSummary || "Agent, model, and tool dependency map")}</title>
+  return `<svg id="dependency-graph" class="graph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Agent, model, and tool dependency graph">
+    <title>${escapeHtml(patternSummary || "Agent, model, and tool dependency graph")}</title>
     <defs><marker id="flow-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7Z" /></marker></defs>
     <g class="graph-edges">${edges}${flowEdges}</g>${cards}
   </svg>`;
@@ -136,7 +136,7 @@ export function renderHtml(model) {
   const selectedEvent = events[0];
   const failed = events.filter((event) => event.failed);
   const costLabel = counts.costMode === "estimated" ? "Estimated" : counts.costMode === "reported" ? "Reported" : counts.costMode === "mixed" ? "Mixed" : "Cost";
-  const graph = renderGraph(events, pattern);
+  const graph = renderDependencyGraph(events, pattern);
 
   const rows = events.map((event) => {
     const left = ((event.start - timeRange.start) / duration) * 100;
@@ -389,7 +389,7 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
     link.href = URL.createObjectURL(blob); link.download = name; link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   };
-  document.querySelector("#download-svg").addEventListener("click", () => download(new Blob([serializeGraph()], {type:"image/svg+xml"}), "copilot-trace-dependency-map.svg"));
+  document.querySelector("#download-svg").addEventListener("click", () => download(new Blob([serializeGraph()], {type:"image/svg+xml"}), "copilot-trace-dependency-graph.svg"));
   document.querySelector("#download-png").addEventListener("click", () => {
     const box = document.querySelector("#dependency-graph").viewBox.baseVal;
     const image = new Image();
@@ -397,7 +397,7 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0b0f17;--surface:#111722;--surfa
       const scale = Math.min(2, 4096 / Math.max(box.width, box.height));
       const canvas = document.createElement("canvas"); canvas.width = box.width * scale; canvas.height = box.height * scale;
       canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => blob && download(blob, "copilot-trace-dependency-map.png"), "image/png");
+      canvas.toBlob((blob) => blob && download(blob, "copilot-trace-dependency-graph.png"), "image/png");
       URL.revokeObjectURL(image.src);
     };
     image.src = URL.createObjectURL(new Blob([serializeGraph()], {type:"image/svg+xml"}));

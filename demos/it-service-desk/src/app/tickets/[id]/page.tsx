@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTicketStatusAction } from "@/app/actions";
 import { getTicketStore } from "@/lib/ticket-store";
-import { displayStatus, ticketStatuses } from "@/lib/tickets";
+import { formatTicketStatus, ticketStatuses } from "@/lib/ticket";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function TicketPage({
             <h1>{ticket.title}</h1>
             <p className="lead">Submitted by {ticket.requesterName} on {formatDate(ticket.createdAt)}</p>
           </div>
-          <span className={`badge badge-status-${ticket.status}`}>{displayStatus(ticket.status)}</span>
+          <span className={`badge badge-status-${ticket.status}`}>{formatTicketStatus(ticket.status)}</span>
         </div>
 
         <div className="detail-layout">
@@ -57,7 +57,7 @@ export default async function TicketPage({
               <label htmlFor="status">Update status</label>
               <select id="status" name="status" defaultValue={ticket.status}>
                 {ticketStatuses.map((status) => (
-                  <option key={status} value={status}>{displayStatus(status)}</option>
+                  <option key={status} value={status}>{formatTicketStatus(status)}</option>
                 ))}
               </select>
               <button className="button button-primary" type="submit">Save status</button>

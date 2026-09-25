@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { getTicketStore } from "@/lib/ticket-store";
 import {
-  displayStatus,
+  formatTicketStatus,
   ticketPriorities,
   ticketStatuses,
   type TicketPriority,
   type TicketStatus,
-} from "@/lib/tickets";
+} from "@/lib/ticket";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function first(value: string | string[] | undefined) {
+function firstQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
@@ -30,15 +30,15 @@ export default async function Dashboard({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const requestedStatus = first(params.status);
-  const requestedPriority = first(params.priority);
+  const requestedStatus = firstQueryValue(params.status);
+  const requestedPriority = firstQueryValue(params.priority);
   const status = ticketStatuses.includes(requestedStatus as TicketStatus)
     ? requestedStatus as TicketStatus
     : undefined;
   const priority = ticketPriorities.includes(requestedPriority as TicketPriority)
     ? requestedPriority as TicketPriority
     : undefined;
-  const query = first(params.q)?.trim() || undefined;
+  const query = firstQueryValue(params.q)?.trim() || undefined;
   const store = getTicketStore();
   const tickets = store.list({ status, priority, query });
   const summary = store.summary();
@@ -74,7 +74,7 @@ export default async function Dashboard({
             <select id="status" name="status" defaultValue={status ?? ""}>
               <option value="">All statuses</option>
               {ticketStatuses.map((item) => (
-                <option key={item} value={item}>{displayStatus(item)}</option>
+                <option key={item} value={item}>{formatTicketStatus(item)}</option>
               ))}
             </select>
           </div>
@@ -100,7 +100,7 @@ export default async function Dashboard({
                 <strong>{ticket.title}</strong>
                 <small>{ticket.reference} · {ticket.requesterName} · {ticket.category}</small>
               </span>
-              <span className={`badge badge-status-${ticket.status}`}>{displayStatus(ticket.status)}</span>
+              <span className={`badge badge-status-${ticket.status}`}>{formatTicketStatus(ticket.status)}</span>
               <span className={`badge badge-priority-${ticket.priority}`}>{ticket.priority}</span>
               <span className="muted">{formatDate(ticket.updatedAt)}</span>
             </Link>

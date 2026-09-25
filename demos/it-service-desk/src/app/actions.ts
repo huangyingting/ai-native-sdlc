@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTicketStore } from "@/lib/ticket-store";
-import { createTicketSchema, updateStatusSchema } from "@/lib/tickets";
+import { createTicketSchema, updateTicketStatusSchema } from "@/lib/ticket";
 
 export type TicketFormState = {
   errors?: Record<string, string[] | undefined>;
@@ -36,7 +36,7 @@ export async function createTicketAction(
 }
 
 export async function updateTicketStatusAction(formData: FormData) {
-  const result = updateStatusSchema.safeParse({
+  const result = updateTicketStatusSchema.safeParse({
     id: formData.get("id"),
     status: formData.get("status"),
   });

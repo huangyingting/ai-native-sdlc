@@ -2,13 +2,13 @@
   "name": "ai-native-sdlc",
   "version": "0.1.0",
   "private": true,
-  "description": "Automation and trace-viewer tooling for AI-native SDLC demonstrations.",
+  "description": "Repository automation and trace-report tooling for AI-native SDLC demonstrations.",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "test": "npm run test:automation && npm run test:trace-viewer",
-    "test:automation": "node --test .github/scripts/build-demo-comment.test.mjs .github/scripts/prepare-demo-request.test.mjs .github/scripts/publish-trace-pages.test.mjs",
+    "test:automation": "node --test .github/scripts/build-demo-result-comment.test.mjs .github/scripts/prepare-demo-request.test.mjs .github/scripts/publish-trace-site.test.mjs",
     "test:trace-viewer": "npm --prefix tools/trace-viewer test"
   }
 }

@@ -143,7 +143,7 @@ jobs:
             "${EXTRA_ARGS[@]}" \
             --allow-tool='web_fetch,microsoft-learn' \
             --deny-tool=write --deny-tool=shell | tee trace-report/copilot-response.md
-      - name: Render trace viewer
+      - name: Render trace report
         if: always()
         uses: ./tools/trace-viewer
         with:
@@ -153,16 +153,16 @@ jobs:
           include-messages: ${{ steps.request.outputs.include_messages }}
           require-model: ${{ steps.request.outputs.required_models }}
           require-pattern-evidence: ${{ steps.request.outputs.pattern }}
-      - name: Capture dependency map
+      - name: Capture dependency graph
         if: always()
         run: |
           if [ ! -f trace-report/copilot-trace-report.html ]; then
-            echo "HTML trace report is unavailable; skipping dependency-map capture." >&2
+            echo "HTML trace report is unavailable; skipping dependency-graph capture." >&2
             exit 1
           fi
-          node tools/trace-viewer/capture-dependency-map.mjs \
+          node tools/trace-viewer/capture-dependency-graph.mjs \
             trace-report/copilot-trace-report.html \
-            trace-report/dependency-map.png
+            trace-report/dependency-graph.png
       - name: Attach HTML trace viewer
         if: always()
         id: trace_artifact
@@ -183,7 +183,7 @@ jobs:
             echo "::notice::AGENT_TRACE_MEDIA_TOKEN is not configured; the issue comment will use a Mermaid dependency graph."
             exit 0
           fi
-          FILE='trace-report/dependency-map.png'
+          FILE='trace-report/dependency-graph.png'
           NAME="$(basename -- "$FILE")"
           MIME='image/png'
           REPO='${{ github.repository }}'
@@ -236,7 +236,7 @@ jobs:
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/viewer/?run=${{ github.run_id }}
           ARTIFACT_URL: ${{ steps.trace_artifact.outputs.artifact-url }}
         run: |
-          node .github/scripts/build-demo-comment.mjs
+          node .github/scripts/build-demo-result-comment.mjs
           COMMENT_ID="$(
             gh api --paginate "repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
               --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- copilot-agent-demo-result -->")))][-1].id // empty'

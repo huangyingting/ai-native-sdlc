@@ -67,6 +67,9 @@ docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/
 
 These files are versioned evidence. Later stages may consume them but cannot
 silently rewrite an artifact that a Human already approved.
+Implementation also preserves every approved test file's Git blob from the
+lifecycle branch. Add additional tests in **new files**; do not edit, delete,
+rename, or weaken approved tests, even if their test names remain unchanged.
 
 ## One-time repository setup
 
@@ -101,10 +104,13 @@ The fine-grained token needs:
 - actions: read and write;
 - contents: read and write;
 - issues: read and write;
-- pull requests: read and write.
+- pull requests: read and write;
+- organization members: read, when configuring organization teams.
 
-The token is used only by trusted default-branch workflows to assign Copilot
-and enable protected auto-merge. It is never exposed to PR-head workflows.
+The token is used only by trusted default-branch workflows to assign Copilot,
+retarget implementation PRs, and enable or revoke protected auto-merge. Retargeting
+uses this token rather than `GITHUB_TOKEN`, whose edits suppress the
+`pull_request: edited` event needed to validate the new base. The token is never exposed to PR-head workflows.
 Human review in GitHub Web does not require this token.
 
 ### Configure Human reviewers
@@ -132,6 +138,12 @@ requires one approval for Spec, Plan, Tests, and Implementation.
 
 Configuration is loaded from the default branch. A pull request cannot assign
 friendlier reviewers or reduce its own approval threshold.
+Approvals must be from configured users or current configured team members, on
+the current head SHA, and not from the PR author or bots. Comment-only and pending
+reviews do not replace the last decisive review. Dismissals invalidate approvals;
+configured reviewers' outstanding change requests block the policy.
+Team membership is read with `COPILOT_ASSIGN_TOKEN`, not the repository-scoped
+`GITHUB_TOKEN`; ensure it can read the configured organization teams.
 
 ### Configure branch rulesets
 
@@ -150,28 +162,46 @@ For both:
 Block deletion of `main`. Allow deletion of `brownfield-delivery/**` so
 successful delivery can remove its temporary lifecycle branch.
 
-For `brownfield-delivery/**`, require the
-**Brownfield Delivery · Stage CI** checks:
+For **both** `brownfield-delivery/**` and `main`, require:
 
-- `intake`;
-- `classify`;
-- `artifact-gate`;
-- `tdd-red`;
-- `implementation-contract`.
+- **`Brownfield delivery policy`** — the exact commit-status context written
+  by the trusted PR Coordinator; select GitHub Actions as the expected source.
+- **`stage-validation`** — the aggregate **Brownfield Delivery · Stage CI** job.
 
-Only the applicable stage job executes; GitHub reports the other routed jobs
-as skipped.
+Do not substitute the coordinator workflow's successful job conclusion for its
+policy status. A coordinator can complete successfully while reporting
+insufficient approvals. Likewise, do not rely solely on the individually routed
+`artifact-gate`, `tdd-red`, or `implementation-contract` jobs: skipped jobs are
+not evidence that the applicable stage passed. The aggregate fails if metadata
+classification fails or the selected stage does not succeed.
 
 For `main`, require:
 
-- all coordinator and Brownfield Delivery checks listed above;
+- both required status/check names above;
 - `validate`;
 - `container-smoke`.
 
-The repository ruleset enforces the common floor. The PR Coordinator enforces
-any higher stage-specific threshold from
-`.github/brownfield-human-gated-delivery/config.json` before enabling
-auto-merge.
+The native review rule enforces a common floor, **not** the configured reviewer
+identities or higher stage thresholds. The required policy status prevents that
+weaker floor from authorizing a manual or automatic merge on its own. Do not grant
+humans or automation a ruleset bypass for this demo.
+
+The coordinator writes pending/failure/success on the current head and revokes
+existing auto-merge whenever review policy is no longer satisfied. When approvals
+are satisfied, it enables protected auto-merge while the required policy status
+is still pending, then publishes success; it never directly merges or bypasses
+branch rules. It re-reads
+live PR metadata and reviews on open/reopen, head synchronization, body/base edits,
+draft transitions, submitted/edited/dismissed reviews, stage-CI completion, and
+default-branch policy configuration changes. These are asynchronous GitHub events;
+keep native stale-review dismissal and up-to-date branch requirements enabled.
+Coordinator runs are serialized, and **every surviving run reconciles all open
+PRs** because GitHub can replace pending runs in a concurrency group. An invalid
+PR is failed and its auto-merge revoked without preventing other PRs from being
+reconciled; the run reports accumulated failures only after processing the list.
+Ordinary non-lifecycle PRs receive a not-applicable success. Lifecycle registration
+is retained in a PR comment, so deleting body markers instead fails validation.
+Do not delete that registration comment.
 
 ## Run the demo
 
@@ -239,6 +269,13 @@ The Red gate succeeds only when:
 4. observed failures match the manifest exactly;
 5. there are no unrelated, syntax, environment, or infrastructure failures.
 
+Validation checks the full Vitest 5 JSON report, including failed suites with
+no assertions. A companion reporter records unhandled errors and nested hook
+errors omitted by Vitest's JSON reporter. Missing, malformed, interrupted, or
+inconsistent evidence, duplicate expected test names, and skipped expected tests
+are rejected. Scope checks use the PR merge-base diff with rename detection
+disabled, so renamed files cannot hide an out-of-scope deletion.
+
 The Actions Job Summary records the exact Red evidence. The Human reviews the
 assertions and their mapping to the approved acceptance scenarios, then
 Approves or Requests changes.
@@ -246,7 +283,8 @@ Approves or Requests changes.
 ### 5. Review Implementation Green
 
 Copilot implements the approved task plan without modifying the approved Spec,
-Plan, or expected-failure contract. Automation retargets this PR to `main`.
+Plan, expected-failure contract, or approved test blobs. Automation retargets
+this PR to `main`. New test files are allowed alongside implementation changes.
 
 Required checks prove:
 
@@ -267,12 +305,19 @@ The **Brownfield Delivery · Publish** workflow:
 2. builds the merged commit;
 3. publishes its SHA tag and immutable digest to GHCR;
 4. runs that exact digest in the `it-service-desk-demo` Environment;
-5. verifies `/api/health` and the dashboard;
+5. verifies `/api/health` and the dashboard's stable
+   `data-testid="service-desk-dashboard"` marker;
 6. writes the digest and Actions run link to the parent Intent.
 
 Success closes the Implementation sub-issue and parent Intent, then deletes
 the lifecycle branch. Failure keeps or reopens the Intent and retains the
 branch for diagnosis and remediation.
+Result comments are updated rather than duplicated on reruns. Closed parents are
+allowed only for merged default-branch implementation delivery verification and
+reporting; other lifecycle operations retain the open-parent guard. Cleanup can
+retry after closing the parent, and an already-absent branch counts as success.
+Real deletion errors still fail the job. A failed rerun after successful cleanup
+reopens the Intent and restores a remediation branch at the merged commit.
 
 ## Recovery and retries
 
@@ -292,6 +337,11 @@ branch for diagnosis and remediation.
 - `pull_request` CI executes PR code with read-only permissions and no secrets.
 - `pull_request_target` workflows coordinate APIs only and never checkout the
   PR head.
+- Review events run a permissionless **Review Signal** workflow. Its completion
+  invokes the default-branch coordinator via `workflow_run`; the coordinator
+  re-reads all open PRs and their current reviews using live API data, never artifacts or code from
+  the signal run. Stage-CI completion uses the same trusted path. Install both
+  workflows on the default branch before enabling the required policy status.
 - Reviewer policy always comes from `main`.
 - Copilot and bot reviews never satisfy Human approval counts.
 - Closing keywords are forbidden in stage PRs; lifecycle automation owns Issue
@@ -302,6 +352,7 @@ branch for diagnosis and remediation.
 ## Local verification
 
 ```sh
+node --test .github/brownfield-human-gated-delivery/tests/core.test.mjs .github/brownfield-human-gated-delivery/tests/github.test.mjs
 npm test
 npm --prefix demos/it-service-desk test
 npm --prefix demos/it-service-desk run lint

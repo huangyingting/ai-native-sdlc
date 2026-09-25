@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 
 const configuredMcpServers = JSON.parse(readFileSync(new URL("../../.github/mcp.json", import.meta.url), "utf8")).mcpServers;
 export const defaultPricingCatalog = JSON.parse(
@@ -80,7 +80,7 @@ function attributes(span) {
 }
 
 function safe(text, limit = 100) {
-  return String(text).replace(/[^a-zA-Z0-9 _,./:+;=-]/g, "").slice(0, limit);
+  return (redact(String(text)) ?? "").replace(/[^a-zA-Z0-9 _,./:+;=-]/g, "").slice(0, limit);
 }
 
 function nano(time) {
@@ -147,14 +147,84 @@ function hydrateFileBackedOutput(content, readPayload = readFileSync) {
   }
 }
 
-function redact(content) {
+function normalizePaths(text) {
+  const roots = [
+    [process.env.GITHUB_WORKSPACE, "[WORKSPACE]"],
+    [process.env.RUNNER_WORKSPACE, "[WORKSPACE]"],
+    [process.cwd(), "[WORKSPACE]"],
+    [process.env.RUNNER_TEMP, "[TEMP]"],
+    [tmpdir(), "[TEMP]"],
+    [homedir(), "[HOME]"],
+  ].filter(([root]) => root && root !== "/")
+    .sort(([left], [right]) => right.length - left.length);
+  for (const [root, replacement] of roots) {
+    const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(`(?<![\\w/])(?:file://)?${escaped}(?=[/\\\\\\s"'\\x60),:;\\]}]|$)`, "g"), replacement);
+  }
+  return text
+    .replace(/\b[A-Z]:[\\/]+Users[\\/]+[^\\/\s"']+(?=[\\/]|[\s"']|$)/gi, "[HOME]")
+    .replace(/\b[A-Z]:[\\/]+(?:a|Windows[\\/]+Temp)(?=[\\/]|[\s"']|$)/gi, "[RUNNER]")
+    .replace(/(?<![\w/])(?:file:\/\/)?\/(?:home|Users)\/[^/\s"'\\]+(?=\/|[\s"'\\]|$)/g, "[HOME]")
+    .replace(/(?<![\w/])(?:file:\/\/)?\/(?:root|github\/home)(?=\/|[\s"'\\]|$)/g, "[HOME]")
+    .replace(/(?<![\w/])(?:file:\/\/)?\/(?:workspaces?|__w|github\/workspace|(?:opt\/)?(?:actions-runner|runner)\/_work)(?=\/|[\s"'\\]|$)/g, "[WORKSPACE]")
+    .replace(/(?<![\w/])(?:file:\/\/)?\/(?:private\/)?(?:var\/)?tmp(?=\/|[\s"'\\]|$)/g, "[TEMP]");
+}
+
+function redactAuthorization(text) {
+  let result = "";
+  let cursor = 0;
+  const headers = /(?:proxy-)?authorization\s*(?:\\*["'])?\s*[:=]\s*(\\*["'])?/gi;
+  for (const match of text.matchAll(headers)) {
+    if (match.index < cursor) continue;
+    const start = match.index + match[0].length;
+    const delimiter = match[1];
+    let end = text.length;
+    if (delimiter) {
+      const escapes = delimiter.length - 1;
+      for (const closing of text.slice(start).matchAll(/\\*["']/g)) {
+        const slashes = closing[0].length - 1;
+        // Each JSON serialization doubles escapes; distinguish a closing quote from a quoted value character.
+        if (closing[0].at(-1) === delimiter.at(-1) && slashes % (2 * (escapes + 1)) === escapes) {
+          end = start + closing.index + slashes - escapes;
+          break;
+        }
+      }
+    } else {
+      const boundary = text.slice(start).search(/[\r\n]|\\+[rn]|\\*["']/);
+      if (boundary >= 0) end = start + boundary;
+    }
+    result += `${text.slice(cursor, start)}[REDACTED]`;
+    cursor = end;
+  }
+  return result + text.slice(cursor);
+}
+
+export function redact(content) {
   if (content == null) return null;
   const text = typeof content === "string" ? content : JSON.stringify(content, null, 2);
   if (!text) return null;
-  return text
+  return normalizePaths(redactAuthorization(text)
     .replace(/(?:gh[pousr]_|github_pat_)[\w-]{12,}/gi, "[REDACTED TOKEN]")
     .replace(/Bearer\s+[\w.-]{12,}/gi, "******")
-    .replace(/((?:access[_-]?token|api[_-]?key|password|secret|authorization)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi, "$1[REDACTED]");
+    .replace(/((?:access[_-]?token|api[_-]?key|password|secret)\s*["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi, "$1[REDACTED]"));
+}
+
+function redactModel(value) {
+  if (typeof value === "string") return redact(value) ?? "";
+  if (Array.isArray(value)) return value.map(redactModel);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactModel(item)]));
+  }
+  return value;
+}
+
+function hasPayload(content) {
+  if (typeof content === "string") return Boolean(content.trim());
+  if (Array.isArray(content)) return content.some(hasPayload);
+  if (content && typeof content === "object") {
+    return Object.entries(content).some(([key, item]) => key !== "type" && hasPayload(item));
+  }
+  return content != null;
 }
 
 function messagePreview(content) {
@@ -169,10 +239,19 @@ function messagePreview(content) {
   }
   const messages = Array.isArray(parsed) ? parsed : parsed?.messages;
   if (!Array.isArray(messages)) return null;
-  return redact(messages
-    .filter((message) => ["user", "assistant", "tool"].includes(message.role))
-    .map((message) => `${message.role}: ${typeof message.content === "string" ? message.content : JSON.stringify(message.content ?? "", null, 2)}`)
-    .join("\n"));
+  const previews = messages
+    .filter((message) => ["user", "assistant", "tool"].includes(message?.role))
+    .flatMap((message) => {
+      const parts = Array.isArray(message.parts) ? message.parts
+        .filter(hasPayload).map((part) => part.type === "text" ? part.content ?? part.text : part) : [];
+      const payloads = [
+        message.content, ...parts,
+        { tool_calls: message.tool_calls, function_call: message.function_call },
+      ].filter(hasPayload);
+      return payloads.length ? [`${message.role}: ${payloads
+        .map((payload) => typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)).join("\n")}`] : [];
+    });
+  return redact(previews.join("\n"));
 }
 
 function capturedMessages(span, attrs, kind) {
@@ -285,7 +364,8 @@ export function buildTraceModel(spans, {
       const hasTokenUsage = kind === "chat"
         && (attrs["gen_ai.usage.input_tokens"] != null || attrs["gen_ai.usage.output_tokens"] != null);
       const cachedInputTokens = kind === "chat"
-        ? Number(attrs["gen_ai.usage.cached_input_tokens"] ?? attrs["gen_ai.usage.cache_read_input_tokens"] ?? 0) : null;
+        ? Number(attrs["gen_ai.usage.cache_read.input_tokens"]
+          ?? attrs["gen_ai.usage.cached_input_tokens"] ?? attrs["gen_ai.usage.cache_read_input_tokens"] ?? 0) : null;
       const cacheWriteTokens = kind === "chat"
         ? Number(attrs["gen_ai.usage.cache_write_input_tokens"] ?? attrs["gen_ai.usage.cache_write_tokens"] ?? 0) : null;
       const reportedCost = kind === "chat" && Number.isFinite(Number(attrs["gen_ai.usage.cost"]))
@@ -415,7 +495,24 @@ export function buildTraceModel(spans, {
     : expectedModels.length > 1 && subagents.length
       ? ` | Allowed: ${expectedModels.map((model) => safe(model)).join(", ")} | Delegated: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`
       : ` | Required: ${safe(requiredRuntimeModel)} (${modelMatches ? "PASS" : "MISMATCH"})`;
-  const parallelComplete = peak >= 2 && subagents.length >= 2;
+  function isAncestor(ancestorId, descendantId) {
+    let owner = eventById.get(descendantId)?.owner;
+    while (owner) {
+      if (owner === ancestorId) return true;
+      owner = eventById.get(owner)?.owner;
+    }
+    return false;
+  }
+  const parallelComplete = subagents.some(({ span: left }, index) =>
+    subagents.slice(index + 1).some(({ span: right }) => {
+      const leftId = `${left.traceId}:${left.spanId}`;
+      const rightId = `${right.traceId}:${right.spanId}`;
+      return BigInt(left.startTimeUnixNano) < BigInt(left.endTimeUnixNano)
+        && BigInt(right.startTimeUnixNano) < BigInt(right.endTimeUnixNano)
+        && BigInt(left.startTimeUnixNano) < BigInt(right.endTimeUnixNano)
+        && BigInt(right.startTimeUnixNano) < BigInt(left.endTimeUnixNano)
+        && !isAncestor(leftId, rightId) && !isAncestor(rightId, leftId);
+    }));
   const sequentialComplete = subagents.length >= 2 && peak === 1;
   const criticComplete = subagents.length >= 1;
   const directComplete = subagents.length === 0 && chats.length >= 1;
@@ -425,7 +522,7 @@ export function buildTraceModel(spans, {
         : pattern === "direct-execution" ? directComplete
       : true;
   const evidence = pattern === "parallel-delegation"
-    ? `delegated branches: ${subagents.length} | concurrent execution: ${peak >= 2 ? "yes" : "no"}`
+    ? `delegated branches: ${subagents.length} | concurrent execution: ${parallelComplete ? "yes" : "no"}`
     : pattern === "sequential-pipeline"
       ? `pipeline stages: ${subagents.length} | sequential execution: ${peak === 1 ? "yes" : "no"}`
       : pattern === "critic-reviser-loop"
@@ -433,7 +530,7 @@ export function buildTraceModel(spans, {
         : pattern === "direct-execution"
           ? `subagents: ${subagents.length} | direct model calls: ${chats.length}`
           : `subagents: ${subagents.length} | peak concurrency: ${peak}`;
-  const messageCount = events.filter((event) => event.request || event.response).length;
+  const messageCount = events.filter((event) => hasPayload(event.request) || hasPayload(event.response)).length;
   const contentKeys = includeMessages && !messageCount
     ? [...new Set([...nodes.values()].flatMap((node) => Object.keys(node.attrs)).filter((key) => /message|content|argument|result/i.test(key)))].slice(0, 20)
     : [];
@@ -457,7 +554,7 @@ export function buildTraceModel(spans, {
     "```",
     "",
   ];
-  return {
+  return redactModel({
     summary: summary.join("\n"),
     pattern,
     complete: Boolean(complete),
@@ -497,5 +594,5 @@ export function buildTraceModel(spans, {
       models: [...new Set(models)],
       tools: [...new Set(events.filter((event) => event.kind === "execute_tool").map((event) => event.name))],
     },
-  };
+  });
 }

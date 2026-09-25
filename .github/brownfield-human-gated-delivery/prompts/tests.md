@@ -22,7 +22,8 @@ The manifest shape is:
 ```
 
 List every and only expected failing test. The CI gate rejects missing,
-unexpected, infrastructure, syntax, and unrelated failures.
+unexpected, infrastructure, syntax, collection, unhandled, and unrelated
+failures, as well as skipped or duplicate expected test evidence.
 
 The pull-request body must contain exactly:
 

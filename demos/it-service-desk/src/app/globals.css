@@ -427,7 +427,7 @@ html[data-theme="dark"] .theme-icon-dark {
 }
 
 .queue {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .queue-heading {
@@ -573,7 +573,8 @@ textarea {
   left: 0;
   display: grid;
   min-width: max-content;
-  overflow: hidden;
+  max-height: min(20rem, 50vh);
+  overflow-y: auto;
   border: 1px solid var(--cp-border);
   border-radius: 4px;
   background: var(--cp-surface);
@@ -599,7 +600,7 @@ textarea {
 }
 
 .custom-select-option:hover,
-.custom-select-option:focus-visible {
+.custom-select-option[data-active="true"] {
   outline: 0;
   background: var(--cp-surface-soft);
 }
@@ -634,6 +635,7 @@ textarea {
 }
 
 .ticket-list {
+  border-radius: 0 0 3px 3px;
   overflow-x: auto;
 }
 

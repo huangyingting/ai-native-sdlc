@@ -14,7 +14,7 @@ inputs:
     description: Include redacted request/response payloads with safe hydration of runner-temp tool output.
     default: "false"
   require-model:
-    description: Comma-separated models that must be observed; every model call must use one of them.
+    description: Comma-separated models that must be observed; every model call must use one of them. Enforced independently of pattern validation.
     default: ""
   require-pattern-evidence:
     description: Orchestration pattern ID whose expected trace topology must be observed; false disables validation.

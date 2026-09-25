@@ -172,14 +172,15 @@ export function renderPrompt(template, values) {
   });
 }
 
-export function countHumanApprovals(reviews, policy, pullRequestAuthor, teamMembers = []) {
+export function countHumanApprovals(reviews, policy, pullRequestAuthor, teamMembers = [], headSha) {
   const latestByReviewer = new Map();
   for (const review of reviews) {
     const login = review?.user?.login;
-    if (!login) continue;
-    const current = latestByReviewer.get(login);
+    if (!login || !["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) continue;
+    const key = login.toLowerCase();
+    const current = latestByReviewer.get(key);
     if (!current || Number(review.id) > Number(current.id)) {
-      latestByReviewer.set(login, review);
+      latestByReviewer.set(key, review);
     }
   }
 
@@ -190,7 +191,8 @@ export function countHumanApprovals(reviews, policy, pullRequestAuthor, teamMemb
   const author = String(pullRequestAuthor ?? "").toLowerCase();
   const approved = [];
   const changesRequested = [];
-  for (const [login, review] of latestByReviewer) {
+  for (const review of latestByReviewer.values()) {
+    const login = review.user.login;
     const lower = login.toLowerCase();
     if (
       lower === author ||
@@ -202,7 +204,7 @@ export function countHumanApprovals(reviews, policy, pullRequestAuthor, teamMemb
       continue;
     }
     if (!configured.has(lower)) continue;
-    if (review.state === "APPROVED") approved.push(login);
+    if (review.state === "APPROVED" && (!headSha || review.commit_id === headSha)) approved.push(login);
     if (review.state === "CHANGES_REQUESTED") changesRequested.push(login);
   }
   return {
@@ -351,9 +353,84 @@ export function validateExpectedFailures(input, intentNumber, acceptanceIds) {
   return names;
 }
 
+function vitestAssertions(report) {
+  requireObject(report, "Vitest report");
+  if (!Array.isArray(report.testResults) || !report.testResults.length ||
+      typeof report.success !== "boolean") {
+    throw new Error("Malformed Vitest report.");
+  }
+  for (const key of ["numRuntimeErrorTestSuites", "numUnhandledErrors"]) {
+    if (key in report && report[key] !== 0) throw new Error(`Vitest runtime errors: ${key}.`);
+  }
+  for (const key of ["unhandledErrors", "errors"]) {
+    if (key in report && (!Array.isArray(report[key]) || report[key].length)) {
+      throw new Error(`Vitest runtime errors: ${key}.`);
+    }
+    const suiteCounts = ["numTotalTestSuites", "numPassedTestSuites", "numFailedTestSuites", "numPendingTestSuites"];
+    if (suiteCounts.some((key) => !Number.isInteger(report[key]) || report[key] < 0) ||
+        report.numTotalTestSuites !== report.numPassedTestSuites + report.numFailedTestSuites + report.numPendingTestSuites) {
+      throw new Error("Malformed Vitest suite totals.");
+    }
+  }
+  const assertions = [];
+  for (const suite of report.testResults) {
+    if (!suite || !Array.isArray(suite.assertionResults) ||
+        !["passed", "failed", "pending", "skipped"].includes(suite.status) ||
+        typeof suite.message !== "string") {
+      throw new Error("Malformed Vitest suite.");
+    }
+    if (suite.message || suite.testExecError ||
+        (suite.status === "failed" && !suite.assertionResults.some((test) => test.status === "failed"))) {
+      throw new Error("Vitest collection or runtime error.");
+    }
+    for (const assertion of suite.assertionResults) {
+      if (!assertion || typeof assertion.fullName !== "string" || !assertion.fullName.trim() ||
+          !["passed", "failed", "pending", "skipped", "todo"].includes(assertion.status)) {
+        throw new Error("Malformed Vitest assertion.");
+      }
+      if (assertion.status === "failed" && suite.status !== "failed") {
+        throw new Error("Inconsistent Vitest suite status.");
+      }
+      assertions.push(assertion);
+    }
+  }
+  if (!assertions.length) throw new Error("Vitest report contains no test assertions.");
+  const totals = {
+    numTotalTests: assertions.length,
+    numPassedTests: assertions.filter((test) => test.status === "passed").length,
+    numFailedTests: assertions.filter((test) => test.status === "failed").length,
+    numPendingTests: assertions.filter((test) => ["pending", "skipped"].includes(test.status)).length,
+    numTodoTests: assertions.filter((test) => test.status === "todo").length,
+  };
+  for (const [key, count] of Object.entries(totals)) {
+    if (report[key] !== count) throw new Error(`Inconsistent Vitest report: ${key}.`);
+  }
+  if (report.success && (totals.numFailedTests || report.numFailedTestSuites)) {
+    throw new Error("Inconsistent Vitest success.");
+  }
+  return assertions;
+}
+
+function uniqueExpectedAssertions(assertions, expectedNames) {
+  for (const name of expectedNames) {
+    if (assertions.filter((test) => test.fullName === name).length > 1) {
+      throw new Error(`Duplicate expected test evidence: ${name}`);
+    }
+  }
+}
+
+export function validateVitestRunErrors(evidence) {
+  requireObject(evidence, "Vitest run evidence");
+  if (!["passed", "failed"].includes(evidence.reason) ||
+      !Array.isArray(evidence.unhandledErrors) || evidence.unhandledErrors.length ||
+      !Array.isArray(evidence.suiteErrors) || evidence.suiteErrors.length) {
+    throw new Error("Vitest collection, runtime, unhandled, or interrupted run error.");
+  }
+}
+
 export function validateVitestRed(report, expectedNames) {
-  const testResults = Array.isArray(report?.testResults) ? report.testResults : [];
-  const assertions = testResults.flatMap((result) => result.assertionResults ?? []);
+  const assertions = vitestAssertions(report);
+  uniqueExpectedAssertions(assertions, expectedNames);
   const failed = assertions
     .filter((assertion) => assertion.status === "failed")
     .map((assertion) => assertion.fullName);
@@ -370,9 +447,9 @@ export function validateVitestRed(report, expectedNames) {
 }
 
 export function validateVitestGreen(report, expectedNames) {
-  const testResults = Array.isArray(report?.testResults) ? report.testResults : [];
-  const assertions = testResults.flatMap((result) => result.assertionResults ?? []);
-  if (!assertions.length) throw new Error("Vitest report contains no test assertions.");
+  const assertions = vitestAssertions(report);
+  uniqueExpectedAssertions(assertions, expectedNames);
+  if (!report.success || report.snapshot?.failure) throw new Error("Vitest run did not succeed.");
   const byName = new Map(assertions.map((assertion) => [assertion.fullName, assertion.status]));
   const missing = [...expectedNames].filter((name) => !byName.has(name));
   const notGreen = [...expectedNames].filter((name) =>
@@ -390,7 +467,7 @@ export function validateVitestGreen(report, expectedNames) {
   return [...expectedNames];
 }
 
-function isTestFile(path) {
+export function isTestFile(path) {
   return /(?:^|\/)(?:[^/]+\.(?:test|spec)\.[^/]+|__tests__\/.+)$/.test(path);
 }
 

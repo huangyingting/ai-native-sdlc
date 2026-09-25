@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { dependencyGraphViewport } from "./capture-dependency-graph.mjs";
+import { redact } from "./trace-model.mjs";
 import {
   buildTraceData,
   buildTraceReport,
@@ -22,6 +24,34 @@ const span = (spanId, parentSpanId, name, start, end, attributes = [], traceId =
   attributes,
 });
 const line = (...spans) => JSON.stringify({ resourceSpans: [{ scopeSpans: [{ spans }] }] });
+
+function traceDirectory(t) {
+  const directory = mkdtempSync(".trace-viewer-test-");
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  return directory;
+}
+
+function runRenderer(t, trace, env = {}) {
+  const directory = traceDirectory(t);
+  const tracePath = join(directory, "trace.jsonl");
+  const htmlPath = join(directory, "report.html");
+  const dataPath = join(directory, "data.json");
+  const summaryPath = join(directory, "summary.md");
+  writeFileSync(tracePath, trace);
+  const result = spawnSync(process.execPath, [
+    fileURLToPath(new URL("./render-trace-report.mjs", import.meta.url)), tracePath,
+  ], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      TRACE_HTML_PATH: htmlPath, TRACE_DATA_PATH: dataPath, GITHUB_STEP_SUMMARY: summaryPath,
+      TRACE_INCLUDE_MESSAGES: "false", REQUIRE_MODEL: "", REQUIRE_PATTERN_EVIDENCE: "false",
+      TRACE_PATTERN: "", PRICING_PATH: "", GITHUB_REPOSITORY: "", GITHUB_RUN_ID: "",
+      ...env,
+    },
+  });
+  return { ...result, htmlPath, dataPath, summaryPath };
+}
 
 test("sizes dependency screenshots to the graph instead of the full UI", () => {
   assert.deepEqual(
@@ -179,6 +209,167 @@ test("surfaces OTEL failure reasons without message capture", () => {
   assert.match(renderHtml(result), /Failure reason[\s\S]*URL is not allowed by policy/);
 });
 
+test("redacts complete authorization headers in payloads and metadata-only failures", () => {
+  const credential = Buffer.from("synthetic-user:synthetic-password").toString("base64");
+  const bearer = "synthetic-bearer-token-123456";
+  const headers = [
+    `Authorization: Basic ${credential}`,
+    JSON.stringify({ Authorization: `Basic ${credential}` }),
+    JSON.stringify({ request: JSON.stringify({ Authorization: `Basic ${credential}` }) }),
+    `authorization=Bearer ${bearer}`,
+    `Proxy-Authorization: Basic ${credential}`,
+    "api_key=synthetic-api-key password=synthetic-password",
+    "ghs_12345678901234567890",
+    `Standalone Bearer ${bearer}`,
+  ].join("\n");
+  const spans = loadSpans(line({
+    ...span("tool", "", "execute_tool request", 1, 2, [
+      attr("gen_ai.tool.call.arguments", headers),
+      attr("gen_ai.tool.call.result", headers),
+      attr("error.message", headers),
+    ]),
+    status: { code: 2 },
+  }));
+  for (const includeMessages of [true, false]) {
+    const model = buildTraceReport(spans, { includeMessages });
+    const published = JSON.stringify(buildTraceData(model)) + renderHtml(model);
+    for (const secret of [credential, bearer, "synthetic-api-key", "synthetic-password", "ghs_12345678901234567890"]) {
+      assert.ok(!published.includes(secret), `exposed synthetic credential with capture=${includeMessages}`);
+    }
+    assert.match(model.events[0].errorReason, /REDACTED/);
+  }
+});
+
+test("redacts tab-separated and JSON-escaped authorization values completely", () => {
+  const credential = "dummy-credential";
+  const following = "following public value";
+  const header = { Authorization: `Basic\t${credential}`, "X-Trace": following };
+  const payloads = [
+    `Authorization: Basic\t${credential}\nX-Trace: ${following}`,
+    JSON.stringify(header),
+    JSON.stringify({ request: JSON.stringify(header) }),
+    JSON.stringify({ request: JSON.stringify({ request: JSON.stringify(header) }) }),
+    JSON.stringify(`Authorization: Basic\t${credential}\nX-Trace: ${following}`),
+    JSON.stringify({ ...header, Authorization: `Basic\t"${credential}"` }),
+    JSON.stringify({ ...header, Authorization: `Basic\n${credential}` }),
+    JSON.stringify({ ...header, "Proxy-Authorization": `Basic\t${credential}` }),
+  ];
+  for (const payload of payloads) {
+    const sanitized = redact(payload);
+    assert.ok(!sanitized.includes(credential), sanitized);
+    assert.ok(sanitized.includes(following), "must retain following public fields");
+    if (payload.startsWith("{") || payload.startsWith('"')) {
+      assert.doesNotThrow(() => JSON.parse(sanitized));
+    }
+    const model = buildTraceReport(loadSpans(line({
+      ...span("tool", "", "execute_tool request", 1, 2, [
+        attr("gen_ai.tool.call.arguments", payload),
+        attr("gen_ai.tool.call.result", payload),
+        attr("error.message", payload),
+      ]),
+      status: { code: 2 },
+    })), { includeMessages: true });
+    assert.ok(!(JSON.stringify(buildTraceData(model)) + renderHtml(model)).includes(credential));
+    assert.ok(model.events[0].errorReason.includes(following));
+  }
+});
+
+test("normalizes local path prefixes in every published payload and diagnostic", () => {
+  const paths = [
+    "/home/runner/work/sample/sample/src/main.mjs",
+    "/home/alice/private/config.json",
+    "/Users/alice/private/config.json",
+    "/workspace/sample/src/main.mjs",
+    "/workspaces/sample/src/main.mjs",
+    "/tmp/session/tool.txt",
+    "/var/tmp/session/tool.txt",
+    "/root/private/config.json",
+    "/github/workspace/src/main.mjs",
+    "/opt/actions-runner/_work/sample/src/main.mjs",
+    `${process.cwd()}/local-file.txt`,
+    "C:\\Users\\alice\\private\\config.json",
+    "C:/Users/alice/private/config.json",
+    "D:\\a\\sample\\sample\\src\\main.mjs",
+  ];
+  const payload = `${paths.join("\n")}\n${JSON.stringify({ paths })}\nfile:///home/alice/private/file.txt\ncwd:/workspace/sample\nhttps://example.com/home/alice/docs\nsrc/main.mjs`;
+  const spans = loadSpans(line(
+    span("root", "", "invoke_agent parent", 0, 10),
+    {
+      ...span("tool", "root", `execute_tool ${paths[0]}`, 1, 2, [
+        attr("gen_ai.tool.call.arguments", payload),
+        attr("gen_ai.tool.call.result", payload),
+        attr("exception.message", payload),
+      ]),
+      status: { code: 2 },
+    },
+    span("chat", "root", `chat ${paths[1]}`, 3, 4, [
+      attr("gen_ai.input.messages", JSON.stringify([{ role: "user", content: payload }])),
+      attr("gen_ai.output.messages", JSON.stringify([{ role: "assistant", content: payload }])),
+    ]),
+  ));
+  for (const includeMessages of [true, false]) {
+    const model = buildTraceReport(spans, { includeMessages });
+    const published = JSON.stringify(buildTraceData(model)) + renderHtml(model) + model.summary;
+    for (const path of paths) {
+      assert.ok(!published.includes(path), `exposed absolute path ${path}`);
+      assert.ok(!published.includes(JSON.stringify(path).slice(1, -1)), `exposed serialized path ${path}`);
+    }
+    assert.ok(!published.includes("/home/alice/private/file.txt"));
+    assert.ok(!published.includes("cwd:/workspace"));
+    assert.match(model.events[1].errorReason, /https:\/\/example\.com\/home\/alice\/docs/);
+    assert.match(model.events[1].errorReason, /src\/main\.mjs/);
+  }
+});
+
+test("recognizes standard message parts, legacy content, and tool-call payloads", () => {
+  const spans = loadSpans(line(
+    span("parts", "", "chat gpt-6-luna", 1, 2, [
+      attr("gen_ai.input.messages", JSON.stringify([
+        { role: "system", parts: [{ type: "text", content: "private system instruction" }] },
+        { role: "user", parts: [{ type: "text", content: "standard input" }] },
+      ])),
+      attr("gen_ai.output.messages", JSON.stringify([{ role: "assistant", parts: [
+        { type: "text", content: "standard answer" },
+        { type: "tool_call", id: "call-1", name: "lookup", arguments: { query: "part query" } },
+      ] }])),
+    ]),
+    {
+      ...span("legacy", "", "chat gpt-6-luna", 3, 4),
+      events: [{ attributes: [
+        attr("gen_ai.input.messages", JSON.stringify({ messages: [
+          { role: "user", content: [{ type: "text", text: "legacy input" }] },
+          { role: "tool", content: "legacy tool result" },
+        ] })),
+        attr("gen_ai.output.messages", JSON.stringify([{ role: "assistant", content: null,
+          tool_calls: [{ id: "call-2", type: "function", function: { name: "lookup", arguments: "{}" } }] }])),
+      ] }],
+    },
+  ));
+  const model = buildTraceReport(spans, { includeMessages: true });
+  assert.equal(model.messageCount, 2);
+  assert.match(model.events[0].request, /user:.*standard input/s);
+  assert.match(model.events[0].response, /standard answer[\s\S]*part query/);
+  assert.match(model.events[1].request, /legacy input[\s\S]*legacy tool result/);
+  assert.match(model.events[1].response, /call-2[\s\S]*lookup/);
+  assert.doesNotMatch(renderHtml(model), /private system instruction/);
+});
+
+test("does not count role labels or empty message payloads as captured evidence", () => {
+  const emptyMessages = [
+    { role: "user" }, { role: "assistant", content: "" }, { role: "tool", content: "  " },
+    { role: "user", parts: [] }, { role: "user", content: {} },
+    { role: "user", parts: [{ type: "text", content: "" }, { type: "text", content: " " }] },
+    { role: "assistant", content: [{ type: "text", text: "" }], tool_calls: [] },
+  ];
+  const model = buildTraceReport(loadSpans(line(span("chat", "", "chat gpt-6-luna", 1, 2, [
+    attr("gen_ai.input.messages", JSON.stringify(emptyMessages)),
+    attr("gen_ai.output.messages", JSON.stringify(emptyMessages)),
+  ]))), { includeMessages: true });
+  assert.equal(model.messageCount, 0);
+  assert.equal(model.events[0].request, null);
+  assert.equal(model.events[0].response, null);
+});
+
 test("requires overlapping branches for parallel delegation", () => {
   const spans = loadSpans(line(
     span("root", "", "invoke_agent", 0, 100),
@@ -191,6 +382,34 @@ test("requires overlapping branches for parallel delegation", () => {
     span("first", "root", "invoke_agent explore", 10, 40),
     span("second", "root", "invoke_agent explore", 50, 90),
   )), { pattern: "parallel-delegation" }).complete, false);
+});
+
+test("requires incomparable concurrent agents rather than nested delegation", () => {
+  const root = span("root", "", "invoke_agent orchestrator", 0, 100);
+  const worker = span("worker", "root", "invoke_agent worker", 10, 90);
+  const helper = span("helper", "worker", "invoke_agent helper", 20, 80);
+  const nested = buildTraceReport(loadSpans(line(root, worker, helper)), { pattern: "parallel-delegation" });
+  assert.equal(nested.complete, false);
+  assert.equal(nested.counts.peak, 2);
+  assert.match(nested.summary, /Peak concurrent subagents: 2/);
+  assert.match(nested.summary, /Pattern evidence: MISSING.*concurrent execution: no/);
+  const nestedBranches = buildTraceReport(loadSpans(line(
+    root, worker, helper,
+    span("wrapper", "worker", "execute_tool task", 25, 75),
+    span("other-helper", "wrapper", "invoke_agent other-helper", 30, 70),
+  )), { pattern: "parallel-delegation" });
+  assert.equal(nestedBranches.complete, true);
+  assert.equal(buildTraceReport(loadSpans(line(root,
+    span("first", "root", "invoke_agent first", 10, 40),
+    span("second", "root", "invoke_agent second", 40, 80),
+  )), { pattern: "parallel-delegation" }).complete, false);
+  assert.equal(buildTraceReport(loadSpans(line(root, worker,
+    span("instant", "root", "invoke_agent instant", 20, 20),
+  )), { pattern: "parallel-delegation" }).complete, false);
+  assert.equal(buildTraceReport(loadSpans(line(root,
+    { ...span("first", "root", "invoke_agent first", 10, 11), endTimeUnixNano: "10200000" },
+    { ...span("second", "root", "invoke_agent second", 10, 11), startTimeUnixNano: "10100000" },
+  )), { pattern: "parallel-delegation" }).complete, true);
 });
 
 test("validates review and sequential orchestration pattern evidence", () => {
@@ -229,9 +448,11 @@ test("validates a single-agent baseline without delegated agents", () => {
   assert.equal(buildTraceReport(baseline, { pattern: "critic-reviser-loop" }).complete, false);
 });
 
-test("hydrates file-backed tool output before redaction and rendering", () => {
-  const directory = mkdtempSync(join(tmpdir(), "trace-viewer-test-"));
-  const outputPath = join(directory, "123-copilot-tool-output-result.txt");
+test("hydrates file-backed tool output before redaction and rendering", (t) => {
+  const directory = traceDirectory(t);
+  const outputPath = resolve(directory, "123-copilot-tool-output-result.txt");
+  const previousRunnerTemp = process.env.RUNNER_TEMP;
+  process.env.RUNNER_TEMP = resolve(directory);
   const fullOutput = `{"results":[{"title":"Complete result","content":"${"useful ".repeat(400)}END-OF-FILE"}]}`;
   writeFileSync(outputPath, fullOutput);
   try {
@@ -244,8 +465,107 @@ test("hydrates file-backed tool output before redaction and rendering", () => {
     assert.match(html, /END-OF-FILE/);
     assert.doesNotMatch(html, /\[truncated\]|Saved to:|trace-viewer-test-/);
   } finally {
-    rmSync(directory, { recursive: true });
+    if (previousRunnerTemp == null) delete process.env.RUNNER_TEMP;
+    else process.env.RUNNER_TEMP = previousRunnerTemp;
   }
+});
+
+test("normalizes standard and legacy cached-input token attributes before pricing", () => {
+  const pricingCatalog = { models: { "test-model": {
+    default: { input: 2, cachedInput: 0.2, cacheWrite: 3, output: 5 },
+  } } };
+  for (const key of [
+    "gen_ai.usage.cache_read.input_tokens",
+    "gen_ai.usage.cached_input_tokens",
+    "gen_ai.usage.cache_read_input_tokens",
+  ]) {
+    const spans = loadSpans(line(span("chat", "", "chat test-model", 1, 2, [
+      attr("gen_ai.usage.input_tokens", "1000"),
+      attr("gen_ai.usage.output_tokens", "100"),
+      attr(key, "800"),
+    ])));
+    const model = buildTraceReport(spans, { pricingCatalog });
+    assert.equal(model.events[0].cachedInputTokens, 800, key);
+    assert.equal(model.events[0].cost, 0.00106, key);
+    assert.equal(model.counts.totalCost, 0.00106, key);
+    assert.equal(model.counts.inputTokens, 1000, key);
+  }
+  const canonical = buildTraceReport(loadSpans(line(span("chat", "", "chat test-model", 1, 2, {
+    "gen_ai.usage.input_tokens": 1000,
+    "gen_ai.usage.cache_read.input_tokens": 0,
+    "gen_ai.usage.cached_input_tokens": 800,
+  }))), { pricingCatalog });
+  assert.equal(canonical.events[0].cachedInputTokens, 0);
+  assert.equal(canonical.events[0].cost, 0.002);
+});
+
+test("enforces require-model independently of pattern and message evidence", (t) => {
+  const trace = line(span("chat", "", "chat gpt-6-luna", 1, 2));
+  for (const REQUIRE_PATTERN_EVIDENCE of ["", "false", "direct-execution"]) {
+    const mismatch = runRenderer(t, trace, {
+      REQUIRE_MODEL: "gpt-5", REQUIRE_PATTERN_EVIDENCE, TRACE_PATTERN: "direct-execution",
+    });
+    assert.equal(mismatch.status, 1, REQUIRE_PATTERN_EVIDENCE);
+    assert.match(mismatch.stderr, /model/i);
+    assert.match(readFileSync(mismatch.summaryPath, "utf8"), /MISMATCH/);
+    assert.equal(JSON.parse(readFileSync(mismatch.dataPath, "utf8")).modelMatches, false);
+  }
+  assert.equal(runRenderer(t, trace, { REQUIRE_MODEL: "gpt-6-luna" }).status, 0);
+  assert.equal(runRenderer(t, trace).status, 0);
+  assert.equal(runRenderer(t, line(span("tool", "", "execute_tool view", 1, 2)), {
+    REQUIRE_MODEL: "gpt-6-luna",
+  }).status, 1);
+});
+
+test("rejects empty message evidence at the CLI but accepts standard parts", (t) => {
+  for (const [content, status] of [["", 1], ["captured text", 0]]) {
+    const result = runRenderer(t, line(span("chat", "", "chat gpt-6-luna", 1, 2, [
+      attr("gen_ai.input.messages", JSON.stringify([{ role: "user", parts: [{ type: "text", content }] }])),
+    ])), {
+      TRACE_INCLUDE_MESSAGES: "true", REQUIRE_PATTERN_EVIDENCE: "direct-execution",
+      TRACE_PATTERN: "direct-execution",
+    });
+    assert.equal(result.status, status);
+  }
+});
+
+test("sanitizes CLI diagnostics including custom runner roots", (t) => {
+  const root = resolve(traceDirectory(t));
+  const failure = runRenderer(t, line(span("chat", "", "chat gpt-6-luna", 1, 2)), {
+    PRICING_PATH: `${root}/missing-pricing.json`, RUNNER_TEMP: root,
+  });
+  assert.equal(failure.status, 1);
+  assert.ok(!failure.stderr.includes(root));
+  assert.ok(!readFileSync(failure.summaryPath, "utf8").includes(root));
+  const credential = Buffer.from("synthetic-user:synthetic-password").toString("base64");
+  const duplicate = span(`Authorization: Basic ${credential}`, "", "chat gpt-6-luna", 1, 2);
+  const secretFailure = runRenderer(t, line(duplicate, duplicate));
+  assert.equal(secretFailure.status, 1);
+  assert.ok(!secretFailure.stderr.includes(credential));
+  assert.ok(!readFileSync(secretFailure.summaryPath, "utf8").includes(credential));
+});
+
+test("sanitizes custom workspace and runner paths before writing report artifacts", (t) => {
+  const payload = "cwd=/srv/custom-build/source/main.mjs\noutput=/mnt/custom-scratch/result.txt";
+  const result = runRenderer(t, line({
+    ...span("tool", "", "execute_tool read", 1, 2, [
+      attr("gen_ai.tool.call.arguments", payload),
+      attr("gen_ai.tool.call.result", payload),
+    ]),
+    status: { code: 2, message: payload },
+  }), {
+    TRACE_INCLUDE_MESSAGES: "true",
+    GITHUB_WORKSPACE: "/srv/custom-build",
+    RUNNER_TEMP: "/mnt/custom-scratch",
+  });
+  assert.equal(result.status, 0);
+  for (const path of [result.htmlPath, result.dataPath, result.summaryPath]) {
+    assert.doesNotMatch(readFileSync(path, "utf8"), /\/srv\/custom-build|\/mnt\/custom-scratch/);
+  }
+  const data = JSON.parse(readFileSync(result.dataPath, "utf8"));
+  assert.match(data.events[0].request, /\[WORKSPACE\]\/source\/main\.mjs/);
+  assert.match(data.events[0].response, /\[TEMP\]\/result\.txt/);
+  assert.match(data.signals.errors[0].reason, /\[TEMP\]\/result\.txt/);
 });
 
 test("estimates mixed-model cost from the model pricing catalog", () => {

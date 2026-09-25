@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTraceModel, loadSpans } from "./trace-model.mjs";
+import { buildTraceModel, loadSpans, redact } from "./trace-model.mjs";
 import { renderDependencyGraph, renderHtml } from "./html-renderer.mjs";
 
 export { loadSpans, renderDependencyGraph, renderHtml };
@@ -66,7 +66,7 @@ export function buildTraceData(result) {
 }
 
 function safeError(text, limit = 280) {
-  return String(text).replace(/[^a-zA-Z0-9 _,./:+;=()[\]-]/g, "").slice(0, limit);
+  return (redact(String(text)) ?? "").replace(/[^a-zA-Z0-9 _,./:+;=()[\]-]/g, "").slice(0, limit);
 }
 
 function configuredPricingCatalog() {
@@ -99,9 +99,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       : "";
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.summary + artifactLink);
     console.log(result.summary + artifactLink);
+    if (process.env.REQUIRE_MODEL && !result.modelMatches) {
+      console.error("Required model evidence missing: observed model calls did not satisfy require-model.");
+      process.exitCode = 1;
+    }
     if (process.env.REQUIRE_PATTERN_EVIDENCE && process.env.REQUIRE_PATTERN_EVIDENCE !== "false"
-      && (!result.complete || !result.modelMatches || (result.includeMessages && !result.messageCount))) {
-      console.error("Pattern evidence missing: the selected orchestration topology, model constraints, or requested message payloads were not observed.");
+      && (!result.complete || (result.includeMessages && !result.messageCount))) {
+      console.error("Pattern evidence missing: the selected orchestration topology or requested message payloads were not observed.");
       process.exitCode = 1;
     }
   } catch (error) {

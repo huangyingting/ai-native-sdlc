@@ -1,48 +1,37 @@
 name: Brownfield Delivery · PR Coordinator
 
 on:
+  push:
+    branches: [main]
+    paths: [".github/brownfield-human-gated-delivery/config.json"]
   pull_request_target:
     types: [opened, reopened, edited, synchronize, ready_for_review, converted_to_draft]
-  pull_request_review:
-    types: [submitted, dismissed]
+  workflow_run:
+    workflows: ["Brownfield Delivery · Review Signal", "Brownfield Delivery · Stage CI"]
+    types: [completed]
 
 permissions:
   contents: read
   issues: write
   pull-requests: write
+  statuses: write
 
 concurrency:
-  group: brownfield-delivery-pr-${{ github.event.pull_request.number }}
+  # Pending events may be replaced; every run reconciles all open PRs.
+  group: brownfield-delivery-coordinator
   cancel-in-progress: false
 
 jobs:
-  intake:
-    if: >-
-      github.event_name == 'pull_request_target' &&
-      contains(github.event.pull_request.body, 'Delivery Demo: brownfield-human-gated-delivery')
+  policy:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - name: Validate stage and request Human Review
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node .github/brownfield-human-gated-delivery/scripts/github.mjs intake
-
-  review:
-    if: >-
-      github.event_name == 'pull_request_review' &&
-      contains(github.event.pull_request.body, 'Delivery Demo: brownfield-human-gated-delivery')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-      - name: Evaluate configured Human approvals
+          persist-credentials: false
+      - name: Enforce current lifecycle and Human review policy
         env:
           GITHUB_TOKEN: ${{ github.token }}
           COPILOT_ASSIGN_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
-        run: node .github/brownfield-human-gated-delivery/scripts/github.mjs review
+        run: node .github/brownfield-human-gated-delivery/scripts/github.mjs coordinate

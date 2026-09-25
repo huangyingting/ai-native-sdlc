@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { validateApprovedFiles } from "../scripts/validate-stage.mjs";
+import LifecycleErrorsReporter from "../scripts/vitest-errors-reporter.mjs";
 import {
   artifactPaths,
   countHumanApprovals,
@@ -16,7 +20,27 @@ import {
   validateStageFiles,
   validateVitestGreen,
   validateVitestRed,
+  validateVitestRunErrors,
 } from "../scripts/core.mjs";
+
+function redFixture() {
+  return JSON.parse(readFileSync(new URL("./fixtures/vitest-red.json", import.meta.url), "utf8"));
+}
+
+function reportFor(assertions) {
+  const report = redFixture();
+  report.testResults[0].assertionResults = assertions;
+  report.numTotalTests = assertions.length;
+  report.numFailedTests = assertions.filter((test) => test.status === "failed").length;
+  report.numPassedTests = assertions.filter((test) => test.status === "passed").length;
+  report.numPendingTests = assertions.filter((test) => ["pending", "skipped"].includes(test.status)).length;
+  report.numTodoTests = assertions.filter((test) => test.status === "todo").length;
+  report.success = report.numFailedTests === 0;
+  report.numPassedTestSuites = report.success ? 2 : 0;
+  report.numFailedTestSuites = report.success ? 0 : 2;
+  report.testResults[0].status = report.success ? "passed" : "failed";
+  return report;
+}
 
 const config = {
   version: 1,
@@ -182,6 +206,116 @@ test("counts only current configured human approvals", () => {
   });
 });
 
+  test("comments and pending reviews preserve decisive decisions; dismissal and new heads invalidate approvals", () => {
+    const policy = { minimumApprovals: 1, reviewers: { users: ["alice"], teams: [] } };
+    const make = (id, state, login = "alice", commit_id = "head") =>
+      ({ id, state, user: { login, type: "User" }, commit_id });
+    const aggregate = (reviews) => countHumanApprovals(reviews, policy, "agent", [], "head");
+    assert.equal(aggregate([make(1, "APPROVED"), make(2, "COMMENTED"), make(3, "PENDING")]).satisfied, true);
+    assert.equal(aggregate([make(1, "CHANGES_REQUESTED"), make(2, "COMMENTED")]).satisfied, false);
+    assert.equal(aggregate([make(1, "APPROVED"), make(2, "DISMISSED"), make(3, "COMMENTED")]).satisfied, false);
+    assert.equal(aggregate([make(3, "APPROVED", "ALICE"), make(2, "DISMISSED"), make(1, "CHANGES_REQUESTED")]).satisfied, true);
+    assert.equal(aggregate([make(1, "APPROVED", "alice", "old-head")]).satisfied, false);
+    assert.deepEqual(aggregate([make(1, "CHANGES_REQUESTED", "alice", "old-head")]).changesRequested, ["alice"]);
+  });
+
+  test("rejects real Vitest collection errors alongside legitimate expected Red assertions", () => {
+    const report = redFixture();
+    const expected = new Set(["TicketStore assigns a ticket", "TicketStore filters assignees"]);
+    assert.deepEqual(validateVitestRed(report, expected), [...expected]);
+    report.testResults.push(JSON.parse(readFileSync(
+      new URL("./fixtures/vitest-collection-error.json", import.meta.url), "utf8",
+    )));
+    assert.throws(() => validateVitestRed(report, expected), /collection or runtime error/);
+    report.testResults[1].message = "";
+    assert.throws(() => validateVitestRed(report, expected), /collection or runtime error/);
+  });
+
+  test("rejects malformed, runtime, skipped, duplicate and inconsistent Red evidence", () => {
+    const expected = new Set(["TicketStore assigns a ticket", "TicketStore filters assignees"]);
+    for (const bad of [
+      null, {}, { testResults: [] },
+      { ...redFixture(), numTotalTests: 900 },
+      { ...redFixture(), unhandledErrors: ["Unhandled rejection"] },
+      { ...redFixture(), numRuntimeErrorTestSuites: 1 },
+      { ...redFixture(), testResults: [{ status: "failed", assertionResults: {} }] },
+    ]) {
+      assert.throws(() => validateVitestRed(bad, expected));
+    }
+    for (const status of ["skipped", "pending", "todo", "passed"]) {
+      const assertions = redFixture().testResults[0].assertionResults;
+      assertions[0].status = status;
+      assert.throws(() => validateVitestRed(reportFor(assertions), expected), /Red test mismatch/);
+    }
+    const assertions = redFixture().testResults[0].assertionResults;
+    assertions.push({ ...assertions[0], status: "passed" });
+    assert.throws(() => validateVitestRed(reportFor(assertions), expected), /Duplicate expected/);
+  });
+
+  test("captures errors missing from the stock Vitest JSON reporter", () => {
+    const path = join(import.meta.dirname, `.errors-${process.pid}.json`);
+    const previous = process.env.VITEST_ERRORS_REPORT;
+    process.env.VITEST_ERRORS_REPORT = path;
+    try {
+      const reporter = new LifecycleErrorsReporter();
+      reporter.onTestRunEnd([], [], "failed");
+      validateVitestRunErrors(JSON.parse(readFileSync(path, "utf8")));
+      reporter.onTestRunEnd([{ task: {
+        type: "suite", tasks: [{ type: "suite", result: { errors: [{ message: "beforeAll failed" }] } }],
+      } }], [{ message: "unhandled rejection" }], "failed");
+      const evidence = JSON.parse(readFileSync(path, "utf8"));
+      assert.deepEqual(evidence.suiteErrors, ["beforeAll failed"]);
+      assert.deepEqual(evidence.unhandledErrors, ["unhandled rejection"]);
+      assert.throws(() => validateVitestRunErrors(evidence), /runtime, unhandled/);
+      assert.throws(() => validateVitestRunErrors({ reason: "interrupted", suiteErrors: [], unhandledErrors: [] }));
+      assert.throws(() => validateVitestRunErrors({ reason: "failed" }));
+    } finally {
+      if (previous === undefined) delete process.env.VITEST_ERRORS_REPORT;
+      else process.env.VITEST_ERRORS_REPORT = previous;
+      rmSync(path, { force: true });
+    }
+  });
+
+  test("freezes approved test blobs while allowing implementation and tests in new files", () => {
+    const cwd = join(import.meta.dirname, `.git-fixture-${process.pid}`);
+    mkdirSync(cwd);
+    const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+    const tree = (files) => {
+      git("read-tree", "--empty");
+      for (const [path, content] of Object.entries(files)) {
+        const sha = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd, input: content, encoding: "utf8" }).trim();
+        git("update-index", "--add", "--cacheinfo", "100644", sha, path);
+      }
+      return git("write-tree");
+    };
+    try {
+      git("init", "--quiet");
+      const paths = artifactPaths(42);
+      const testPath = "demos/it-service-desk/src/ticket.test.ts";
+      const approved = {
+        [paths.spec]: specification, [paths.plan]: plan, [paths.expectedFailures]: "{}",
+        [testPath]: 'test("approved acceptance", () => expect(actual).toBe("alice"))',
+      };
+      const approvedTree = tree(approved);
+      const implementation = {
+        ...approved,
+        "demos/it-service-desk/src/ticket.ts": "export const actual = 'alice';",
+        "demos/it-service-desk/src/new.test.ts": 'test("additional", () => expect(1).toBe(1))',
+      };
+      assert.equal(validateApprovedFiles(42, config.project.path, approvedTree, tree(implementation), cwd).length, 4);
+      assert.throws(() => validateApprovedFiles(42, config.project.path, approvedTree, tree({
+        ...implementation, [testPath]: 'test("approved acceptance", () => expect(true).toBe(true))',
+      }), cwd), /Approved file was modified/);
+      const renamed = { ...implementation, "demos/it-service-desk/src/renamed.test.ts": approved[testPath] };
+      delete renamed[testPath];
+      assert.throws(() => validateApprovedFiles(42, config.project.path, approvedTree, tree(renamed), cwd), /deleted or renamed/);
+      delete renamed["demos/it-service-desk/src/renamed.test.ts"];
+      assert.throws(() => validateApprovedFiles(42, config.project.path, approvedTree, tree(renamed), cwd), /deleted or renamed/);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
 test("validates specification scenarios and implementation plan dependencies", () => {
   const acceptance = validateSpecification(specification);
   assert.deepEqual(acceptance, ["AC-1", "AC-2"]);
@@ -209,35 +343,23 @@ test("validates expected failures and exact Vitest Red evidence", () => {
     "TicketStore assigns a ticket",
     "TicketStore filters assignees",
   ]);
-  assert.deepEqual(validateVitestRed({
-    testResults: [{
-      assertionResults: [
+  assert.deepEqual(validateVitestRed(reportFor([
         { fullName: "TicketStore assigns a ticket", status: "failed" },
         { fullName: "TicketStore filters assignees", status: "failed" },
         { fullName: "TicketStore creates tickets", status: "passed" },
-      ],
-    }],
-  }, expected), [...expected]);
+      ]), expected), [...expected]);
   assert.throws(
-    () => validateVitestRed({
-      testResults: [{
-        assertionResults: [
+    () => validateVitestRed(reportFor([
           { fullName: "TicketStore assigns a ticket", status: "failed" },
           { fullName: "unrelated regression", status: "failed" },
-        ],
-      }],
-    }, expected),
+        ]), expected),
     /Red test mismatch/,
   );
-  assert.deepEqual(validateVitestGreen({
-    testResults: [{
-      assertionResults: [
+  assert.deepEqual(validateVitestGreen(reportFor([
         { fullName: "TicketStore assigns a ticket", status: "passed" },
         { fullName: "TicketStore filters assignees", status: "passed" },
         { fullName: "TicketStore creates tickets", status: "passed" },
-      ],
-    }],
-  }, expected), [...expected]);
+      ]), expected), [...expected]);
 });
 
 test("restricts files by lifecycle stage", () => {
@@ -322,4 +444,33 @@ test("keeps staged workflows and trusted boundaries synchronized", () => {
   assert.match(stageCi, /expected controlled Red/);
   assert.match(stageCi, /Validate expected Red tests are Green/);
   assert.match(delivery, /Delivery Stage: implementation/);
+  assert.match(delivery, /grep --fixed-strings 'data-testid="service-desk-dashboard"'/);
+  assert.doesNotMatch(delivery, /IT support tickets/);
+  assert.match(delivery, /DELIVERY_RETRY: "true"/);
+  assert.match(stageCi, /types: \[opened, reopened, synchronize, edited, ready_for_review, converted_to_draft\]/);
+  assert.match(stageCi, /stage-validation:\s+if: always\(\)/);
+  assert.doesNotMatch(stageCi, /if: contains\(github.event.pull_request.body/);
+  assert.match(stageCi, /git diff --name-only --no-renames/);
+  assert.match(stageCi, /base.sha }}\.\.\.\$\{\{ github.event.pull_request.head.sha/);
+  assert.match(stageCi, /validate-stage.mjs approved/);
+  assert.match(stageCi, /vitest-errors-reporter.mjs/);
+  assert.match(coordinator, /statuses: write/);
+  assert.match(coordinator, /workflow_run:/);
+  assert.match(coordinator, /every run reconciles all open PRs/);
+  assert.match(coordinator, /cancel-in-progress: false/);
+  assert.doesNotMatch(coordinator, /pull_request_review:/);
+  const signal = readFileSync(".github/workflows/brownfield-human-gated-delivery-review-signal.yml", "utf8");
+  assert.match(signal, /types: \[submitted, dismissed, edited\]/);
+  assert.match(signal, /permissions: \{\}/);
+  assert.doesNotMatch(signal, /checkout|secrets\./);
+  const aggregate = stageCi.slice(stageCi.indexOf("  stage-validation:"))
+    .split("run: |\n")[1].replace(/^ {10}/gm, "");
+  const runAggregate = (env) => execFileSync("bash", ["-e", "-c", aggregate], {
+    env: { ...process.env, CLASSIFY: "success", LIFECYCLE: "true", STAGE: "tests", RED: "success", ...env },
+    stdio: "pipe",
+  });
+  assert.doesNotThrow(() => runAggregate({ LIFECYCLE: "false", STAGE: "", RED: "skipped" }));
+  assert.doesNotThrow(() => runAggregate({}));
+  assert.throws(() => runAggregate({ CLASSIFY: "failure", LIFECYCLE: "false" }));
+  assert.throws(() => runAggregate({ RED: "skipped" }));
 });

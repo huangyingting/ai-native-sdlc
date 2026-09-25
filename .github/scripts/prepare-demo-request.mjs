@@ -56,11 +56,43 @@ export const supportedPatterns = [
   },
 ];
 
-function extractFormSection(body, label) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = String(body ?? "").match(new RegExp(`(?:^|\\n)### ${escaped}\\r?\\n+([\\s\\S]*?)(?=\\r?\\n### |$)`, "i"));
-  const content = match?.[1].trim();
-  return content && content !== "_No response_" ? content : "";
+const formLabels = [
+  "Orchestration pattern", "Orchestration demo", "Orchestration scenario",
+  "Orchestrator model", "Subagent model", "Internet access",
+  "Task or question", "Comparison task", "Agent instructions",
+  "Trace detail", "Trace content",
+];
+
+function extractFormSections(body) {
+  const sections = new Map();
+  let content;
+  let fence = "";
+  for (const line of String(body ?? "").split(/\r?\n/)) {
+    if (fence) {
+      if (new RegExp(`^ {0,3}${fence[0]}{${fence.length},}\\s*$`).test(line)) fence = "";
+      content?.push(line);
+      continue;
+    }
+    const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (openingFence) {
+      fence = openingFence[1];
+      content?.push(line);
+      continue;
+    }
+    const heading = line.match(/^### (.+?)\s*$/)?.[1];
+    const label = formLabels.find((candidate) => candidate.toLowerCase() === heading?.toLowerCase());
+    if (label) {
+      if (sections.has(label)) throw new Error(`Duplicate issue form field: ${label}`);
+      content = [];
+      sections.set(label, content);
+    } else {
+      content?.push(line);
+    }
+  }
+  return new Map([...sections].map(([label, lines]) => {
+    const value = lines.join("\n").trim();
+    return [label, value === "_No response_" ? "" : value];
+  }));
 }
 
 function validateModel(model, field) {
@@ -82,10 +114,10 @@ function findPattern(label) {
   return selected;
 }
 
-function resolveIssuePattern(body, labels = []) {
-  const explicitLabel = extractFormSection(body, "Orchestration pattern")
-    || extractFormSection(body, "Orchestration demo")
-    || extractFormSection(body, "Orchestration scenario");
+function resolveIssuePattern(sections, labels = []) {
+  const explicitLabel = sections.get("Orchestration pattern")
+    || sections.get("Orchestration demo")
+    || sections.get("Orchestration scenario");
   const patternIds = labels
     .map((label) => typeof label === "string" ? label : label?.name)
     .filter((label) => label?.startsWith("copilot-pattern:"))
@@ -103,13 +135,14 @@ function resolveIssuePattern(body, labels = []) {
 }
 
 export function parseIssueRequest(body, labels = []) {
-  const selectedPattern = resolveIssuePattern(body, labels);
-  const orchestratorModel = validateModel(extractFormSection(body, "Orchestrator model"), "orchestrator model");
-  const subagentModel = validateModel(extractFormSection(body, "Subagent model"), "subagent model");
-  const customPrompt = extractFormSection(body, "Task or question") || extractFormSection(body, "Comparison task");
+  const sections = extractFormSections(body);
+  const selectedPattern = resolveIssuePattern(sections, labels);
+  const orchestratorModel = validateModel(sections.get("Orchestrator model"), "orchestrator model");
+  const subagentModel = validateModel(sections.get("Subagent model"), "subagent model");
+  const customPrompt = sections.get("Task or question") || sections.get("Comparison task");
   const prompt = customPrompt || selectedPattern.defaultPrompt;
-  const guidance = extractFormSection(body, "Agent instructions");
-  const capture = extractFormSection(body, "Trace detail") || extractFormSection(body, "Trace content");
+  const guidance = sections.get("Agent instructions");
+  const capture = sections.get("Trace detail") || sections.get("Trace content");
   return completeRequest({
     pattern: selectedPattern.id,
     patternLabel: selectedPattern.label,
@@ -118,7 +151,7 @@ export function parseIssueRequest(body, labels = []) {
     orchestratorModel,
     subagentModel,
     prompt,
-    allowedUrl: validateAllowedUrl(extractFormSection(body, "Internet access")),
+    allowedUrl: validateAllowedUrl(sections.get("Internet access")),
     includeMessages: /Include redacted request and response payloads/.test(capture),
   });
 }

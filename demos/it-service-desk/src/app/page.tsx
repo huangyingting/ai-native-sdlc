@@ -51,7 +51,7 @@ export default async function Dashboard({
   const summary = store.summary();
 
   return (
-    <main>
+    <main data-testid="service-desk-dashboard">
       <div className="shell">
         <div className="page-heading dashboard-heading">
           <div>

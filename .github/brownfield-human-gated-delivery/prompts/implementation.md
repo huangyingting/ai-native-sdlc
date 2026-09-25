@@ -1,5 +1,8 @@
 Read the approved specification, plan, tests, and expected-failure manifest.
 Implement the planned tasks without weakening or rewriting those artifacts.
+CI compares approved artifact and test-file blobs against the lifecycle branch.
+Do not edit, delete, or rename approved test files. Add any additional tests in
+new files instead.
 
 Make every expected Red test Green, preserve all existing tests, and run the
 configured test, lint, build, and container validation. Keep the solution

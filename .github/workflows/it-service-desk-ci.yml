@@ -68,7 +68,7 @@ jobs:
       - name: Smoke test dashboard
         run: |
           curl --fail --silent http://127.0.0.1:3000/ \
-            | grep --fixed-strings "IT support tickets" >/dev/null
+            | grep --fixed-strings 'data-testid="service-desk-dashboard"' >/dev/null
       - name: Show container logs
         if: failure() && steps.container.outputs.container-id != ''
         run: docker logs "${{ steps.container.outputs.container-id }}"

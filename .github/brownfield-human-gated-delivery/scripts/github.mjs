@@ -17,6 +17,8 @@ const intentLabel = `${demoName}:intent`;
 const stageLabelPrefix = `${demoName}:`;
 const stageWorkItemLabel = `${demoName}:stage`;
 const progressMarker = `<!-- ${demoName}-progress -->`;
+const policyMarker = `<!-- ${demoName}-policy -->`;
+export const policyStatus = "Brownfield delivery policy";
 
 function readEvent() {
   const path = process.env.GITHUB_EVENT_PATH;
@@ -361,7 +363,7 @@ async function getParentIssue(token, owner, repo, stageIssueNumber) {
   );
 }
 
-async function validateStageContext(token, owner, repo, pullRequest) {
+async function validateStageContext(token, owner, repo, pullRequest, { deliveryRetry = false } = {}) {
   const metadata = parsePullRequestMetadata(pullRequest.body);
   const stageIssue = await githubRequest(
     token,
@@ -382,7 +384,10 @@ async function validateStageContext(token, owner, repo, pullRequest) {
   if (parent.number !== metadata.intentNumber || !hasLabel(parent, intentLabel)) {
     throw new Error("Pull request metadata does not match its parent Intent.");
   }
-  if (parent.state !== "open") throw new Error("Parent Intent is not open.");
+  if (parent.state !== "open" &&
+      !(deliveryRetry && pullRequest.merged && metadata.stage === "implementation")) {
+    throw new Error("Parent Intent is not open.");
+  }
   const stageIssues = await listAll(
     token,
     `/repos/${owner}/${repo}/issues/${parent.number}/sub_issues`,
@@ -406,6 +411,9 @@ async function validateStageContext(token, owner, repo, pullRequest) {
     throw new Error("The stage Issue is not assigned to Copilot Coding Agent.");
   }
   const repository = await githubRequest(token, `/repos/${owner}/${repo}`);
+  if (pullRequest.head?.repo?.full_name?.toLowerCase() !== `${owner}/${repo}`.toLowerCase()) {
+    throw new Error("Stage pull requests must use a branch in this repository.");
+  }
   const lifecycle = lifecycleBranch(parent.number);
   const allowedBase = metadata.stage === "implementation"
     ? [lifecycle, repository.default_branch]
@@ -414,6 +422,9 @@ async function validateStageContext(token, owner, repo, pullRequest) {
     throw new Error(
       `${metadata.stage} PR targets ${pullRequest.base.ref}; expected ${allowedBase.join(" or ")}.`,
     );
+  }
+  if (deliveryRetry && pullRequest.base.ref !== repository.default_branch) {
+    throw new Error("Delivery requires an implementation merged into the default branch.");
   }
   if (!pullRequest.user?.login?.includes("copilot-swe-agent")) {
     throw new Error("Stage pull requests must be created by Copilot Coding Agent.");
@@ -506,19 +517,20 @@ export async function kickoff() {
   });
 }
 
-export async function intake() {
+export async function intake(currentPullRequest) {
   const event = readEvent();
   const config = loadConfig();
   const token = process.env.GITHUB_TOKEN;
   const { owner, repo } = repositoryCoordinates();
-  const pullRequest = event.pull_request;
+  const pullRequest = currentPullRequest ?? event.pull_request;
   if (!pullRequest) throw new Error("Pull request event is required.");
   const context = await validateStageContext(token, owner, repo, pullRequest);
   if (
     context.metadata.stage === "implementation" &&
     pullRequest.base.ref !== context.repository.default_branch
   ) {
-    await githubRequest(token, `/repos/${owner}/${repo}/pulls/${pullRequest.number}`, {
+    // A GITHUB_TOKEN edit suppresses the pull_request CI run for the new base.
+    await githubRequest(process.env.COPILOT_ASSIGN_TOKEN, `/repos/${owner}/${repo}/pulls/${pullRequest.number}`, {
       method: "PATCH",
       body: JSON.stringify({ base: context.repository.default_branch }),
     });
@@ -550,69 +562,198 @@ export async function intake() {
   });
 }
 
-export async function review() {
+async function writePolicyStatus(token, owner, repo, pullRequest, state, description) {
+  if (!pullRequest.head?.sha) throw new Error("Pull request head SHA is required.");
+  await githubRequest(token, `/repos/${owner}/${repo}/statuses/${pullRequest.head.sha}`, {
+    method: "POST",
+    body: JSON.stringify({
+      context: policyStatus,
+      state,
+      description: description.slice(0, 140),
+      target_url: pullRequest.html_url,
+    }),
+  });
+}
+
+async function disableAutoMerge(token, pullRequest) {
+  if (!pullRequest.auto_merge) return;
+  await graphql(token, `
+    mutation DisableAutoMerge($pullRequestId: ID!) {
+      disablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId}) {
+        pullRequest { id }
+      }
+    }
+  `, { pullRequestId: pullRequest.node_id });
+}
+
+async function getPullRequest(token, owner, repo, number) {
+  return githubRequest(token, `/repos/${owner}/${repo}/pulls/${number}`);
+}
+
+async function lifecycleRegistration(token, owner, repo, pullRequest, event) {
+  const comments = await listAll(token, `/repos/${owner}/${repo}/issues/${pullRequest.number}/comments`);
+  const registered = comments.some((comment) => comment.body?.includes(policyMarker));
+  const candidate = registered || [
+    pullRequest.body, event.pull_request?.body, event.changes?.body?.from,
+  ].some((body) => /Delivery (?:Demo|Intent|Stage):/i.test(body ?? "")) ||
+    [pullRequest.base?.ref, event.changes?.base?.ref?.from]
+      .some((ref) => ref?.startsWith("brownfield-delivery/"));
+  return { candidate, registered };
+}
+
+export async function classify() {
+  const event = readEvent();
+  const { owner, repo } = repositoryCoordinates();
+  const token = process.env.GITHUB_TOKEN;
+  const pullRequest = await getPullRequest(token, owner, repo, event.pull_request.number);
+  const { candidate } = await lifecycleRegistration(token, owner, repo, pullRequest, event);
+  appendOutput("lifecycle", candidate);
+  if (!candidate) return;
+  if (pullRequest.head.sha !== event.pull_request.head.sha) throw new Error("PR head changed; run current CI.");
+  const metadata = parsePullRequestMetadata(pullRequest.body);
+  appendOutput("intent", metadata.intentNumber);
+  appendOutput("stage", metadata.stage);
+  appendOutput("stage-issue", metadata.stageIssueNumber);
+}
+
+export async function coordinate() {
+  const event = readEvent();
+  const token = process.env.GITHUB_TOKEN;
+  const { owner, repo } = repositoryCoordinates();
+  if (event.workflow_run && !["pull_request_review", "pull_request"].includes(event.workflow_run.event)) {
+    return;
+  }
+  // GitHub replaces pending runs in a concurrency group. Every surviving run
+  // must reconcile all open PRs, not just the event that happened to survive.
+  const candidates = await listAll(token, `/repos/${owner}/${repo}/pulls?state=open`);
+  const failures = [];
+  for (const candidate of candidates) {
+    let pullRequest = candidate;
+    try {
+      pullRequest = await getPullRequest(token, owner, repo, candidate.number);
+      if (pullRequest.state !== "open") continue;
+      const ownEvent = event.pull_request?.number === candidate.number ? event : {};
+      const registration = await lifecycleRegistration(token, owner, repo, pullRequest, ownEvent);
+      if (!registration.candidate) {
+        await writePolicyStatus(token, owner, repo, pullRequest, "success", "Not a lifecycle pull request");
+        continue;
+      }
+      await writePolicyStatus(token, owner, repo, pullRequest, "pending", "Re-evaluating current lifecycle policy");
+      if (!registration.registered) {
+        await githubRequest(token, `/repos/${owner}/${repo}/issues/${pullRequest.number}/comments`, {
+          method: "POST",
+          body: JSON.stringify({ body: `${policyMarker}\nThis PR is registered for lifecycle policy validation; removing body markers does not opt out.` }),
+        });
+      }
+      if (!registration.registered || ownEvent.pull_request ||
+          (stageFromBody(pullRequest.body) === "implementation" &&
+           pullRequest.base.ref === lifecycleBranch(intentFromBody(pullRequest.body)))) {
+        await intake(pullRequest);
+      }
+      await review(candidate.number);
+    } catch (error) {
+      failures.push(error);
+      try {
+        pullRequest = await getPullRequest(token, owner, repo, candidate.number);
+      } catch (refreshError) {
+        failures.push(refreshError);
+      }
+      try {
+        await Promise.all([
+          writePolicyStatus(token, owner, repo, pullRequest, "failure", "Lifecycle validation failed; inspect coordinator logs"),
+          disableAutoMerge(process.env.COPILOT_ASSIGN_TOKEN, pullRequest),
+        ]);
+      } catch (invalidationError) {
+        failures.push(invalidationError);
+      }
+    }
+  }
+  if (failures.length) {
+    throw new AggregateError(failures, failures.map((error) => error.message).join("; "));
+  }
+}
+
+export async function review(pullRequestNumber) {
   const event = readEvent();
   const config = loadConfig();
   const token = process.env.GITHUB_TOKEN;
   const mergeToken = process.env.COPILOT_ASSIGN_TOKEN;
   const { owner, repo } = repositoryCoordinates();
-  const pullRequest = event.pull_request;
+  const number = pullRequestNumber ?? event.pull_request?.number;
+  const pullRequest = number ? await getPullRequest(token, owner, repo, number) : null;
   if (!pullRequest) throw new Error("Pull request review event is required.");
-  const context = await validateStageContext(token, owner, repo, pullRequest);
-  const policy = config.stages[context.metadata.stage];
-  const reviews = await listAll(
-    token,
-    `/repos/${owner}/${repo}/pulls/${pullRequest.number}/reviews`,
-  );
-  const teamMembers = await resolveTeamMembers(
-    token,
-    owner,
-    policy.reviewers.teams,
-  );
-  const approval = countHumanApprovals(
-    reviews,
-    policy,
-    pullRequest.user.login,
-    teamMembers,
-  );
-  if (!approval.satisfied) {
-    const status = approval.changesRequested.length
-      ? `Changes requested by ${approval.changesRequested.join(", ")}`
-      : `${approval.approved.length}/${policy.minimumApprovals} human approvals`;
+  if (pullRequest.state !== "open") return;
+  try {
+    await writePolicyStatus(token, owner, repo, pullRequest, "pending", "Evaluating current head and configured reviewers");
+    const context = await validateStageContext(token, owner, repo, pullRequest);
+    const policy = config.stages[context.metadata.stage];
+    const reviews = await listAll(
+      token,
+      `/repos/${owner}/${repo}/pulls/${pullRequest.number}/reviews`,
+    );
+    const teamMembers = await resolveTeamMembers(
+      mergeToken,
+      owner,
+      policy.reviewers.teams,
+    );
+    const approval = countHumanApprovals(
+      reviews,
+      policy,
+      pullRequest.user.login,
+      teamMembers,
+      pullRequest.head.sha,
+    );
+    const refreshed = await getPullRequest(token, owner, repo, pullRequest.number);
+    if (refreshed.head.sha !== pullRequest.head.sha || refreshed.body !== pullRequest.body ||
+        refreshed.base.ref !== pullRequest.base.ref || refreshed.draft !== pullRequest.draft ||
+        refreshed.state !== "open") {
+      await writePolicyStatus(token, owner, repo, refreshed, "pending", "PR changed during evaluation; waiting for current validation");
+      await disableAutoMerge(mergeToken, refreshed);
+      return;
+    }
+    if (!approval.satisfied || pullRequest.draft) {
+      const status = pullRequest.draft ? "Draft PR requires review" : approval.changesRequested.length
+        ? `Changes requested by ${approval.changesRequested.join(", ")}`
+        : `${approval.approved.length}/${policy.minimumApprovals} human approvals`;
+      await writePolicyStatus(token, owner, repo, pullRequest, "failure", status);
+      await disableAutoMerge(mergeToken, refreshed);
+      await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
+        stage: context.metadata.stage,
+        status,
+        pullRequestUrl: pullRequest.html_url,
+      });
+      return;
+    }
+    // Keep the required policy pending: already-clean PRs can reject enabling auto-merge.
+    if (!refreshed.auto_merge) {
+      await graphql(mergeToken, `
+        mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+          enablePullRequestAutoMerge(input: {
+            pullRequestId: $pullRequestId,
+            mergeMethod: $mergeMethod
+          }) {
+            pullRequest { id autoMergeRequest { enabledAt } }
+          }
+        }
+      `, {
+        pullRequestId: refreshed.node_id,
+        mergeMethod: config.mergeMethod.toUpperCase(),
+      });
+    }
+    await writePolicyStatus(token, owner, repo, pullRequest, "success", "Configured human approvals satisfied on this head");
     await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
       stage: context.metadata.stage,
-      status,
+      status: "Human approved; waiting for required checks and auto-merge",
       pullRequestUrl: pullRequest.html_url,
     });
-    return;
+  } catch (error) {
+    const refreshed = await getPullRequest(token, owner, repo, pullRequest.number);
+    await Promise.all([
+      writePolicyStatus(token, owner, repo, refreshed, "failure", "Lifecycle policy evaluation failed"),
+      disableAutoMerge(mergeToken, refreshed),
+    ]);
+    throw error;
   }
-  const refreshed = await githubRequest(
-    token,
-    `/repos/${owner}/${repo}/pulls/${pullRequest.number}`,
-  );
-  if (refreshed.draft) {
-    throw new Error("A draft stage pull request cannot be approved for auto-merge.");
-  }
-  if (!refreshed.auto_merge) {
-    await graphql(mergeToken, `
-      mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-        enablePullRequestAutoMerge(input: {
-          pullRequestId: $pullRequestId,
-          mergeMethod: $mergeMethod
-        }) {
-          pullRequest { id autoMergeRequest { enabledAt } }
-        }
-      }
-    `, {
-      pullRequestId: refreshed.node_id,
-      mergeMethod: config.mergeMethod.toUpperCase(),
-    });
-  }
-  await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
-    stage: context.metadata.stage,
-    status: "Human approved; waiting for required checks and auto-merge",
-    pullRequestUrl: pullRequest.html_url,
-  });
 }
 
 export async function advance() {
@@ -677,6 +818,7 @@ export async function verify() {
     owner,
     repo,
     event.pull_request,
+    { deliveryRetry: process.env.DELIVERY_RETRY === "true" },
   );
   appendOutput("intent", context.metadata.intentNumber);
   appendOutput("stage", context.metadata.stage);
@@ -689,7 +831,7 @@ export async function delivery() {
   const { owner, repo } = repositoryCoordinates();
   const pullRequest = event.pull_request;
   if (!pullRequest?.merged) throw new Error("Delivery requires a merged pull request.");
-  const context = await validateStageContext(token, owner, repo, pullRequest);
+  const context = await validateStageContext(token, owner, repo, pullRequest, { deliveryRetry: true });
   if (context.metadata.stage !== "implementation") {
     throw new Error("Only an implementation PR can complete delivery.");
   }
@@ -725,12 +867,29 @@ export async function delivery() {
         "",
         "The Intent remains open and the lifecycle branch is retained for remediation.",
       ].join("\n");
-  await githubRequest(
-    token,
-    `/repos/${owner}/${repo}/issues/${context.parent.number}/comments`,
-    { method: "POST", body: JSON.stringify({ body }) },
-  );
+  const receiptMarker = `<!-- ${demoName}-delivery:${pullRequest.number} -->`;
+  const comments = await listAll(token, `/repos/${owner}/${repo}/issues/${context.parent.number}/comments`);
+  const receipt = comments.find((comment) => comment.body?.includes(receiptMarker));
+  await githubRequest(token, receipt
+    ? `/repos/${owner}/${repo}/issues/comments/${receipt.id}`
+    : `/repos/${owner}/${repo}/issues/${context.parent.number}/comments`, {
+    method: receipt ? "PATCH" : "POST",
+    body: JSON.stringify({ body: `${receiptMarker}\n${body}` }),
+  });
   if (!success) {
+    try {
+      await githubRequest(token,
+        `/repos/${owner}/${repo}/git/ref/heads/${lifecycleBranch(context.parent.number)}`);
+    } catch (error) {
+      if (!error.message.includes("(404)")) throw error;
+      await githubRequest(token, `/repos/${owner}/${repo}/git/refs`, {
+        method: "POST",
+        body: JSON.stringify({
+          ref: `refs/heads/${lifecycleBranch(context.parent.number)}`,
+          sha: pullRequest.merge_commit_sha,
+        }),
+      });
+    }
     if (context.parent.state === "closed") {
       await githubRequest(
         token,
@@ -763,14 +922,27 @@ export async function delivery() {
       },
     );
   }
-  await githubRequest(
-    token,
-    `/repos/${owner}/${repo}/git/refs/heads/${lifecycleBranch(context.parent.number)}`,
-    { method: "DELETE" },
-  );
+  try {
+    await githubRequest(
+      token,
+      `/repos/${owner}/${repo}/git/refs/heads/${lifecycleBranch(context.parent.number)}`,
+      { method: "DELETE" },
+    );
+  } catch (error) {
+    // An already-deleted ref is success; permissions and other failures must still surface.
+    if (!/\((404|422)\)/.test(error.message)) throw error;
+    try {
+      await githubRequest(token,
+        `/repos/${owner}/${repo}/git/ref/heads/${lifecycleBranch(context.parent.number)}`);
+    } catch (readError) {
+      if (readError.message.includes("(404)")) return;
+      throw readError;
+    }
+    throw error;
+  }
 }
 
-const commands = { kickoff, intake, review, advance, verify, delivery };
+const commands = { kickoff, intake, review, advance, verify, delivery, classify, coordinate };
 const command = process.argv[2];
 if (
   process.argv[1] &&

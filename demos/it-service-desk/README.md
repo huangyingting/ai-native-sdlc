@@ -11,6 +11,18 @@ Issue-to-PR workflow with GitHub Copilot.
 - Move a ticket through open, in-progress, resolved, and closed states.
 - Persist data in a local SQLite database.
 
+Search matches titles, requester names, and ticket references such as `INC-0001`
+(case-insensitive). Numeric IDs and shortened references such as `1`, `0001`,
+and `inc-1` also work; surrounding whitespace is ignored. Status and priority
+filters still apply to search results.
+
+The custom dropdowns keep keyboard focus on a labeled combobox. Open with
+Enter, Space, or an arrow key; navigate with arrow keys, Home/End, or
+typeahead. Enter/Space commits, Escape cancels uncommitted navigation, and
+Tab/Shift+Tab commits and moves focus normally. Clicking outside or moving
+focus away also commits and closes the popup. Menus remain visible above
+short or empty ticket queues.
+
 The application intentionally stops at a practical first release. Assignment,
 SLA policies, comments, audit history, access control, notifications, and
 reporting are suitable follow-up GitHub Issues for live Copilot demos.
@@ -35,8 +47,14 @@ Delete that file to reset the demo data.
 ```powershell
 npm test
 npm run lint
+npx tsc --noEmit --incremental false
 npm run build
 ```
+
+Unit tests use in-memory databases and a jsdom environment for dropdown and
+dashboard regressions; they do not modify `data/service-desk.db`. The
+container smoke check targets the stable dashboard HTML marker
+`data-testid="service-desk-dashboard"`, not the visible heading text.
 
 ## Suggested Brownfield Delivery Intent
 

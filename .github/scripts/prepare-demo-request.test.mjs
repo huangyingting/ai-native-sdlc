@@ -3,6 +3,82 @@ import { strict as assert } from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
 import { parseIssueRequest, supportedPatterns } from "./prepare-demo-request.mjs";
 
+const modelFields = `### Orchestrator model
+
+gpt-6-luna
+
+### Subagent model
+
+gpt-6-luna`;
+
+test("preserves Markdown headings and constraints inside task and guidance fields", () => {
+  const prompt = "Review this request:\n\n### Requirements\n\nOnly inspect tools; do not examine demos.\n\n### Validation\n\nReport evidence.";
+  const guidance = "Keep the review focused.\n\n### Boundaries\n\nDo not make changes.";
+  const request = parseIssueRequest(`${modelFields}
+
+### Task or question
+
+${prompt}
+
+### Agent instructions
+
+${guidance}
+
+### Trace detail
+
+Metadata only`);
+  assert.equal(request.prompt, prompt);
+  assert.ok(request.instruction.includes(guidance));
+  assert.equal(request.includeMessages, false);
+});
+
+test("preserves form-like headings in fenced task examples", () => {
+  for (const fence of ["```", "~~~~"]) {
+    const prompt = `Review this example:\n\n${fence}markdown\n### Trace detail\n\nMetadata only\n${fence}\n\nKeep these instructions.`;
+    const request = parseIssueRequest(`${modelFields}
+
+### Task or question
+
+${prompt}
+
+### Trace detail
+
+Include redacted request and response payloads`);
+    assert.equal(request.prompt, prompt);
+    assert.equal(request.includeMessages, true);
+  }
+});
+
+test("preserves legacy task headings with CRLF line endings", () => {
+  const request = parseIssueRequest(`${modelFields}
+
+### Comparison task
+
+Compare services.
+
+### Constraints
+
+Read-only.
+
+### Trace content
+
+_No response_`.replaceAll("\n", "\r\n"));
+  assert.equal(request.prompt, "Compare services.\n\n### Constraints\n\nRead-only.");
+  assert.equal(request.includeMessages, false);
+});
+
+test("rejects ambiguous repeated form fields", () => {
+  assert.throws(() => parseIssueRequest(`${modelFields}
+
+### Task or question
+
+First task.
+
+### Task or question
+
+Second task.`), /Duplicate issue form field: Task or question/);
+});
+
 test("parses a Copilot CLI agent demo issue form", () => {
   const request = parseIssueRequest(`### Orchestration pattern
 

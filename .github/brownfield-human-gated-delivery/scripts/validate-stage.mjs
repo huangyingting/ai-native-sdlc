@@ -1,7 +1,9 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { execFileSync } from "node:child_process";
 import {
   artifactPaths,
+  isTestFile,
   loadConfig,
   parsePullRequestMetadata,
   validateExpectedFailures,
@@ -10,6 +12,7 @@ import {
   validateStageFiles,
   validateVitestGreen,
   validateVitestRed,
+  validateVitestRunErrors,
 } from "./core.mjs";
 
 function appendOutput(name, value) {
@@ -82,6 +85,7 @@ function validateArtifacts() {
 }
 
 function validateRed() {
+  validateVitestRunErrors(JSON.parse(readFileSync(process.env.VITEST_ERRORS_REPORT, "utf8")));
   const intentNumber = Number(process.env.INTENT_NUMBER);
   const paths = artifactPaths(intentNumber);
   const acceptance = validateSpecification(readFileSync(paths.spec, "utf8"));
@@ -105,6 +109,7 @@ function validateRed() {
 }
 
 function validateGreen() {
+  validateVitestRunErrors(JSON.parse(readFileSync(process.env.VITEST_ERRORS_REPORT, "utf8")));
   const intentNumber = Number(process.env.INTENT_NUMBER);
   const paths = artifactPaths(intentNumber);
   const acceptance = validateSpecification(readFileSync(paths.spec, "utf8"));
@@ -127,11 +132,35 @@ function validateGreen() {
   ]);
 }
 
+export function validateApprovedFiles(intentNumber, projectPath, approvedRef, headRef = "HEAD", cwd = process.cwd()) {
+  const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+  const artifacts = artifactPaths(intentNumber);
+  const approved = [artifacts.spec, artifacts.plan, artifacts.expectedFailures];
+  const entries = git("ls-tree", "-r", "-z", "--name-only", approvedRef, "--", projectPath);
+  approved.push(...entries.split("\0").filter((file) => isTestFile(file)));
+  for (const file of approved) {
+    const original = git("rev-parse", "--verify", `${approvedRef}:${file}`);
+    let current;
+    try {
+      current = git("rev-parse", "--verify", `${headRef}:${file}`);
+    } catch {
+      throw new Error(`Approved file was deleted or renamed: ${file}`);
+    }
+    if (original !== current) throw new Error(`Approved file was modified: ${file}`);
+  }
+  return approved;
+}
+
 const commands = {
   metadata: parseMetadata,
   artifacts: validateArtifacts,
   red: validateRed,
   green: validateGreen,
+  approved: () => validateApprovedFiles(
+    Number(process.env.INTENT_NUMBER),
+    loadConfig().project.path,
+    `refs/remotes/origin/brownfield-delivery/${Number(process.env.INTENT_NUMBER)}`,
+  ),
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

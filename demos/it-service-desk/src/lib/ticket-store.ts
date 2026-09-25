@@ -152,9 +152,14 @@ export class TicketStore {
       values.push(filters.priority);
     }
     if (filters.query) {
-      clauses.push("(LOWER(title) LIKE ? OR LOWER(requester_name) LIKE ?)");
-      const query = `%${filters.query.toLowerCase()}%`;
-      values.push(query, query);
+      clauses.push(`(
+        LOWER(title) LIKE ? OR LOWER(requester_name) LIKE ?
+        OR LOWER(printf('INC-%04d', id)) LIKE ? OR CAST(id AS TEXT) = ?
+      )`);
+      const normalizedQuery = filters.query.trim().toLowerCase();
+      const query = `%${normalizedQuery}%`;
+      const referenceId = /^(?:inc-)?0*(\d+)$/.exec(normalizedQuery)?.[1] ?? "";
+      values.push(query, query, query, referenceId);
     }
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const rows = this.database.prepare(`

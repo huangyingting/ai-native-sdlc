@@ -18,6 +18,8 @@ on:
       - ".github/workflows/publish-trace-site.yml"
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"
+      - "tools/brownfield-demo/**"
+      - "demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/**"
       - ".node-version"
       - "package.json"
   push:
@@ -38,6 +40,8 @@ on:
       - ".github/workflows/publish-trace-site.yml"
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"
+      - "tools/brownfield-demo/**"
+      - "demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/**"
       - ".node-version"
       - "package.json"
 

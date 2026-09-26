@@ -961,13 +961,14 @@ export async function delivery() {
     const { RunControl } = await import("./runs.mjs");
     const control = new RunControl({ token, owner, repo, config: loadConfig() });
     const documents = await control.load(context.parent.number);
-    await control.verification(context.parent.number, documents.state.baseline, {
+    const run = await control.verification(context.parent.number, documents.state.baseline, {
       runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
       image: image || "", digest: digest || "", mergeSha: pullRequest.merge_commit_sha,
       pullNumber: pullRequest.number, runUrl, verified: success,
     });
     await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
-      stage: "implementation", status: success ? "Verified; awaiting Human acceptance" : "Verification failed",
+      stage: "implementation", status: run.state.status === "accepted" ? "Complete; Human accepted" :
+        success ? "Verified; awaiting Human acceptance" : "Verification failed",
       pullRequestUrl: pullRequest.html_url,
     });
     if (!success) throw new Error("Delivery verification failed; Human acceptance remains blocked.");

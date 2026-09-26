@@ -15,6 +15,10 @@ The repository keeps runnable demonstrations separate from reusable tooling:
   path-scoped CI.
 - [`tools/trace-viewer/`](../tools/trace-viewer/) contains the dependency-free
   trace model, renderer, local composite action, and shared Pages client.
+- [`tools/brownfield-demo/`](../tools/brownfield-demo/README.md) contains the
+  reusable preparation, preflight, container-presentation, and replay CLI.
+  Demo-owned scenario manifests live under
+  [`demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/`](../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/).
 - [`docs/`](./) contains operational and orchestration documentation.
 - [`AGENTS.md`](../AGENTS.md) defines repository-wide agent guidance. Nested
   instruction files add project-specific rules.
@@ -23,7 +27,7 @@ Demo projects are intentionally not npm workspaces. This allows future
 TypeScript and JavaScript demonstrations to use different frameworks,
 dependency versions, and runtimes without coupling their dependency graphs.
 The root package remains dependency-free and exposes repository checks and the
-brownfield prerequisite setup command.
+brownfield setup and presentation commands.
 
 ## Naming conventions
 
@@ -90,23 +94,27 @@ and explicit Human commands all stay there until engineering handoff.
 (`brownfield-human-gated-delivery-documents.yml`) runs read-only Copilot CLI
 generation in Actions, with separate trusted publication and approval jobs.
 It does not build the application or introduce an external service, UI, or
-package.
+application dependency. The optional local presentation toolkit is separate
+from this Actions workflow.
 
 The repository's custom Actions commands are `/sdlc revise spec` and
 `/sdlc revise plan` followed by feedback on subsequent lines, and versioned
 approvals such as `/sdlc approve spec v2` and `/sdlc approve plan v1`.
 Submit them as new top-level Human comments on the parent Intent. They are
 not built-in `@copilot` commands; ordinary discussion does not invoke AI or
-approve a document. `/sdlc retry` resumes failed generation without supplying
-new feedback. Each run reconciles a durable command queue, so a rerun or manual
+approve a document. `/sdlc retry` recovers document generation/handoff only,
+without supplying new feedback; failed engineering CI, Advance, or Publish
+requires rerunning the actual failed Action after its cause is fixed.
+Each run reconciles a durable command queue, so a rerun or manual
 Documents dispatch with `issue_number` can recover without losing commands
 from superseded pending runs.
 
 Each revision and approval is saved on `brownfield-documents/<intent>` under
 `docs/delivery-runs/brownfield-human-gated-delivery/<intent>/` as `spec.md`,
 `plan.md`, and `document-review.json`. Recorded approvals bind the reviewed
-revision comment ID/body, version, and hash to the approval command comment and
-Human ID/login/time; editing or deleting a processed approval comment does not
+document version/hash to the approving command's ID/body and Human
+ID/login/time; they do not store a separate immutable rendered-revision comment
+ID/body snapshot. Editing or deleting a processed approval comment does not
 revoke it. Only current configured Humans with repository write access, including
 configured team members, can satisfy `minimumApprovals`; bots cannot. Issue
 approval has no native PR independent-review restriction.
@@ -117,9 +125,34 @@ documents freeze and automation creates `brownfield-delivery/<intent>` at the
 approved document commit, closes internal Spec/Plan tracking issues, and assigns
 only TDD Tests to Coding Agent. Tests and Implementation PRs preserve all
 approved document and approval-state blobs. Controlled Red, Green, GHCR
-publishing, temporary container verification, and delivery feedback continue
-unchanged. Existing Intents with lifecycle branches stay in **legacy Spec/Plan
-PR mode**, without automatic migration.
+publishing, and temporary container verification still apply. For all
+Issue-based (`issue-v1`) runs, including existing ones after upgrade, smoke
+success leaves the Intent open for **Human acceptance**
+under the configured Implementation reviewer policy/quorum. Accept/reject
+commands include the exact `sha256:<64hex>` digest and actual observed results,
+and are bound to the current verified merge SHA, Actions run ID, and attempt.
+Only acceptance completes the run and removes the engineering branch;
+reverification invalidates earlier acceptance, and rejection blocks acceptance
+until another verification attempt.
+
+The mutable operational record is separate from sealed `document-review.json`:
+`brownfield-runs/<intent>` stores
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/run-state.json`.
+Trusted workflow-bot ledger attestations protect this record's provenance.
+Missing required attested document/run branches fail explicitly; recovery must
+not reset approval history.
+Document and run branches remain for replay. Writers can submit new, unedited
+`/sdlc help`, `/sdlc status`, `/sdlc pause`, `/sdlc resume`, and `/sdlc cancel`
+comments on the Intent. Pause/cancel gate future work, keep policy pending, and
+disable auto-merge; they gate subsequent document publication, publish
+resolution, and stage advancement, not already-running work or prior merges.
+The Documents workflow routes these commands and reports run-control/cleanup
+failures separately from generation failures.
+Cancellation is terminal and retains Issues, PRs, and branches. Continue through
+a new Intent, also used for linked code/scope remediation after merge.
+Existing legacy document-PR Intents retain their original completion behavior,
+without retroactive migration. See the
+[command contract](./brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
 
 Use the [step-by-step walkthrough](./brownfield-human-gated-delivery-walkthrough.md)
 to run the demo in GitHub Web. See
@@ -137,13 +170,35 @@ configuration. The explicit
 [`--single-owner` mode](./brownfield-human-gated-delivery.md#single-owner-demo-mode)
 changes native approval counts to zero while retaining the configured Human
 approval policy for PR stages. It is not needed for new Issue document approvals.
-Full setup must verify/register the Documents workflow; the default-branch
-files and workflow registration must be checked rather than assuming local
-changes are deployed. Copilot CLI generation additionally needs
+Setup cannot register a missing Actions workflow. Publish reviewed workflow
+files to remote `main` and let GitHub register them first; setup can verify
+registration and enable an existing disabled workflow. Copilot CLI generation additionally needs
 `copilot-requests: write` and CLI entitlement, not the write-enabled assignment
 token. Managed rulesets cover only `main` and `brownfield-delivery/**`.
-Document branches need trusted automation writes, not a ruleset bypass;
-an existing unprotected `main` is not changed automatically.
+Full setup also checks that the trusted `runs.mjs`, `run-core.mjs`, and
+`state-store.mjs` modules are published on `main`.
+Document and run-record branches need trusted automation writes, not a ruleset
+bypass. **Full `--apply` creates missing managed rulesets, including `main`
+protection.** This repository's `main` is intentionally unprotected; do not run
+full apply there without explicit agreement. Read-only previews do not write.
+
+### Presentation and readiness
+
+Start with `npm run demo:brownfield -- help` and follow the
+[toolkit README](../tools/brownfield-demo/README.md) for exact options. Prepare
+a pinned source commit in a separate, nonexistent directory; never copy secrets
+or local databases, reset the source checkout, or implicitly create a remote.
+Reviewer configuration must be explicitly updated and published for the demo
+repository. Read-only preflight distinguishes configured settings from proven
+readiness and cannot prove token permissions, billing, or end-to-end behavior.
+
+Present the verified image by digest, clean up only toolkit-managed containers,
+and generate escaped, read-only HTML replay from actual run evidence. Neither
+the toolkit nor smoke verification automatically deploys a live hosted service.
+The [presenter runbook](./brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
+requires three completed isolated runs: normal delivery, Spec change with Plan
+invalidation, and failure recovery. Record genuine Human approvals, test results,
+and evidence links; no completed live rehearsal is established by this update.
 
 ## Copilot CLI demonstration workflow
 

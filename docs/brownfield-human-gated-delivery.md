@@ -6,13 +6,13 @@ This page is the setup, policy, and implementation reference.
 
 This demo safely evolves the existing IT service desk from a human-authored Intent into
 a reviewed specification, implementation plan, executable tests, working
-increment, and verified container image.
+increment, verified container image, and explicit Human acceptance.
 
 ```text
 Human Intent -> AI Spec <-> Human review and revision
              -> AI Plan <-> Human review and revision
              -> TDD Red review -> Implementation Green review
-             -> Build -> Smoke test -> Feedback
+             -> Build -> Smoke verification -> Human acceptance
 ```
 
 Every design and code transition requires a Human approval in the GitHub Web
@@ -24,9 +24,13 @@ Spec and Plan as full rendered Markdown revision comments on that same parent
 Issue. Humans discuss and explicitly request revisions or approve versions
 there before moving to Tests and Implementation PRs.
 
-**Compatibility:** Intents that already have lifecycle branches remain in
-[legacy Spec/Plan PR mode](#legacy-specplan-pr-mode). They are not automatically
-migrated. The new workflow must be present and registered on the remote default
+**Compatibility:** all Issue-based (`issue-v1`) runs use Human acceptance,
+including Issue-based runs started before this upgrade. Only
+[legacy Spec/Plan PR runs](#legacy-specplan-pr-mode) retain automatic closure
+after smoke verification; those runs are not migrated to Issue review.
+Branch existence alone does not distinguish the modes, since Issue-based runs
+also create an engineering branch at handoff.
+The new workflow must be present and registered on the remote default
 branch before use; these documentation changes alone do not deploy it.
 
 ## Lifecycle
@@ -72,7 +76,10 @@ sequenceDiagram
     Copilot->>Reviewer: Open final PR with Green tests
     Reviewer-->>Copilot: Request changes or Approve
     Actions->>GHCR: Merge, build, and publish digest
-    Actions->>Issue: Smoke evidence and close Intent
+    Actions->>Issue: Publish verification evidence; await Human acceptance
+    Reviewer->>Issue: Accept exact digest with observed results
+    Actions->>Actions: Validate current verification and reviewer quorum
+    Actions->>Issue: Close Intent; retain document and run evidence
 ```
 
 New document reviews use `brownfield-documents/<intent-number>`. Only when the
@@ -113,8 +120,9 @@ docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/
   approval snapshots, and handoff state.
 
 Every revision and approval is saved in Git. An approved snapshot records the
-reviewed revision's comment ID/body and document version/hash, the approval
-command comment, and the Human's ID, login, and approval time. Editing or deleting a
+document version/hash, the approving command comment's ID/body, and the Human's
+ID, login, and approval time. It does not contain a separate immutable snapshot
+of the rendered revision comment's ID/body. Editing or deleting a
 **processed** approval comment does not revoke that recorded decision. To
 change an approved document before handoff, submit an explicit revision command;
 do not try to revoke approval by changing an old comment.
@@ -136,6 +144,23 @@ TDD Tests and Implementation must preserve the exact approved `spec.md`,
 Implementation also preserves every approved test file's Git blob from the
 lifecycle branch. Add additional tests in **new files**; do not edit, delete,
 rename, or weaken approved tests, even if their test names remain unchanged.
+
+### Trusted operational run record
+
+Issue-based runs also keep
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/run-state.json`
+on the separate `brownfield-runs/<intent-number>` branch. This mutable record
+tracks run controls, delivery verification, and Human acceptance without
+changing the sealed document JSON inherited by engineering PRs.
+
+Only trusted automation writes it, with source-state digests attested in a
+workflow-bot ledger on the Intent. A direct Git edit is not an authenticated
+control or acceptance decision. Keep both the record and ledger intact.
+`brownfield-documents/**` and `brownfield-runs/**` are retained for replay;
+only the engineering `brownfield-delivery/<intent-number>` branch is eligible
+for cleanup after Human acceptance. Cancellation retains all branches.
+Missing required attested document or run branches fail explicitly. Recovery
+does not silently start a replacement history or reset recorded approvals.
 
 ### Issue command contract
 
@@ -164,8 +189,9 @@ GitHub Actions commands, **not built-in `@copilot` commands**:
 Replace example version numbers with the latest version shown in the hub.
 Ordinary discussion, "looks good," checklist edits, and bot comments neither
 execute AI nor approve a stage. Editing an old comment is not a new submission.
-Revision commands need feedback; use `/sdlc retry` with no feedback to resume
-failed generation.
+Revision commands need feedback; use `/sdlc retry` with no feedback to recover
+document generation/handoff only. It is not an engineering CI, Advance, or
+Publish retry command.
 
 Only a current configured Human with repository write access, including a
 current member of a configured team, may approve. Bots cannot. Approvals must
@@ -180,6 +206,66 @@ new Spec, then generate and approve a new Plan version; do not reuse stale Plan
 approval. Plan revisions similarly require fresh approvals for that Plan
 version. Once the Plan is fully approved, the documents freeze for engineering
 handoff; revision commands cannot rewrite that approved contract.
+
+### Run controls and Human acceptance
+
+For Issue-based runs, submit each command as a **new, unedited, top-level
+Human comment on the parent Intent**. Run controls require repository write
+access; being the Intent author alone grants no authority. Editing a submitted
+comment is not a new command. Automation records decisions in the trusted run
+record, not in the sealed document state.
+The **Documents** workflow routes run commands as well as document commands;
+its report can distinguish run-control or cleanup failures from document
+generation failures.
+
+| Command | Effect and next Human action |
+|---|---|
+| `/sdlc help` | Show the command contract; choose the next explicit action |
+| `/sdlc status` | Report recorded progress/blockers; inspect the linked workflow and review surface |
+| `/sdlc pause` | Gate future work, leave PR policy pending, and disable auto-merge; investigate before resuming |
+| `/sdlc resume` | Release a pause; inspect the current state and recover failed Actions separately if needed |
+| `/sdlc cancel` | Terminal cancellation; retain Issues, PRs, branches, and evidence; use a new Intent to continue |
+
+Pause and cancel **do not terminate an already-running agent or workflow, undo
+a merge, or roll back a published image**. They gate future document
+publication, publish resolution, and stage advancement as trusted automation
+reconciles state; they are not instantaneous emergency stops.
+Resume does not automatically retry failed engineering jobs.
+
+After successful Publish verification, configured Implementation reviewers
+exercise the exact verified image against the approved acceptance scenarios
+and submit one of:
+
+```text
+/sdlc accept sha256:<64hex>
+<Actual observed results, including scenarios exercised and any limitations.>
+```
+
+```text
+/sdlc reject sha256:<64hex>
+<Actual observed failure and the affected acceptance scenario.>
+```
+
+Replace `<64hex>` with the 64 lowercase hexadecimal characters in the published digest;
+do not post the placeholder or claim tests you have not performed. Acceptance
+uses the **Implementation** reviewer policy and `minimumApprovals`, not a new
+stage selector. Each eligible Human must submit their own decision. Commands
+must follow the published successful verification and match its current digest;
+the stored decision binds that digest to the merge SHA, Actions run ID, and run
+attempt. An old command cannot preapprove a future verification.
+
+Before completion, reverification invalidates collected acceptance, even when the digest is
+unchanged. Rejection blocks acceptance until another verification attempt;
+an acceptance comment alone cannot erase the rejection. Infrastructure recovery
+may rerun verification after the cause is fixed. A code or scope defect after
+the merge requires a **linked new Intent**, not edits to sealed documents or
+approved tests. Keep the rejected run's evidence and do not pretend it passed.
+An accepted, completed run is terminal; another delivery requires a new Intent.
+
+Automated smoke success is not Human acceptance. Only the eligible current
+quorum accepting the verified result closes an Issue-based Intent and removes its
+engineering branch. Legacy in-flight document-PR runs retain their prior
+completion behavior and are not retroactively migrated.
 
 ## One-time repository setup
 
@@ -199,7 +285,7 @@ gh auth login --hostname github.com
 # Read-only preview, including configured reviewers and missing prerequisites.
 npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
 
-# Apply missing settings, then read them back to verify.
+# Only with agreement to all previewed changes, preferably in an isolated repo:
 npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply
 ```
 
@@ -210,21 +296,28 @@ settings/rulesets, Actions settings/secrets, Environments, and Issues. This is
 **separate from** the limited automation PAT below; do not give that PAT
 administration access just to run setup.
 
+**Important:** full `--apply` creates missing managed rulesets, including
+protection for a currently unprotected `main`. This repository's `main` is
+intentionally unprotected; do not run full apply there without explicit
+agreement to change that policy. The same applies to `--apply --set-token`,
+`--apply --intent`, and `--single-owner --apply`: they are not narrow writes
+that skip the rest of setup. Preview mode never writes.
+
 The script:
 
 - verifies the configuration, issue form, prompts, validators, workflows, and
   application manifests/Dockerfile exist on `main`, including
   `brownfield-human-gated-delivery-documents.yml` (**Brownfield Delivery ·
-  Documents**);
+  Documents**) and the trusted `runs.mjs`, `run-core.mjs`, and `state-store.mjs`
+  modules under `.github/brownfield-human-gated-delivery/scripts/`;
 - enables Issues, auto-merge, the configured merge method, and GitHub Actions;
-- verifies/registers the Documents workflow for dispatch, enables disabled
-  delivery workflows and IT service desk CI, and leaves unrelated workflows
-  alone;
+- verifies existing workflow registration, enables disabled delivery workflows
+  and IT service desk CI, and leaves unrelated workflows alone; it cannot
+  register a missing Actions workflow;
 - creates the Intent label and temporary verification Environment if missing;
 - configures managed rulesets only for `main` and `brownfield-delivery/**`,
   binding required checks to the verified GitHub Actions app identity, with no
-  bypass actors; it does not automatically protect an existing unprotected
-  `main`;
+  bypass actors; full apply creates missing managed protection for `main`;
 - checks individual Human reviewers have repository write access, checks for
   an assignable Copilot Bot, and checks the automation secret **name**, never
   its stored value.
@@ -238,16 +331,16 @@ inherited rulesets and classic branch protection may impose additional checks
 or prevent lifecycle-branch creation/deletion; inspect those manually. Setup
 does not grant bypasses or relax organization policies.
 
-The document branch must permit trusted automation writes; it is not added to
-either managed ruleset or given a bypass. Check organization-wide rulesets that
-could otherwise prevent those writes. If `main` is currently unprotected,
-inspect that state and configure the documented protection separately rather
-than treating setup as authorization to change it.
+Document and run-record branches must permit trusted automation writes; neither
+is added to a managed PR ruleset or given a bypass. Check organization-wide
+rulesets that could otherwise prevent those writes. Inspect the complete
+preview before authorizing any writes.
 
 Verify **Actions > Brownfield Delivery · Documents** is available on the remote
 default branch. A workflow file in a local checkout is not proof of remote
-registration or deployment. Publish the reviewed workflow changes first, then
-rerun full setup to verify/register them.
+registration or deployment. Publish the reviewed workflow changes to `main`
+first and wait for GitHub to register them, then rerun the setup preview to
+verify them. Setup cannot publish files or create a missing workflow registration.
 
 To create or replace the automation secret, first create the PAT using
 [the permissions below](#configure-the-copilot-token), then use an interactive
@@ -347,10 +440,10 @@ this option.
 
 Applying a review-rule change can unblock already-approved PRs with auto-merge
 enabled and therefore advance the lifecycle. Setup itself does not submit
-approvals or merge PRs. Full setup must also verify/register the Documents
-workflow; do not replace it with only a targeted lifecycle-ruleset edit.
-An existing unprotected `main` is not changed automatically. Inspect the preview
-and configure protection separately if required for your demo.
+approvals or merge PRs. Verify the Documents workflow is already published and
+registered; a targeted lifecycle-ruleset edit does not establish that.
+Full apply also creates missing `main` protection. Do not run it against this
+repository's intentionally unprotected `main` without explicit agreement.
 
 ### Enable GitHub features
 
@@ -448,6 +541,10 @@ request cannot assign friendlier reviewers or reduce its own approval threshold.
   from the PR author or bots. Comment-only and pending reviews do not replace
   the last decisive review. Dismissals invalidate approvals; configured
   reviewers' outstanding change requests block the policy.
+- **Final acceptance (all Issue-based runs):** uses the configured
+  Implementation reviewers and quorum, with current Human write access and
+  digest-bound observed results. Configure these reviewers explicitly; neither
+  the Intent author nor the presenter automatically becomes an approver.
 
 Team membership is read with `COPILOT_ASSIGN_TOKEN`, not the repository-scoped
 `GITHUB_TOKEN`; ensure it can read the configured organization teams.
@@ -455,12 +552,13 @@ Team membership is read with `COPILOT_ASSIGN_TOKEN`, not the repository-scoped
 ### Configure branch rulesets
 
 Create active rulesets for `brownfield-delivery/**` and `main`.
-These are the only managed branch scopes. `brownfield-documents/**` must allow
-trusted automation to save document revisions and approval state without a PR;
-do not include it in the PR-required delivery ruleset and do not grant it a
-bypass. Check broader organization rules for conflicts. An existing unprotected
-`main` is not automatically changed by document rollout or setup; protection is
-an explicit administrator decision.
+These are the only managed branch scopes. `brownfield-documents/**` and
+`brownfield-runs/**` must allow trusted automation to save state without a PR;
+do not include them in the PR-required delivery ruleset or grant a bypass.
+Check broader organization rules for conflicts. Protection is an explicit
+administrator decision: full setup `--apply` does create missing `main`
+protection, so do not use it on this repository's intentionally unprotected
+`main` without agreement.
 
 For both:
 
@@ -475,7 +573,8 @@ For both:
 7. Do not grant Copilot a bypass.
 
 Block deletion of `main`. Allow deletion of `brownfield-delivery/**` so
-successful delivery can remove its temporary lifecycle branch.
+Human acceptance can remove its engineering branch (legacy runs retain their
+smoke-success cleanup behavior).
 For the lifecycle-branch ruleset's required status checks, enable
 `do_not_enforce_on_create` (do not require status checks on branch creation).
 The document handoff must be able to create the lifecycle branch at the approved
@@ -520,6 +619,7 @@ body contains `Delivery Stage: tests` as prose.
 | Plan (new Intent) | Task/dependency structure, acceptance mappings, approved-Spec linkage, document scope/state; no application build | Versioned Issue approval of the latest Plan |
 | TDD Tests | Green baseline, compilable test changes, and exact controlled-Red evidence | Review and approve tests |
 | Implementation | Immutable contracts, Green tests, lint, build, and container smoke checks | Review and approve implementation |
+| Acceptance (all Issue-based runs) | Current published verification, digest/merge/run/attempt binding, and reviewer quorum | Exercise the exact image and accept with observed results |
 
 In default mode, the native review rule enforces a common floor, **not** the
 configured reviewer identities or higher stage thresholds. Single-owner demo
@@ -606,8 +706,9 @@ Issue document generation uses `spec-issue.md` and `plan-issue.md` under
 `plan.md` prompts remain for legacy PR runs.
 
 There is no delivery branch or engineering assignment for a new Intent until
-the Plan is fully approved. Existing Intents with lifecycle branches instead
-retain [legacy mode](#legacy-specplan-pr-mode).
+the Plan is fully approved. Intents already using document PRs retain
+[legacy mode](#legacy-specplan-pr-mode); an engineering branch created by
+Issue-based handoff does not make that run legacy.
 
 ### 2. Review the Spec
 
@@ -722,6 +823,9 @@ skip application builds. The coordinator advances to Plan after Spec merges,
 then Tests after Plan merges. A later stage must not rewrite an already
 approved artifact. Native PR independent-review restrictions and the explicit
 single-owner option still apply in this mode.
+Legacy runs also keep their existing Publish completion behavior: successful
+smoke verification closes the Intent and cleans up its lifecycle branch.
+The new run-control/acceptance record is not retrofitted to those runs.
 
 ### 4. Review TDD Red
 
@@ -770,7 +874,7 @@ Required checks prove:
 The Human performs the final code and behavior review. Approval enables
 auto-merge only after every required check is Green.
 
-### 6. Observe delivery
+### 6. Verify delivery and obtain Human acceptance
 
 The **Brownfield Delivery · Publish** workflow:
 
@@ -780,17 +884,37 @@ The **Brownfield Delivery · Publish** workflow:
 4. runs that exact digest in the `it-service-desk-demo` Environment;
 5. verifies `/api/health` and the dashboard's stable
    `data-testid="service-desk-dashboard"` marker;
-6. writes the digest and Actions run link to the parent Intent.
+6. publishes verification evidence with the digest, merge SHA, Actions run ID,
+   and attempt on the parent Intent and in its trusted run record.
 
-Success closes the Implementation sub-issue and parent Intent, then deletes
-the lifecycle branch. Failure keeps or reopens the Intent and retains the
-branch for diagnosis and remediation.
-Result comments are updated rather than duplicated on reruns. Closed parents are
-allowed only for merged default-branch implementation delivery verification and
-reporting; other lifecycle operations retain the open-parent guard. Cleanup can
-retry after closing the parent, and an already-absent branch counts as success.
-Real deletion errors still fail the job. A failed rerun after successful cleanup
-reopens the Intent and restores a remediation branch at the merged commit.
+For **every Issue-based (`issue-v1`) run**, including an existing run after
+upgrade, successful smoke verification leaves the parent
+Intent open, awaiting Human acceptance. The Implementation review before merge
+does not count as post-verification acceptance. Follow the
+[accept/reject contract](#run-controls-and-human-acceptance), exercising the
+actual image against the approved Spec. Only the configured current acceptance
+quorum completes the run and permits engineering-branch cleanup. Document and
+run-record branches remain for replay; a failed or rejected verification does
+not authorize closure.
+
+Before completion, re-running verification invalidates collected acceptance, including when the
+image digest has not changed. Check the latest evidence before making a
+decision. Result comments are updated rather than duplicated on reruns, so
+inspect the run ID and attempt, not merely an old comment link.
+An already accepted run is terminal; use a new Intent for another delivery.
+
+Legacy document-PR runs retain the old behavior: success closes the
+Implementation sub-issue and parent Intent and deletes the lifecycle branch;
+failure keeps or reopens the Intent. Cleanup may retry after closure, an
+already-absent branch is successful cleanup, and real deletion errors fail the
+job. A failed legacy rerun after cleanup reopens the Intent and restores a
+remediation branch at the merged commit. Do not infer the new acceptance gate
+from a legacy run.
+
+The verification Environment is temporary container execution, not a
+persistent deployment or automatic update to a developer's running app. Use
+the [presentation toolkit](../tools/brownfield-demo/README.md) to show the exact
+digest and clean up only its managed containers.
 
 ## Recovery and retries
 
@@ -805,7 +929,7 @@ reopens the Intent and restores a remediation branch at the merged commit.
   /sdlc retry
   ```
 
-  It resumes the failed generation without new feedback. For a different
+  It recovers document generation/handoff only, without new feedback. For a different
   requested document change, use `/sdlc revise spec` or `/sdlc revise plan`
   followed by feedback instead.
 - Alternatively use **Actions > Brownfield Delivery · Documents > Run
@@ -830,17 +954,25 @@ reopens the Intent and restores a remediation branch at the merged commit.
 - For a failed PR-stage check or requested change, leave review comments and
   explicitly ask Copilot to push a correction to that same Tests,
   Implementation, or legacy document PR. Stale approvals are dismissed and
-  Human Review is requested again.
-- For delivery infrastructure failures, use GitHub's **Re-run failed jobs**.
-  For a code defect discovered after merge, keep the Intent open and submit a
-  new remediation Intent; the retained lifecycle branch preserves evidence for
-  diagnosis.
+  Human Review is requested again. For transient engineering CI failures, fix
+  the cause and rerun the actual failed Action, rather than using `/sdlc retry`.
+- For failed **Advance** or **Publish**, inspect the actual failed Actions run,
+  fix the cause, then use **Re-run failed jobs** (or **Re-run all jobs** when
+  the entire failed workflow must repeat). `/sdlc retry` does not retry these
+  workflows, and no infinite automatic rerun loop is provided. Verify the new
+  result and attempt before proceeding.
+- For a code or scope defect discovered after merge, keep the run's evidence
+  and submit a linked new remediation Intent; do not edit sealed documents or
+  approved tests to make the old run appear accepted.
+- Pause while investigating when appropriate. Resume only releases the pause;
+  it is not a replacement for rerunning a failed Action. Cancel is terminal:
+  retain the record and create a new Intent rather than trying to resume it.
 
 ### Document-review troubleshooting
 
 | Symptom | What to check or do |
 |---|---|
-| Documents is absent from Actions or dispatch is unavailable | Confirm `brownfield-human-gated-delivery-documents.yml` is deployed on remote `main`; rerun full setup to verify/register it. Local files are not deployment evidence |
+| Documents is absent from Actions or dispatch is unavailable | Publish the reviewed workflow to remote `main` and wait for GitHub registration; setup cannot register a missing workflow. Preview can check prerequisites, and apply can enable an already registered disabled workflow |
 | Documents rejects an edited Intent | The original title/body were snapshotted at startup. Do not rewrite them or the saved state; use explicit revision-command feedback for refinements, or a new Intent for a changed original request |
 | A discussion comment did not run AI | Expected: submit a new top-level `/sdlc revise spec` or `/sdlc revise plan` comment with feedback. `@copilot`, edits, and quoted examples are not the document command interface |
 | Generation failed or no revision was published | Inspect the Documents run; verify `copilot-requests: write`, CLI entitlement/billing, and Actions availability. Fix the cause, then use `/sdlc retry` or manual Documents dispatch |
@@ -848,8 +980,12 @@ reopens the Intent and restores a remediation branch at the merged commit.
 | Approval was rejected or did not advance | Check the latest version, configured Human login/team membership, current repository write access, and `minimumApprovals`. Bots and stale-version approvals cannot satisfy the gate |
 | Editing/deleting an approval did not revoke it | Processed approvals are Git snapshots. Request an explicit revision before full Plan approval; after handoff, use a new Intent for contract changes |
 | Spec revision caused the Plan to disappear or become invalid | Expected: all Spec approvals and the draft/approved Plan are invalidated. Approve the new Spec, then review and approve a new Plan version |
-| Trusted publication cannot write the document branch | Inspect rulesets matching `brownfield-documents/**`; allow the required trusted writes without adding bypass actors. Managed PR rulesets cover only `main` and `brownfield-delivery/**` |
-| An old Intent still opens Spec/Plan PRs | Expected legacy mode for an existing lifecycle branch; no automatic migration occurs |
+| Trusted publication cannot write state branches | Inspect rulesets matching `brownfield-documents/**` and `brownfield-runs/**`; allow trusted writes without bypass actors. Managed PR rulesets cover only `main` and `brownfield-delivery/**` |
+| An old Intent still opens Spec/Plan PRs | Expected for a legacy document-PR run; no automatic migration occurs. Branch existence alone does not identify the mode |
+| Required attested document or run branch is missing | Inspect the failure and original ledger/history; do not delete or recreate state to reset approvals. Restore only authentic evidence through operator recovery |
+| Documents reports run-control or cleanup failure | Inspect that phase's reported error rather than diagnosing it as AI generation failure; fix the cause and rerun the failed Documents Action |
+| Smoke passed but an Issue-based Intent remains open | Expected, including runs started before upgrade: eligible Implementation reviewers must test and accept the current digest after verification publication |
+| Acceptance does not complete | Check digest, latest verification run/attempt, comment timing, observed results, reviewer identities/quorum, pause/cancel state, and any rejection requiring another verification |
 
 ## Workflow security
 
@@ -865,6 +1001,9 @@ reopens the Intent and restores a remediation branch at the merged commit.
   `github-actions[bot]` audit-ledger digest entries bind source-state commits to
   the review process. Edited Intent content is rejected, and a direct Git edit
   of approval JSON is not evidence of an eligible Human decision.
+- Run controls, verification, and acceptance have a separate trusted Git record
+  and workflow-bot attestation ledger. Engineering code cannot mutate sealed
+  documents or substitute its own run state for a Human command.
 - Human commands, comments, and generated prose do not override trusted
   reviewer configuration, grant write credentials to generation, or become
   approval decisions on their own. Only explicit eligible latest-version
@@ -911,6 +1050,15 @@ reopens the Intent and restores a remediation branch at the merged commit.
   on every run so pending-run replacement cannot silently drop commands.
 
 ## Local verification
+
+These checks validate code, not a completed live demonstration. For preparation,
+read-only preflight, digest-bound presentation, and escaped read-only replay,
+start with `npm run demo:brownfield -- help` and use the
+[toolkit README](../tools/brownfield-demo/README.md) for exact CLI arguments.
+The [presenter runbook](./brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
+defines the three real isolated rehearsals needed for Demo Ready. None has been
+established by this documentation update; configured settings, unit tests, or a
+sample replay are not substitute evidence.
 
 ```sh
 node --test .github/brownfield-human-gated-delivery/tests/core.test.mjs .github/brownfield-human-gated-delivery/tests/github.test.mjs

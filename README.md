@@ -10,6 +10,9 @@ Issue-to-PR workflows.
   SQLite service-desk demonstration.
 - [`tools/trace-viewer/`](tools/trace-viewer/) — dependency-free trace model,
   renderer, composite action, and GitHub Pages client.
+- [`tools/brownfield-demo/`](tools/brownfield-demo/README.md) — isolated demo
+  preparation, read-only preflight, digest-bound container presentation, and
+  replay from real delivery evidence.
 - [`.github/`](.github/) — issue forms, workflow automation, and publishing
   adapters.
 
@@ -31,8 +34,11 @@ With Node.js 24+ and GitHub CLI authenticated as a repository administrator:
 npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
 ```
 
-This previews prerequisites without changing GitHub. Add `--apply` to configure
-missing settings. See the [setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
+This previews prerequisites without changing GitHub. **Full `--apply` creates
+missing managed rulesets, including protection for an unprotected `main`.**
+This repository's `main` is intentionally unprotected; do not apply full setup
+there without explicit agreement. Prefer an isolated demo repository. See the
+[setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
 for secure token entry, existing-Intent recovery, and remaining manual checks.
 If you are the only Human reviewer, use the explicit
 [`--single-owner` demo mode](docs/brownfield-human-gated-delivery.md#single-owner-demo-mode)
@@ -46,21 +52,40 @@ Spec and Plan revisions on that Issue. Humans explicitly submit custom
 the latest version with commands such as `/sdlc approve spec v2` and
 `/sdlc approve plan v1`. Ordinary discussion does not run AI or approve a stage.
 Revisions and approval snapshots are saved in Git before handoff to the
-existing Tests/Implementation PR flow. Existing Intents with lifecycle branches
-remain in legacy Spec/Plan PR mode; they are not automatically migrated.
+existing Tests/Implementation PR flow. Legacy document-PR Intents remain in
+Spec/Plan PR mode; they are not automatically migrated.
 
-Setup must verify/register
-`brownfield-human-gated-delivery-documents.yml` on the default branch.
+The workflows, including `brownfield-human-gated-delivery-documents.yml`, must
+already be published on remote `main` and registered by GitHub. Setup cannot
+register a missing workflow; it can enable an existing disabled workflow.
+Setup also requires the trusted `runs.mjs`, `run-core.mjs`, and `state-store.mjs`
+modules under `.github/brownfield-human-gated-delivery/scripts/` on remote `main`.
 Document generation uses read-only Copilot CLI in Actions and additionally
 requires `copilot-requests: write` and Copilot CLI entitlement; it never receives
 the existing write-enabled `COPILOT_ASSIGN_TOKEN`. See the setup guide before
 running this workflow; local documentation does not establish remote deployment.
 
+For all Issue-based (`issue-v1`) runs, including existing ones after upgrade,
+a verified image is **awaiting Human acceptance**, not
+complete. A configured Implementation reviewer tests the exact published digest
+and submits `/sdlc accept sha256:<64hex>` with observed results on subsequent
+lines; the configured quorum must accept the current verification attempt.
+Only that acceptance closes the Intent and removes its engineering branch.
+Document and trusted run-record branches remain for replay. Run controls and
+rejection are documented in the [command reference](docs/brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
+Only legacy document-PR runs keep their original automatic-close behavior.
+
+Start the presentation toolkit with `npm run demo:brownfield -- help`; use its
+[README](tools/brownfield-demo/README.md) for exact commands and safety boundaries.
+The [presenter runbook](docs/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
+requires three actual completed isolated rehearsals before claiming **Demo
+Ready**. No such rehearsal or live deployment is established by these changes.
+
 ## Documentation
 
 - [Step-by-step brownfield demo](docs/brownfield-human-gated-delivery-walkthrough.md)
   — run the human Intent, iterative Spec/Plan reviews, TDD, and verified delivery
-  demonstration through GitHub Web.
+  demonstration through GitHub Web, then accept the verified result.
 - [Repository guide](docs/repository-guide.md) — structure, local development,
   workflows, trace publishing, security, and operations.
 - [Brownfield Human-Gated Delivery demo](docs/brownfield-human-gated-delivery.md)

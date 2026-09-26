@@ -1,6 +1,7 @@
 name: Brownfield Delivery · PR Coordinator
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: [".github/brownfield-human-gated-delivery/config.json"]

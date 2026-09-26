@@ -11,6 +11,9 @@ import {
   requestDocumentRevision, validateDocumentHandoff, validateGeneratedDocument,
 } from "../scripts/document-core.mjs";
 import { DocumentReview, routeDocumentKickoff } from "../scripts/documents.mjs";
+import { RunControl } from "../scripts/runs.mjs";
+import { applyRunCommand, newRun, parseRunCommand, recordDelivery, runBranch, runStatePath, validateRun } from "../scripts/run-core.mjs";
+import { advance, delivery, verify } from "../scripts/github.mjs";
 
 const config = loadConfig();
 const human = { id: 123, login: "huangyingting", type: "User" };
@@ -96,7 +99,7 @@ function repository() {
   const state = {
     comments, issues, refs, commits, trees, calls, assignments: [], dispatches: 0,
     permissions: new Map([[human.login, "admin"]]),
-    teamMembers: [], fail: null, onCall: null,
+    teamMembers: [], fail: null, onCall: null, pulls: [],
   };
   const reply = (body, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status });
   const notFound = () => reply({ message: "Not Found" }, 404);
@@ -115,13 +118,17 @@ function repository() {
     state.onCall?.(call);
     if (state.fail?.(call)) return reply({ message: "Injected failure" }, 503);
     if (path === "/graphql") {
-      if (body.query.includes("DocumentLedger")) {
+      if (body.query.includes("DocumentLedger") || body.query.includes("VerificationReceipt")) {
         const comment = comments.find((item) => item.node_id === body.variables.id);
         return reply({ data: { node: {
           body: comment.body, lastEditedAt: comment.lastEditedAt ?? null,
           author: { __typename: "Bot", login: "github-actions" },
           editor: comment.editor ?? { __typename: "Bot", login: "github-actions" },
         } } });
+      }
+      if (body.query.includes("DisableAutoMerge")) {
+        state.pulls.find((pr) => pr.node_id === body.variables.pullRequestId).auto_merge = null;
+        return reply({ data: {} });
       }
       if (body.query.includes("CopilotActor")) {
         return reply({ data: { repository: { id: "REPO", suggestedActors: { nodes: [{ __typename: "Bot", login: "Copilot", id: "BOT" }] } } } });
@@ -135,6 +142,10 @@ function repository() {
     }
     if (path === "/orgs/example/teams/approvers/members") return reply(state.teamMembers);
     if (path === "") return reply({ default_branch: "main" });
+    if (path === "/pulls") return reply(state.pulls.filter((pr) => pr.state === "open"));
+    if (path.startsWith("/pulls/")) return reply(state.pulls.find((pr) => pr.number === Number(path.split("/")[2])));
+    if (path.startsWith("/statuses/") && method === "POST") return reply(body);
+    if (/^\/issues\/\d+\/parent$/.test(path)) return reply(issues[0]);
     if (path.startsWith("/collaborators/")) return reply({ permission: state.permissions.get(path.split("/")[2]) ?? "read" });
     if (path.startsWith("/git/ref/heads/")) {
       const ref = path.slice("/git/ref/heads/".length);
@@ -147,6 +158,10 @@ function repository() {
       }
       refs.set(ref, body.sha);
       return reply({});
+    }
+    if (path.startsWith("/git/refs/heads/") && method === "DELETE") {
+      const ref = path.slice("/git/refs/heads/".length);
+      return refs.delete(ref) ? reply(null, 204) : notFound();
     }
     if (path === "/git/refs" && method === "POST") {
       const ref = body.ref.replace("refs/heads/", "");
@@ -220,6 +235,7 @@ function repository() {
       assert.equal(body.inputs.issue_number, "42");
       return reply(null, 204);
     }
+    if (path === "/actions/workflows/brownfield-human-gated-delivery-pr-coordinator.yml/dispatches") return reply(null, 204);
     throw new Error(`Unexpected document API request: ${method} ${path}`);
   };
   const review = new DocumentReview({ token: "test-workflow", copilotToken: "test-assignment", owner: "example", repo: "repo", config: structuredClone(config) });
@@ -585,4 +601,267 @@ test("workflow isolates read-only AI generation from trusted publication and rou
   const kickoff = readFileSync(new URL("../../workflows/brownfield-human-gated-delivery-kickoff.yml", import.meta.url), "utf8");
   assert.match(kickoff, /actions: write/);
   assert.match(kickoff, /github\.mjs route-kickoff/);
+});
+
+const digest = `sha256:${"a".repeat(64)}`;
+const evidence = {
+  runId: "12345", runAttempt: 1, image: "ghcr.io/example/repo-it-service-desk",
+  digest, mergeSha: baseline, pullNumber: 50,
+  runUrl: "https://github.com/example/repo/actions/runs/12345", verified: true,
+};
+const acceptancePolicy = config.stages.implementation;
+const control = (mock) => new RunControl(mock.review);
+
+test("run command grammar requires digest and observed acceptance results", () => {
+  for (const action of ["help", "status", "pause", "resume", "cancel"]) {
+    assert.deepEqual(parseRunCommand(`/sdlc ${action}`), { action });
+  }
+  assert.equal(parseRunCommand("/sdlc approve spec v1"), null);
+  assert.deepEqual(parseRunCommand(`/sdlc accept ${digest}\nAC-1 passed`), { action: "accept", digest, notes: "AC-1 passed" });
+  for (const invalid of ["/sdlc accept", `/sdlc accept ${digest}`, "/sdlc accept latest\nOK", "/sdlc pause now"]) {
+    assert.throws(() => parseRunCommand(invalid), /Use \/sdlc/);
+  }
+});
+
+test("verification alone never accepts; exact artifact, policy and distinct Human quorum are required", () => {
+  const state = newRun(42, "example/repo", baseline);
+  const policy = { ...acceptancePolicy, minimumApprovals: 2 };
+  recordDelivery(state, evidence, policy);
+  assert.equal(state.status, "active");
+  const text = `/sdlc accept ${digest}\nAC-1 passed in isolated container`;
+  const accept = parseRunCommand(text);
+  assert.throws(() => applyRunCommand(state, { ...accept, digest: `sha256:${"b".repeat(64)}` }, command(text), policy), /latest/);
+  assert.throws(() => applyRunCommand(state, accept, command(text), acceptancePolicy), /policy changed/);
+  assert.throws(() => applyRunCommand(state, accept, { ...command(text), user: { ...human, type: "Bot" } }, policy), /Human/);
+  applyRunCommand(state, accept, command(text), policy);
+  applyRunCommand(state, accept, command(text, 101), policy);
+  assert.equal(state.delivery.acceptances.length, 1);
+  assert.equal(state.status, "active");
+  applyRunCommand(state, accept, { ...command(text, 102), user: { id: 234, login: "teammate", type: "User" } }, policy, ["teammate"]);
+  assert.equal(state.status, "accepted");
+  validateRun(state, 42);
+  assert.equal(state.delivery.acceptances[0].commentBody, text);
+});
+
+test("delivery retries preserve decisions on duplicates, reject conflicts, ignore old attempts and invalidate on new verification", () => {
+  const state = newRun(42, "example/repo", baseline);
+  recordDelivery(state, evidence, acceptancePolicy);
+  const text = `/sdlc reject ${digest}\nAC-1 failed`;
+  applyRunCommand(state, parseRunCommand(text), command(text), acceptancePolicy);
+  assert.throws(() => applyRunCommand(state, parseRunCommand(`/sdlc accept ${digest}\npassed`), command(""), acceptancePolicy), /rejected/);
+  assert.equal(recordDelivery(state, evidence, acceptancePolicy), false);
+  assert.equal(state.delivery.rejection.notes, "AC-1 failed");
+  assert.throws(() => recordDelivery(state, { ...evidence, verified: false }, acceptancePolicy), /Conflicting/);
+  assert.equal(recordDelivery(state, { ...evidence, runAttempt: 2 }, acceptancePolicy), true);
+  assert.equal(state.delivery.rejection, null);
+  assert.equal(recordDelivery(state, evidence, acceptancePolicy), false);
+  assert.equal(state.delivery.runAttempt, 2);
+});
+
+test("paused and cancelled runs cannot accept, resume is explicit and cancellation terminal", () => {
+  const state = newRun(42, "example/repo", baseline);
+  recordDelivery(state, evidence, acceptancePolicy);
+  const apply = (text) => applyRunCommand(state, parseRunCommand(text), command(text), acceptancePolicy);
+  apply("/sdlc pause");
+  assert.throws(() => apply(`/sdlc accept ${digest}\npassed`), /Resume/);
+  apply("/sdlc resume");
+  assert.equal(state.status, "active");
+  apply("/sdlc cancel");
+  assert.throws(() => apply("/sdlc resume"), /cancelled/);
+  apply("/sdlc status");
+  assert.equal(state.status, "cancelled");
+});
+
+test("run state rejects malformed or unbound delivery evidence", () => {
+  const state = newRun(42, "example/repo", baseline);
+  recordDelivery(state, evidence, acceptancePolicy);
+  for (const patch of [{ digest: "latest" }, { image: "ghcr.io/other/repo" }, { runAttempt: 0 }, { pullNumber: -1 }, { runUrl: "https://other.invalid/run" }]) {
+    assert.throws(() => validateRun({ ...state, delivery: { ...state.delivery, ...patch } }, 42), /Invalid/);
+  }
+  assert.throws(() => validateRun({ ...state, status: "accepted" }, 42), /Human acceptance/);
+});
+
+async function engineering(mock) {
+  await control(mock).ensure(42, baseline);
+  await mock.draft();
+  mock.add("/sdlc approve spec v1");
+  await mock.draft("plan");
+  mock.add("/sdlc approve plan v1");
+  const snapshot = await mock.review.process(42);
+  mock.issues[3].state = "closed";
+  const pr = {
+    number: 50, node_id: "PR_50", state: "closed", merged: true, merge_commit_sha: snapshot.sha,
+    body: mock.issues[4].body, user: { login: "Copilot", type: "Bot" },
+    head: { sha: snapshot.sha, repo: { full_name: "example/repo" } }, base: { ref: "main" },
+    html_url: "https://github.com/example/repo/pull/50",
+  };
+  mock.state.pulls.push(pr);
+  return { snapshot, pr, verified: { ...evidence, mergeSha: snapshot.sha } };
+}
+
+test("actual delivery adapter retains Intent and lifecycle until Human acceptance and freezes document Git blobs", async () => {
+  const mock = repository();
+  const { snapshot, pr, verified } = await engineering(mock);
+  const saved = { ...process.env };
+  const directory = mkdtempSync(join(tmpdir(), "sdlc-acceptance-"));
+  try {
+    Object.assign(process.env, {
+      GITHUB_TOKEN: "test", GITHUB_REPOSITORY: "example/repo",
+      GITHUB_EVENT_PATH: join(directory, "event.json"), GITHUB_RUN_ID: verified.runId,
+      GITHUB_RUN_ATTEMPT: "1", IMAGE: verified.image, DIGEST: verified.digest,
+      RUN_URL: verified.runUrl, DELIVERY_SUCCESS: "true",
+    });
+    writeFileSync(process.env.GITHUB_EVENT_PATH, JSON.stringify({ pull_request: pr }));
+    await delivery();
+    assert.equal(mock.issues[0].state, "open");
+    assert.ok(mock.refs.has(lifecycleBranch(42)));
+    assert.equal(mock.refs.get(documentBranch(42)), snapshot.sha);
+    assert.equal((await control(mock).loadRun(42)).state.status, "active");
+    mock.add(`/sdlc accept ${digest}\nAC-1 persisted after refresh; unassigned ticket preserved.`);
+    await control(mock).processControls(42, baseline);
+    assert.equal(mock.issues[0].state, "closed");
+    assert.equal(mock.issues[4].state, "closed");
+    assert.equal(mock.refs.has(lifecycleBranch(42)), false);
+    assert.equal(mock.refs.get(documentBranch(42)), snapshot.sha);
+    assert.ok(mock.refs.has(runBranch(42)));
+    await delivery();
+    assert.equal((await control(mock).loadRun(42)).state.delivery.acceptances.length, 1);
+    assert.equal(mock.issues[0].state, "closed");
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test("acceptance rejects unpublished, edited, stale, unauthorized and spoofed receipt commands", async () => {
+  const mock = repository();
+  const run = control(mock);
+  const { verified } = await engineering(mock);
+  mock.add(`/sdlc accept ${digest}\nPreapproved`);
+  await run.verification(42, baseline, verified);
+  mock.add(`/sdlc accept ${digest}\nEdited`, { updated_at: "2026-09-27T00:00:00Z" });
+  mock.add(`/sdlc accept ${digest}\nUnauthorized`, { user: { id: 999, login: "outsider", type: "User" } });
+  mock.add(`/sdlc accept sha256:${"b".repeat(64)}\nStale`);
+  await run.processControls(42, baseline);
+  assert.equal((await run.loadRun(42)).state.delivery.acceptances.length, 0);
+  assert.equal(mock.issues[0].state, "open");
+  const receipt = mock.comments.find((entry) => entry.body.startsWith("<!-- sdlc-verification:"));
+  receipt.lastEditedAt = "2026-09-27T00:00:00Z";
+  receipt.editor = { __typename: "User", login: human.login };
+  mock.add(`/sdlc accept ${digest}\nSpoofed receipt`);
+  await run.processControls(42, baseline);
+  assert.equal((await run.loadRun(42)).state.status, "active");
+  assert.match(mock.comments.at(-1).body, /trusted workflow|Run: Active|Awaiting Human acceptance/);
+});
+
+test("acceptance cleanup recovers after API failure without requiring or duplicating approval", async () => {
+  const mock = repository();
+  const run = control(mock);
+  const { verified } = await engineering(mock);
+  await run.verification(42, baseline, verified);
+  mock.add(`/sdlc accept ${digest}\nAC-1 passed`);
+  mock.state.fail = (call) => call.method === "DELETE";
+  await assert.rejects(() => run.processControls(42, baseline), /503/);
+  assert.equal((await run.loadRun(42)).state.status, "accepted");
+  assert.ok(mock.refs.has(lifecycleBranch(42)));
+  mock.state.fail = null;
+  await run.processControls(42, baseline);
+  assert.equal(mock.refs.has(lifecycleBranch(42)), false);
+  assert.equal((await run.loadRun(42)).state.delivery.acceptances.length, 1);
+});
+
+test("pause gates document publication, revokes automerge and retry repairs a failed status write", async () => {
+  const mock = repository();
+  const run = control(mock);
+  const snapshot = await mock.review.process(42);
+  await run.ensure(42, baseline);
+  mock.state.pulls.push({ state: "open", node_id: "PR_51", auto_merge: {}, body: "Delivery Intent: #42\n",
+    base: { ref: lifecycleBranch(42) }, head: { sha: baseline } });
+  mock.add("/sdlc pause");
+  mock.state.fail = (call) => call.path.startsWith("/statuses/");
+  await assert.rejects(() => run.processControls(42, baseline), /503/);
+  assert.equal((await run.loadRun(42)).state.status, "paused");
+  mock.state.fail = null;
+  await run.processControls(42, baseline);
+  assert.equal(mock.state.pulls[0].auto_merge, null);
+  await assert.rejects(() => mock.review.publish(42, snapshot.sha, spec), /paused/);
+  mock.add("/sdlc resume");
+  await run.processControls(42, baseline);
+  await mock.review.publish(42, snapshot.sha, spec);
+  assert.equal((await mock.review.load(42)).state.documents.spec.version, 1);
+});
+
+test("run state tampering and missing attested branches cannot silently reset approval history", async () => {
+  const mock = repository();
+  const run = control(mock);
+  const snapshot = await run.ensure(42, baseline);
+  const tree = mock.treeAt(snapshot.sha);
+  const original = tree[runStatePath(42)];
+  tree[runStatePath(42)] = original.replace('"active"', '"accepted"');
+  await assert.rejects(() => run.loadRun(42), /audit entry/);
+  tree[runStatePath(42)] = original;
+  mock.refs.delete(runBranch(42));
+  await assert.rejects(() => run.ensure(42, baseline), /missing.*audit ledger/);
+});
+
+test("delivery failure and later verification are explicit, preserve branch and invalidate earlier acceptance", async () => {
+  const mock = repository();
+  const run = control(mock);
+  const { verified } = await engineering(mock);
+  await run.verification(42, baseline, { ...verified, verified: false, image: "", digest: "" });
+  assert.equal((await run.loadRun(42)).state.failure.stage, "delivery");
+  assert.equal(mock.issues[0].state, "open");
+  assert.ok(mock.refs.has(lifecycleBranch(42)));
+  await run.verification(42, baseline, { ...verified, runAttempt: 2 });
+  assert.equal((await run.loadRun(42)).state.failure, null);
+  assert.equal(mock.issues[0].state, "open");
+  mock.add(`/sdlc reject ${digest}\nWrong persisted value`);
+  await run.processControls(42, baseline);
+  mock.add(`/sdlc accept ${digest}\nCannot override rejection`);
+  await run.processControls(42, baseline);
+  assert.equal((await run.loadRun(42)).state.status, "active");
+  await run.verification(42, baseline, { ...verified, runAttempt: 3 });
+  mock.add(`/sdlc accept ${digest}\nRetested original scenarios successfully`);
+  await run.processControls(42, baseline);
+  assert.equal(mock.issues[0].state, "closed");
+});
+
+test("real Publish verification and Advance adapters reject paused Issue-based runs before starting work", async () => {
+  const mock = repository();
+  const { pr } = await engineering(mock);
+  mock.add("/sdlc pause");
+  await control(mock).processControls(42, baseline);
+  const saved = { ...process.env };
+  const directory = mkdtempSync(join(tmpdir(), "sdlc-paused-adapters-"));
+  try {
+    Object.assign(process.env, {
+      GITHUB_TOKEN: "test", GITHUB_REPOSITORY: "example/repo",
+      GITHUB_EVENT_PATH: join(directory, "event.json"), GITHUB_OUTPUT: join(directory, "output"),
+      DELIVERY_RETRY: "true",
+    });
+    writeFileSync(process.env.GITHUB_EVENT_PATH, JSON.stringify({ pull_request: pr }));
+    await assert.rejects(() => verify(), /run is paused/);
+    await assert.rejects(() => advance(), /run is paused/);
+    assert.equal(mock.issues[4].state, "open");
+    assert.equal(mock.issues[0].state, "open");
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+    rmSync(directory, { recursive: true });
+  }
+});
+
+test("verification API failure does not consume a valid Human command as a rejection", async () => {
+  const mock = repository();
+  const { verified } = await engineering(mock);
+  const run = control(mock);
+  await run.verification(42, baseline, verified);
+  const accepted = mock.add(`/sdlc accept ${digest}\nAC-1 passed`);
+  mock.state.fail = (call) => call.path === "/graphql" && call.body.query.includes("VerificationReceipt");
+  await assert.rejects(() => run.processControls(42, baseline), /503/);
+  assert.ok((await run.loadRun(42)).state.lastCommentId < accepted.id);
+  mock.state.fail = null;
+  await run.processControls(42, baseline);
+  assert.equal((await run.loadRun(42)).state.status, "accepted");
 });

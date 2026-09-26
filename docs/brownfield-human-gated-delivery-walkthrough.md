@@ -2,7 +2,8 @@
 
 Use this guide to demonstrate a complete, human-gated feature delivery cycle
 against the existing IT service desk. All lifecycle decisions happen in GitHub
-Web; running the application locally is optional.
+Web. A Human must exercise the verified image before final acceptance; the
+toolkit can present it locally without creating a hosted deployment.
 
 The example starts with **unclear ticket ownership**. The Human writes the
 Intent, AI proposes the Spec and Plan, and the Human can request as many
@@ -17,13 +18,16 @@ Human Intent
   -> AI Plan <-> Human feedback and revision
   -> AI tests: controlled Red -> Human approval
   -> AI implementation: Green -> Human approval
-  -> Merge -> Publish image -> Smoke verification -> Close Intent
+  -> Merge -> Publish image -> Smoke verification
+  -> Human exercises exact digest -> Human acceptance -> Close Intent
 ```
 
-This walkthrough describes the new Issue document-review workflow. Intents with
-existing lifecycle branches remain in
-[legacy Spec/Plan PR mode](./brownfield-human-gated-delivery.md#legacy-specplan-pr-mode);
-there is no automatic migration. Verify the new workflow is deployed on remote
+This walkthrough describes the Issue document-review workflow. All Issue-based
+(`issue-v1`) runs use final Human acceptance, including runs started before the
+acceptance upgrade. Only runs using
+[legacy Spec/Plan PR mode](./brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)
+retain automatic closure after smoke verification; they are not migrated.
+Verify the new workflow is deployed on remote
 `main` before a live session; this guide does not establish that it is already
 deployed. Use the
 [setup and policy reference](./brownfield-human-gated-delivery.md) for configuration
@@ -31,20 +35,89 @@ details. Document generation uses read-only Copilot CLI in Actions, separate
 from the repository's orchestration-pattern demos and from Coding Agent's later
 PR work.
 
+## Presenter runbook and readiness
+
+**Current evidence boundary:** no completed live rehearsal is established yet.
+These instructions and automated tests are not proof of a deployed workflow or
+a successful end-to-end demo. Do not announce **Demo Ready** until three
+actual isolated runs below have completed with genuine Human decisions.
+
+Use `npm run demo:brownfield -- help` from the root and the
+[toolkit README](../tools/brownfield-demo/README.md) for exact commands.
+The demo-owned [scenario manifests](../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/)
+define the rehearsal cases; do not invent CLI flags or Issue-form selectors.
+
+Before presenting:
+
+1. Pin a source commit where the scenario's capability is still missing.
+   Prepare it in a separate, **nonexistent** destination directory. Do not reset
+   this checkout, overwrite an existing destination, or copy credentials,
+   ignored files, or local SQLite databases.
+2. Use a separately agreed demo repository. Preparation does not create a
+   remote or publish workflows: the operator explicitly creates/selects the
+   repository, publishes the reviewed source, and verifies `main` registration.
+3. Explicitly update and publish configured reviewer identities for that
+   repository, including Implementation reviewers used for final acceptance.
+   Have those Humans present; the presenter or automation must not impersonate
+   them or submit approvals on their behalf.
+4. Run read-only preflight and review setup preview. Separate **configured**
+   (settings/files are visible) from **ready** (runtime access, model entitlement,
+   image publication, reviewer participation, and real runs have worked).
+   Unknown token capabilities, billing, or runtime prerequisites remain blockers.
+5. Keep the parent Intent, Actions, PR review, and digest-bound application
+   presentation available. Use only toolkit-managed container cleanup. For
+   offline presentation, use escaped, read-only HTML replay exported from a
+   real run, clearly labeled as replay rather than a new live execution.
+
+| Phase | Responsible role and evidence to show | Next Human action |
+|---|---|---|
+| Preparation | Operator: pinned baseline, explicit target repository, preflight findings | Resolve blockers and agree to any setup writes |
+| Intent | Requester: editable business problem and open questions | Submit the Intent; preserve its original title/body |
+| Spec | AI proposes; configured Spec reviewers read the full latest revision | Resolve questions, request revision, then approve the actual version |
+| Plan | AI proposes; configured Plan reviewers check the approved-Spec link | Revise as needed; approve only when ready to freeze the contract |
+| Tests | Coding Agent supplies controlled Red; configured Tests reviewers inspect assertions and evidence | Request correction or approve current-head Tests PR |
+| Implementation | Coding Agent supplies Green; configured Implementation reviewers inspect preserved contracts and code | Approve current head only after required checks pass |
+| Publish/verify | Trusted Actions: merged SHA, exact digest, run ID/attempt, smoke results | Wait for published verification; resolve failures without bypassing gates |
+| Acceptance | Configured Implementation reviewers: observed behavior of that exact digest | Each Human accepts or rejects with real results on the parent Intent |
+| Completion | Operator: accepted run, closed Intent, retained evidence and branch cleanup | Export real replay; clean up only managed presentation containers |
+
+The three rehearsal acceptance criteria are:
+
+| Isolated run | Additional evidence required before counting it complete |
+|---|---|
+| Normal delivery | Full Intent → reviewed Spec/Plan → controlled Red → Green → verified digest → Human acceptance |
+| Spec change / Plan invalidation | After Spec approval and Plan publication, but **before full Plan approval**, request a Spec revision; show invalidated approvals/Plan, then approve new versions and finish delivery/acceptance |
+| Recoverable failure | Observe and record a real failed Action in the isolated run, fix its cause, use the documented recovery path, then finish delivery/acceptance; do not fabricate a failure or weaken checks |
+
+For each run retain repository/Intent URL, pinned baseline SHA, Spec/Plan
+versions and hashes, Human approval commands, Tests/Implementation PRs and
+heads, Red/Green job links, merge SHA, image digest, verification run ID/attempt,
+acceptance observations/quorum, retained document/run branches, and replay
+location. For recovery, also retain the failed run and corrective action.
+Mark missing evidence **not verified**; local passing tests, screenshots of
+mock results, or an old replay cannot fill the gap. If the live session fails,
+pause and explain the blocker, or show a clearly identified real prior replay.
+
 ## 1. Prepare the repository
 
 Complete the [one-time setup](./brownfield-human-gated-delivery.md#one-time-repository-setup)
 before the live session.
 
 With Node.js 24+ and GitHub CLI authenticated as a repository administrator,
-preview and apply the supported prerequisites from the repository root:
+preview the supported prerequisites from the repository root:
 
 ```sh
 npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
-npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply
 ```
 
-Use `--apply --set-token` for secure interactive token entry, or
+Replace the repository with the explicitly selected isolated demo repository.
+Only add `--apply` after agreeing to its complete preview: **full apply creates
+missing `main` protection**. This repository's `main` is intentionally
+unprotected; do not run full apply here without explicit agreement.
+Read-only previews do not write.
+
+After that agreement, use `--apply --set-token` for secure interactive token
+entry, or
 `--apply --intent 7` to repair the label on an existing Intent. Setup does not
 dispatch kickoff or publish local changes. By default, it preserves existing
 protections.
@@ -61,15 +134,14 @@ uses zero native approvals while retaining your explicit current-revision
 approval through **Brownfield delivery policy**, required checks, and no
 bypasses. It is not independent two-person review. The option changes only
 native approval counts in existing managed rulesets; applying it may unblock
-already-approved auto-merge PRs. Keep full setup's workflow verification and
-registration; a ruleset-only edit is not enough. An existing unprotected `main`
-is not changed automatically; inspect the preview and configure any needed
-protection separately.
+already-approved auto-merge PRs. This mode does not exempt the rest of setup:
+full apply can create missing `main` protection. A ruleset-only edit is not
+enough to establish that the workflows are published and registered.
 
 | Check | Where to verify in GitHub |
 |---|---|
-| Current issue forms, prompts, and workflows are on the default branch | **Code**; the demo workflows assume `main` |
-| Documents is registered and enabled | **Actions > Brownfield Delivery · Documents**; file `brownfield-human-gated-delivery-documents.yml`; full setup verifies/registers it |
+| Current issue forms, prompts, workflows, and trusted modules are on the default branch | **Code**; `main` must include `runs.mjs`, `run-core.mjs`, and `state-store.mjs` under `.github/brownfield-human-gated-delivery/scripts/`; full setup checks them |
+| Documents is registered and enabled | Publish `brownfield-human-gated-delivery-documents.yml` to remote `main`; GitHub must register it. Setup can enable an existing disabled workflow, not register a missing one |
 | Copilot Coding Agent is available and allowed to work in this repository | Repository/organization Copilot settings |
 | Copilot CLI can generate documents in Actions | `copilot-requests: write`, CLI entitlement, and any organization CLI billing policy |
 | Issues, sub-issues, Actions, and Packages are available | Repository tabs and settings |
@@ -79,7 +151,7 @@ protection separately.
 | `it-service-desk-demo` exists | **Settings > Environments** |
 | Human reviewers are configured | [Delivery configuration](../.github/brownfield-human-gated-delivery/config.json) on `main` |
 | Required checks and review rules are enforced | **Settings > Rules > Rulesets** |
-| Trusted automation can write `brownfield-documents/**` | No conflicting PR-required ruleset; no bypass is granted |
+| Trusted automation can write `brownfield-documents/**` and `brownfield-runs/**` | No conflicting PR-required ruleset; no bypass is granted |
 
 Use the [token instructions](./brownfield-human-gated-delivery.md#configure-the-copilot-token)
 for the automation credential. Generation never receives that credential or
@@ -88,7 +160,9 @@ separate steps. Human reviewers sign in to GitHub normally; they do not need
 to create a token to review documents or PRs.
 
 The checked-in configuration assigns `huangyingting` and requires one approval
-at every stage. Change it before the demo if another person will approve.
+at every configured stage. Explicitly update and publish it before the demo if
+another person will approve. Final acceptance uses the Implementation policy
+and quorum, not a separate configurable stage.
 Submitting the Intent does not automatically make its author a reviewer.
 For mandatory approval by one particular end user, configure that person as
 the sole Spec and Plan reviewer with a threshold of one. Issue approvers must
@@ -105,13 +179,14 @@ Check the [ruleset instructions](./brownfield-human-gated-delivery.md#configure-
   humans or automation to bypass the gates.
 - Exempt initial lifecycle-branch creation from status checks so the approved
   document handoff can create it; keep subsequent updates protected and allow
-  final cleanup.
+  cleanup only after Human acceptance for Issue-based runs.
 - Managed rulesets cover only `main` and `brownfield-delivery/**`, not
-  `brownfield-documents/**`. Document branches need trusted automation writes,
-  not a ruleset bypass.
+  `brownfield-documents/**` or `brownfield-runs/**`. State branches need trusted
+  automation writes, not a ruleset bypass.
 
-**Ready when:** the form is visible, the intended reviewer is configured, and
-the automation prerequisites and branch protections are in place.
+**Configured when:** the form is visible, intended reviewers are configured, and
+automation prerequisites and agreed branch protections are in place. This is
+not yet **Demo Ready**; complete the real rehearsals above.
 
 ## 2. Show the existing application
 
@@ -181,6 +256,8 @@ new Intent for a changed original request.
 You should see:
 
 - a `brownfield-documents/<intent-number>` branch;
+- a separate `brownfield-runs/<intent-number>` branch for trusted operational
+  state, with workflow-bot ledger attestation;
 - a current hub on the parent Issue, linking the latest document versions and
   their review status;
 - a full rendered Markdown **Spec v1** revision comment after generation and
@@ -218,8 +295,8 @@ top-level comment on the parent Intent**, with the command on its first line:
 
 ```text
 /sdlc revise spec
-For this demo, tickets may remain unassigned. Use a simple free-text
-owner name rather than a user directory, and include filtering by owner.
+For this demo, tickets may remain unassigned. Use the scenario's fixed local
+owner roster, Avery Stone and Jordan Lee, and include filtering by owner.
 Preserve existing tickets and workflows. Make these decisions explicit in
 the specification for re-review.
 ```
@@ -236,7 +313,7 @@ to publish **Spec v2**, then:
 
    ```text
    /sdlc revise spec
-   Clarify the behavior for blank and overlong owner names, and explain
+   Clarify the behavior for invalid owner selections and unassignment, and explain
    how invalid updates preserve stored ticket data. Add the missing acceptance
    scenarios for re-review.
    ```
@@ -251,9 +328,10 @@ to publish **Spec v2**, then:
    If you requested another revision, use its actual latest version instead;
    a stale-version approval is rejected.
 
-**Expected result:** the approval is recorded in Git with the reviewed revision
-comment ID/body, document version/hash, approval command comment, and Human
-ID/login/time. After the configured threshold is satisfied, Documents generates
+**Expected result:** the approval is recorded in Git with the document
+version/hash, approving command comment ID/body, and Human ID/login/time, not a
+separate immutable rendered-revision comment snapshot. After the configured
+threshold is satisfied, Documents generates
 Plan v1 linked to the approved Spec. There is no Spec PR to merge.
 
 ### The rule for every review round
@@ -385,7 +463,7 @@ not prove every feature acceptance scenario; inspect the feature tests too.
 **Expected result:** the approved, passing PR auto-merges into `main`. The
 parent Intent remains open pending delivery verification.
 
-## 9. Verify delivery and close the loop
+## 9. Verify delivery and accept the result
 
 1. Open **Actions > Brownfield Delivery · Publish** for the merged PR.
 2. Inspect the `publish` job for the image build and GHCR publication.
@@ -394,17 +472,47 @@ parent Intent remains open pending delivery verification.
    - a successful `/api/health` response;
    - the dashboard smoke check;
    - stopping the temporary container after verification.
-4. Return to the parent Intent Issue and read the delivery result comment.
-5. Confirm successful delivery closes the Intent and removes the temporary
-   lifecycle branch.
+4. Return to the parent Intent Issue and read the current verification evidence:
+   digest, merge SHA, Actions run ID, and attempt. Smoke success leaves this
+   new Intent **open, awaiting Human acceptance**.
+5. Use the [toolkit](../tools/brownfield-demo/README.md) to present that exact
+   digest. Each configured Implementation reviewer exercises the approved
+   scenarios, including existing-ticket compatibility. A dashboard smoke test
+   alone does not prove ownership behavior or other feature requirements.
+6. Each eligible reviewer submits a new, unedited, top-level Intent comment
+   after publication, replacing the digest and observations below:
+
+   ```text
+   /sdlc accept sha256:<64hex>
+   <Scenarios actually exercised, observed outcomes, and any limitations.>
+   ```
+
+   Do not paste placeholders or claim a UI test not performed. To reject, use
+   `/sdlc reject sha256:<64hex>` with actual failure observations instead.
+7. Confirm the configured Implementation quorum has accepted the **current**
+   verification. Only then should the Intent close and the engineering
+   `brownfield-delivery/<intent-number>` branch be removed. Retain
+   `brownfield-documents/<intent-number>` and `brownfield-runs/<intent-number>`
+   for replay.
 
 **Expected result:** a traceable chain from the human-authored Intent through
-approved artifacts and tests to a published, verified image digest.
+approved artifacts and tests to a published, verified image digest and recorded
+Human acceptance bound to its merge SHA, run ID, and attempt.
+
+Before completion, reverification invalidates collected acceptance even if the digest stays the same;
+each reviewer must inspect the new published evidence and decide again.
+Rejection blocks acceptance until another verification attempt. For a code or
+scope defect after merge, create a linked remediation Intent; never edit the
+sealed Spec/Plan or approved tests to erase the disagreement. Do not declare a
+rejected run complete. Legacy document-PR runs alone keep smoke-success closure.
+An already accepted run is terminal; another delivery requires a new Intent.
 
 The `it-service-desk-demo` Environment records temporary container verification.
 It does **not** create a permanently hosted application or public demo URL.
 An application already running on your machine is not automatically upgraded.
-Use the merged source or published image for an optional after-demo UI tour.
+Use the exact verified digest for acceptance and the after-demo UI tour.
+Cleanup must target only toolkit-managed presentation containers, not unrelated
+local workloads.
 
 ## Completion checklist
 
@@ -419,14 +527,50 @@ Use the merged source or published image for an optional after-demo UI tour.
 - [ ] Implementation passed Green tests, build, and container checks.
 - [ ] Human approved the implementation before it merged.
 - [ ] Published image digest and smoke-verification run are recorded on the Intent.
-- [ ] Intent is closed after successful delivery.
+- [ ] Configured Implementation reviewers exercised the exact digest and submitted actual observed results after the current verification.
+- [ ] Current acceptance meets quorum and binds digest, merge SHA, run ID, and attempt.
+- [ ] Intent closed only after Human acceptance; engineering branch removed, document/run branches retained.
+- [ ] Real evidence and replay were retained; only managed presentation containers were cleaned up.
+
+## Run controls during presentation
+
+The Documents workflow routes run controls. Writers submit `/sdlc help`,
+`/sdlc status`, `/sdlc pause`, `/sdlc resume`, or
+`/sdlc cancel` as new, unedited, top-level Human comments on the Intent.
+Pause/cancel gate future work, leave PR policy pending, and disable auto-merge.
+This includes future document publication, publish resolution, and stage
+advancement.
+They **do not terminate agents/workflows already running or undo merges**.
+Cancellation is terminal and retains Issues, PRs, and branches; continuing
+requires a new Intent. Resume releases a pause, not a failed-job retry.
+See the [command reference](./brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
 
 ## Troubleshooting during the demo
+
+Follow this failure decision tree before retrying:
+
+1. **No kickoff or workflow?** Check published `main`, GitHub registration,
+   labels, and authorization. Resolve prerequisites; setup cannot publish or
+   register a missing workflow.
+2. **Document generation/publication/handoff failed?** Fix the cause, then
+   `/sdlc retry` or dispatch Documents for the same Intent. Keep sealed state
+   intact if full Plan approval already happened.
+3. **Engineering CI failed?** For a real defect, request a same-PR correction
+   and re-review. For infrastructure failure, fix it and rerun that failed CI
+   Action. Do not treat an unrelated failure as controlled Red.
+4. **Advance or Publish failed?** Inspect that exact failed Action, fix its
+   cause, and rerun its failed jobs (or whole run if needed). `/sdlc retry`
+   cannot recover these; there is no automatic infinite rerun loop.
+5. **Verification passed but completion is blocked?** Inspect pause/cancel,
+   rejection, current digest/run/attempt, decision timing, reviewer eligibility,
+   and quorum. Obtain genuine fresh Human acceptance, never a synthetic one.
+6. **Code/scope defect after merge, or cancelled run?** Preserve evidence and
+   create a linked new Intent. Do not reset branches or rewrite sealed artifacts.
 
 | Symptom | What to check or do |
 |---|---|
 | Form is missing or has old content | Confirm the template is on the default branch; open a fresh **New issue** form |
-| Documents is missing from Actions | Confirm `brownfield-human-gated-delivery-documents.yml` is deployed on remote `main`; rerun full setup to verify/register **Brownfield Delivery · Documents**. Local edits are not a remote deployment |
+| Documents is missing from Actions | Publish the reviewed workflow to remote `main` and wait for GitHub registration. Setup cannot register a missing workflow; it can enable one already registered but disabled |
 | Kickoff did not start | Check the Intent label and author association. Adding a label later is not a kickoff trigger; use **Actions > Brownfield Delivery · Kickoff > Run workflow** with the existing Intent number |
 | Kickoff failed partway through | Fix the reported prerequisite, then dispatch Kickoff with the same Intent number; do not create duplicate Intents just to retry |
 | Documents rejects a changed Intent title/body | The original request is snapshotted at startup. Keep it unchanged; use revision-command feedback for refinements or a new Intent for a changed original request |
@@ -436,7 +580,9 @@ Use the merged source or published image for an optional after-demo UI tour.
 | Issue approval did not advance | Check the exact latest version, current configured Human login/team membership, repository write access, and `minimumApprovals`; bots cannot approve |
 | Deleting or editing an approval comment did not revoke it | Expected for a processed approval snapshot. Request an explicit revision before full Plan approval; after handoff, use a new Intent |
 | A Spec revision invalidated the Plan | Expected: reapprove the new Spec, then review and approve a new Plan version; old Spec/Plan approvals cannot be reused |
-| Document publication cannot write its Git branch | Inspect rules matching `brownfield-documents/**`. Allow trusted automation writes without granting a bypass; managed rulesets cover only `main` and `brownfield-delivery/**` |
+| Trusted automation cannot write its state branch | Inspect rules matching `brownfield-documents/**` and `brownfield-runs/**`. Allow trusted writes without granting a bypass; managed rulesets cover only `main` and `brownfield-delivery/**` |
+| Required attested document/run branch is missing | Stop and inspect original ledger/history; missing state fails explicitly and must not be recreated to reset approvals |
+| Documents reports run-control or cleanup failure | Read that phase's failure, fix the cause, and rerun the failed Documents Action; it is not necessarily a document-generation error |
 | An existing Intent still uses Spec/Plan PRs | This is [legacy mode](./brownfield-human-gated-delivery.md#legacy-specplan-pr-mode), not a failed migration. Keep its PR workflow |
 | Copilot did not revise a Tests, Implementation, or legacy document PR | Submit the review, then post a direct `@copilot` request in that PR and inspect the agent session |
 | PR approval did not unblock policy | Check configured reviewer identity, current-head approval, outstanding change requests, and draft state. Review Signal and PR Coordinator run asynchronously; inspect their latest runs |
@@ -444,10 +590,12 @@ Use the merged source or published image for an optional after-demo UI tour.
 | Required PR policy/check never appears | Confirm the Review Signal, PR Coordinator, and Stage CI workflows are installed and enabled, and that rulesets use the exact required names. New Issue documents do not wait for these PR checks |
 | Stage check failed | Read the failing job and request a correction in the same PR; do not weaken the validator or approve an unrelated failure |
 | Classification rejects a generated `Fixes` suffix | The updated coordinator repairs only Copilot's recognized closing reference to the current stage Issue, then body-edited CI reruns. Ensure the compatibility fix is on the default branch; unrelated closing references still need correction |
-| Approved PR has not advanced | Check required checks, unresolved conversations, branch freshness, auto-merge, and whether the PR actually merged. Then inspect **Brownfield Delivery · Advance** |
-| Publish or smoke verification failed | Read the Publish run. Retry infrastructure failures with **Re-run failed jobs**; report code defects through a new remediation Intent |
+| Approved PR has not advanced | Check run pause/cancel state, required checks, conversations, branch freshness, auto-merge, and whether the PR actually merged. Inspect **Advance**; fix the cause and rerun that failed Action, not `/sdlc retry` |
+| Publish or smoke verification failed | Read the actual Publish run. Fix infrastructure failures before **Re-run failed jobs**; report code defects through a linked new Intent. A new verification invalidates previous acceptance |
+| Smoke passed but Intent remains open | Expected for every Issue-based run, including existing runs after upgrade: exercise the exact verified digest and obtain configured Human acceptance quorum |
+| Accepted digest was rejected or reverified | Another verification is required after rejection, and fresh acceptance is required after reverification; old comments cannot accept a future attempt |
 
-To resume Documents without new feedback, post this as a new top-level comment
+To recover document generation/handoff only, without new feedback, post this as a new top-level comment
 on the existing parent Intent:
 
 ```text
@@ -475,5 +623,6 @@ delivery is failing; do not close it merely because implementation merged.
 For another run, choose a feature still missing from the current baseline.
 After ownership has been delivered, submitting the same ownership Intent again
 is not a meaningful brownfield demonstration. Use a separately prepared demo
-repository for repeatable rehearsals instead of deleting application data or
-undoing unrelated work.
+repository from the pinned baseline for repeatable rehearsals instead of
+deleting application data or undoing unrelated work. See the
+[readiness criteria](#presenter-runbook-and-readiness) before reporting Demo Ready.

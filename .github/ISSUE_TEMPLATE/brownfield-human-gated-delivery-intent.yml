@@ -1,5 +1,5 @@
 name: "Brownfield human-gated delivery: Submit an intent"
-description: Safely evolve an existing application through reviewed specification, plan, tests, implementation, and verified delivery.
+description: Evolve an existing application through reviewed specification, plan, tests, implementation, verified delivery, and Human acceptance.
 title: "[Brownfield delivery] Clarify ticket ownership"
 labels: ["brownfield-human-gated-delivery:intent"]
 body:
@@ -10,7 +10,11 @@ body:
 
         Leave unresolved decisions in Open questions instead of writing a specification or implementation plan. After repository setup, a new Intent starts AI-written Spec and Plan review here in this Issue, not in document pull requests. Read each published version, discuss it, and submit `/sdlc revise spec` or `/sdlc revise plan` followed by feedback on a new line. Approve only a version you have read with `/sdlc approve spec vN` or `/sdlc approve plan vN`.
 
-        Only explicit approval from configured Human reviewers of both documents starts TDD. Tests and Implementation still use reviewed pull requests and required checks before verified delivery. Existing runs with lifecycle branches keep their original document-PR review process.
+        Only explicit approval from configured Human reviewers of both documents starts TDD. Tests and Implementation still use reviewed pull requests and required checks. All Issue-based runs, including existing ones after upgrade, remain open after smoke verification until configured Implementation reviewers accept the current verified image digest and record observed results. Only legacy document-PR runs keep their original automatic-close behavior; they are not migrated.
+
+        After testing the exact verified image, submit a new, unedited comment with `/sdlc accept sha256:<64hex>` on its first line and your actual observed results below it; replace the placeholder with the published digest. Use `/sdlc reject sha256:<64hex>` with observations if it is not acceptable. A new verification attempt invalidates prior acceptance; rejection requires another verification before acceptance. Use `/sdlc help` or `/sdlc status` for the run's next action.
+
+        Writers can submit `/sdlc pause`, `/sdlc resume`, or `/sdlc cancel` as new comments. Pause/cancel gate future work and disable auto-merge, but do not stop running jobs or undo merges. Cancellation is terminal and retains evidence; start a new Intent to continue. `/sdlc retry` is only for document generation/handoff, not engineering CI or delivery recovery. Code or scope fixes after merge require a linked new Intent, not changes to sealed documents.
 
         Only repository owners, members, and collaborators can start the automated lifecycle. The Intent author is not automatically a reviewer; configure the intended approver in the repository's delivery configuration.
   - type: textarea

@@ -128,8 +128,11 @@ jobs:
         run: docker stop "${{ steps.container.outputs.container-id }}"
 
   report:
-    if: always() && needs.resolve-issue.result != 'skipped'
+    if: always() && needs.resolve-issue.result == 'success'
     needs: [resolve-issue, publish, verify]
+    concurrency:
+      group: brownfield-delivery-documents-${{ needs.resolve-issue.outputs.intent }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

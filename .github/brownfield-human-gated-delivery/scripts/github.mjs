@@ -398,6 +398,10 @@ async function validateStageContext(token, owner, repo, pullRequest, { deliveryR
     const { DocumentReview } = await import("./documents.mjs");
     await new DocumentReview({ token, owner, repo, config: loadConfig() })
       .verifyPullRequest(metadata.intentNumber, metadata.stage, pullRequest);
+    if (!deliveryRetry) {
+      const { RunControl } = await import("./runs.mjs");
+      await new RunControl({ token, owner, repo, config: loadConfig() }).assertActive(metadata.intentNumber);
+    }
   }
   if (!hasLabel(stageIssue, `${stageLabelPrefix}${metadata.stage}`)) {
     throw new Error(`Stage Issue #${stageIssue.number} has the wrong stage label.`);
@@ -816,6 +820,12 @@ export async function coordinate() {
           decision.current.auto_merge = true;
         }
         for (const decision of group.decisions) await refresh(decision);
+        for (const decision of group.decisions) {
+          if (!decision.context?.stageIssue.body?.includes("Delivery Document Review: issue-v1")) continue;
+          const { RunControl } = await import("./runs.mjs");
+          await new RunControl({ token, owner, repo, config: loadConfig() })
+            .assertActive(decision.context.metadata.intentNumber);
+        }
         if (changedHeads.has(sha)) state = "pending";
       }
       for (const decision of group.decisions) {
@@ -923,6 +933,11 @@ export async function verify() {
     event.pull_request,
     { deliveryRetry: process.env.DELIVERY_RETRY === "true" },
   );
+  if (process.env.DELIVERY_RETRY === "true" &&
+      context.stageIssue.body?.includes("Delivery Document Review: issue-v1")) {
+    const { RunControl } = await import("./runs.mjs");
+    await new RunControl({ token, owner, repo, config: loadConfig() }).assertActive(context.metadata.intentNumber);
+  }
   appendOutput("intent", context.metadata.intentNumber);
   appendOutput("stage", context.metadata.stage);
   appendOutput("stage-issue", context.metadata.stageIssueNumber);
@@ -942,6 +957,22 @@ export async function delivery() {
   const runUrl = process.env.RUN_URL;
   const image = process.env.IMAGE;
   const digest = process.env.DIGEST;
+  if (context.stageIssue.body?.includes("Delivery Document Review: issue-v1")) {
+    const { RunControl } = await import("./runs.mjs");
+    const control = new RunControl({ token, owner, repo, config: loadConfig() });
+    const documents = await control.load(context.parent.number);
+    await control.verification(context.parent.number, documents.state.baseline, {
+      runId: process.env.GITHUB_RUN_ID, runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+      image: image || "", digest: digest || "", mergeSha: pullRequest.merge_commit_sha,
+      pullNumber: pullRequest.number, runUrl, verified: success,
+    });
+    await updateProgress(token, owner, repo, context.parent, context.stageIssues, {
+      stage: "implementation", status: success ? "Verified; awaiting Human acceptance" : "Verification failed",
+      pullRequestUrl: pullRequest.html_url,
+    });
+    if (!success) throw new Error("Delivery verification failed; Human acceptance remains blocked.");
+    return;
+  }
   const stageIssues = await listAll(
     token,
     `/repos/${owner}/${repo}/issues/${context.parent.number}/sub_issues`,

@@ -196,7 +196,7 @@ function inspect(options, api) {
   const paths = new Set(tree.tree.filter((item) => item.type === "blob").map((item) => item.path));
   const required = [
     ".github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml",
-    ...["core", "github", "documents", "document-core", "validate-stage", "vitest-errors-reporter"].map((name) =>
+    ...["core", "github", "documents", "document-core", "state-store", "runs", "run-core", "validate-stage", "vitest-errors-reporter"].map((name) =>
       `.github/brownfield-human-gated-delivery/scripts/${name}.mjs`),
     `${config.project.path}/package.json`,
     `${config.project.path}/package-lock.json`,

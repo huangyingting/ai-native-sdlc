@@ -40,7 +40,9 @@ npm run dev
 Open <http://localhost:3000>.
 
 The database is created and seeded automatically at `data/service-desk.db`.
-Delete that file to reset the demo data.
+For disposable local development only, deleting that file resets demo data.
+Do not reset a shared checkout for a presentation; use an isolated prepared
+copy as described below.
 
 ## Validate
 
@@ -97,7 +99,8 @@ Use `/sdlc revise plan` with feedback to revise the Plan, and approve only the
 latest version with commands such as `/sdlc approve spec v2` or
 `/sdlc approve plan v1`. These are custom repository Actions commands, not
 built-in `@copilot` commands. Ordinary discussion does not invoke AI or approve
-a stage. `/sdlc retry` resumes failed generation without new feedback.
+a stage. `/sdlc retry` recovers document generation/handoff only; it does not rerun
+engineering CI, Advance, or Publish.
 
 Read-only Copilot CLI generates documents in Actions; separate trusted jobs
 publish revisions and record Human approval snapshots in Git on
@@ -108,8 +111,48 @@ TDD Tests to Coding Agent. Tests and Implementation still use Human-reviewed
 PRs, controlled Red/Green checks, and verified image delivery; they cannot alter
 approved documents or approval state.
 
-Existing Intents with `brownfield-delivery/<intent>` branches remain in
-**legacy Spec/Plan PR mode**; there is no automatic migration.
+Smoke success for any Issue-based (`issue-v1`) run, including one started before
+the acceptance upgrade, leaves the Intent open for **Human acceptance**.
+Test the exact verified image against the approved acceptance
+scenarios, then submit a new, unedited parent-Issue comment:
+
+```text
+/sdlc accept sha256:<64hex>
+<Describe the scenarios actually exercised and observed results.>
+```
+
+Replace the placeholder with the current published digest. Acceptance uses the
+configured Implementation reviewer identities/quorum and binds to the current
+verification's digest, merge SHA, Actions run ID, and attempt. A new verification
+invalidates earlier acceptance. Use `/sdlc reject sha256:<64hex>` with actual
+observations to reject it; another verification attempt is required before
+acceptance. An already completed, accepted run is terminal; another delivery
+requires a new Intent. After merge, code or scope corrections belong in a linked new Intent,
+not edits to sealed documents. Only Human acceptance completes Issue-based runs and
+removes the engineering branch; document and run-record branches remain.
+
+Existing document-PR Intents remain in **legacy Spec/Plan PR mode**; there is no
+automatic migration or change to their original completion behavior. An
+engineering branch created by Issue-based handoff does not make a run legacy.
+
+## Repeatable presentation
+
+From the repository root, `npm run demo:brownfield -- help` opens the
+[presentation toolkit](../../tools/brownfield-demo/README.md) command reference.
+Demo-specific [scenario manifests](.github/brownfield-human-gated-delivery/scenarios/)
+describe the normal, Spec-change/Plan-invalidation, and recovery rehearsals.
+Prepare a pinned source commit into a separate, nonexistent destination; do not
+copy secrets, local SQLite data, or reset the source checkout. Remote creation
+and publication remain explicit operator actions.
+
+Use read-only preflight before spending model time. Show the delivered image
+by verified digest, not a mutable tag or a previously running development
+server; clean up only toolkit-managed containers. The Environment's smoke check
+does not create a live hosted service. Read-only HTML replay is rendered from
+real run evidence with escaped content, not simulated approvals or test results.
+Follow the [presenter runbook](../../docs/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness):
+configured prerequisites are not proof of Demo Ready, and three completed
+isolated runs have not yet been established.
 
 See the
 [Brownfield Human-Gated Delivery demo](../../docs/brownfield-human-gated-delivery.md)

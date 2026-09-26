@@ -4,24 +4,28 @@ import {
   artifactPaths, isAuthorizedAssociation, lifecycleBranch, loadConfig, renderPrompt,
 } from "./core.mjs";
 import {
-  assignCopilot, ensureLabel, ensureStageIssues, githubRequest, graphql, kickoff, listAll, resolveTeamMembers,
+  assignCopilot, ensureLabel, ensureStageIssues, githubRequest, kickoff, listAll, resolveTeamMembers,
 } from "./github.mjs";
 import {
   approveDocument, contentHash, documentBranch, documentMode, documentStages, documentStatePath,
   hasDocumentApproval, initialDocumentState, parseDocumentCommand, publishDocumentRevision,
   requestDocumentRevision, validateDocumentHandoff, validateDocumentState,
 } from "./document-core.mjs";
+import { isWorkflowComment, ReviewStateStore } from "./state-store.mjs";
 
 const workflow = "brownfield-human-gated-delivery-documents.yml";
 const intentLabel = "brownfield-human-gated-delivery:intent";
 const progressMarker = "<!-- brownfield-human-gated-delivery-progress -->";
 const ledgerMarker = "<!-- brownfield-human-gated-delivery-document-ledger -->";
-const isWorkflowComment = (comment) => comment.user?.type === "Bot" && comment.user.login === "github-actions[bot]";
 
 export class DocumentReview {
   constructor({ token, copilotToken, owner, repo, config }) {
     Object.assign(this, { token, copilotToken, owner, repo, config });
     this.root = `/repos/${owner}/${repo}`;
+    this.store = new ReviewStateStore(this, {
+      branch: documentBranch, path: documentStatePath, marker: ledgerMarker,
+      validate: validateDocumentState,
+    });
   }
 
   request(path, method = "GET", body) {
@@ -49,40 +53,12 @@ export class DocumentReview {
     return { text: Buffer.from(result.content, "base64").toString("utf8"), sha: result.sha };
   }
 
-  async ledger(intent) {
-    const comment = (await this.list(`/issues/${intent}/comments`))
-      .find((item) => isWorkflowComment(item) && item.body?.startsWith(ledgerMarker));
-    if (!comment) return null;
-    const { node } = await graphql(this.token, `
-      query DocumentLedger($id: ID!) {
-        node(id: $id) {
-          ... on IssueComment {
-            body lastEditedAt
-            author { __typename login }
-            editor { __typename login }
-          }
-        }
-      }
-    `, { id: comment.node_id });
-    const trusted = (actor) => actor?.__typename === "Bot" &&
-      ["github-actions", "github-actions[bot]"].includes(actor.login);
-    if (!trusted(node?.author) || (node.lastEditedAt && !trusted(node.editor))) {
-      throw new Error("The document audit ledger was edited outside trusted workflow automation.");
-    }
-    return node;
-  }
-
   async load(intent) {
-    const sha = await this.ref(documentBranch(intent));
-    if (!sha) return null;
-    const record = await this.file(documentStatePath(intent), sha);
-    const ledger = await this.ledger(intent);
-    if (!ledger?.body.split("\n").includes(`${sha} ${contentHash(record.text)}`)) {
-      throw new Error("Document review state lacks its trusted workflow audit entry; direct edits cannot authorize a handoff.");
-    }
-    const state = validateDocumentState(JSON.parse(record.text), intent);
+    const snapshot = await this.store.load(intent);
+    if (!snapshot) return null;
+    const { sha, state } = snapshot;
     const documents = {};
-    const blobs = { state: record.sha };
+    const blobs = { state: snapshot.blob };
     for (const stage of documentStages) {
       if (!state.documents[stage]) continue;
       const file = await this.file(artifactPaths(intent)[stage], sha);
@@ -94,39 +70,15 @@ export class DocumentReview {
   }
 
   async save(snapshot, state, files = {}) {
-    const intent = state.intent;
-    validateDocumentState(state, intent);
-    const branch = documentBranch(intent);
-    const current = await this.ref(branch);
-    if (current !== (snapshot?.sha ?? null)) throw new Error("Document branch changed concurrently; rerun Documents.");
-    const base = snapshot?.sha ?? state.baseline;
-    const commit = await this.request(`/git/commits/${base}`);
-    const record = JSON.stringify(state, null, 2) + "\n";
-    const tree = [{ path: documentStatePath(intent), mode: "100644", type: "blob", content: record }];
+    const paths = artifactPaths(state.intent);
+    const changes = {};
     for (const [stage, text] of Object.entries(files)) {
       if (!documentStages.includes(stage)) throw new Error("Only document artifacts may be published.");
-      tree.push({ path: artifactPaths(intent)[stage], mode: "100644", type: "blob",
-        ...(text === null ? { sha: null } : { content: text }) });
+      changes[paths[stage]] = text;
     }
-    const createdTree = await this.request("/git/trees", "POST", { base_tree: commit.tree.sha, tree });
-    const created = await this.request("/git/commits", "POST", {
-      message: `Record Issue document review for Intent #${intent}`,
-      tree: createdTree.sha, parents: [base],
-    });
-    // Attest before moving the ref: a failed publication can leave an orphan
-    // commit, but never an authoritative state without a workflow receipt.
-    const ledger = await this.ledger(intent);
-    const entries = ledger?.body.split("\n").filter((line) => /^[a-f0-9]{40} [a-f0-9]{64}$/.test(line)) ?? [];
-    entries.push(`${created.sha} ${contentHash(record)}`);
-    const ledgerBody = `<details>\n<summary>Document review audit ledger</summary>\n\nTrusted workflow commit and state SHA-256 receipts. Human approvals remain recorded in Git.\n\n\`\`\`text\n${entries.join("\n")}\n\`\`\`\n</details>`;
-    if (Buffer.byteLength(ledgerBody) > 55000) throw new Error("Review audit ledger is full; start a new Intent rather than losing history.");
-    await this.comment(intent, ledgerMarker, ledgerBody);
-    if (current) {
-      await this.request(`/git/refs/heads/${branch}`, "PATCH", { sha: created.sha, force: false });
-    } else {
-      await this.request("/git/refs", "POST", { ref: `refs/heads/${branch}`, sha: created.sha });
-    }
-    return this.load(intent);
+    this.store.allowedPaths = [paths.spec, paths.plan];
+    await this.store.save(snapshot, state, changes);
+    return this.load(state.intent);
   }
 
   async parent(intent, snapshot) {
@@ -164,6 +116,8 @@ export class DocumentReview {
   }
 
   async hub(issue, snapshot, stageIssues, current = {}) {
+    const { RunControl } = await import("./runs.mjs");
+    const runSummary = await new RunControl(this).summary(issue.number);
     const { state, sha } = snapshot;
     const rows = documentStages.map((stage) => {
       const doc = state.documents[stage];
@@ -181,6 +135,7 @@ export class DocumentReview {
     }
     await this.comment(issue.number, progressMarker, [
       "## Brownfield human-gated delivery progress", "",
+      runSummary,
       "| Stage / current document | Status |", "|---|---|", ...rows, "",
       "Read the complete Spec and Plan in the revision comments below; the links above pin their current Git snapshot.",
       "Discuss here. To revise, submit `/sdlc revise spec` or `/sdlc revise plan` followed by feedback on a new line.",
@@ -235,6 +190,7 @@ export class DocumentReview {
     await this.publishComments(issue, snapshot, stageIssues);
     const comments = (await this.list(`/issues/${intent}/comments`))
       .filter((comment) => comment.id > snapshot.state.lastCommentId && comment.user?.type === "User" && comment.body?.startsWith("/sdlc"))
+      .filter((comment) => !/^\/sdlc (?:help|status|pause|resume|cancel|accept|reject)\b/.test(comment.body))
       .sort((left, right) => left.id - right.id);
     for (const candidate of comments) {
       const comment = await this.request(`/issues/comments/${candidate.id}`);
@@ -321,6 +277,9 @@ export class DocumentReview {
   }
 
   async publish(intent, expectedSha, text) {
+    const { RunControl } = await import("./runs.mjs");
+    const run = new RunControl(this);
+    await run.assertActive(intent);
     let snapshot = await this.load(intent);
     if (!snapshot || snapshot.sha !== expectedSha) throw new Error("Stale generation result; the document branch changed. Rerun Documents.");
     const issue = await this.parent(intent, snapshot);
@@ -330,11 +289,15 @@ export class DocumentReview {
     snapshot = await this.save(snapshot, state, { [stage]: text });
     const stageIssues = await this.stageIssues(issue);
     await this.publishComments(issue, snapshot, stageIssues);
+    const currentRun = await run.loadRun(intent);
+    if (currentRun?.state.failure?.stage === "documents") await run.failure(intent, null);
     await this.dispatch(intent);
     return snapshot;
   }
 
   async handoff(issue, snapshot, stageIssues) {
+    const { RunControl } = await import("./runs.mjs");
+    await new RunControl(this).assertActive(issue.number);
     validateDocumentHandoff(snapshot.state, snapshot.documents, this.config);
     await this.parent(issue.number, snapshot);
     const comparison = await this.request(`/compare/${snapshot.state.baseline}...${snapshot.sha}`);
@@ -421,7 +384,22 @@ async function main() {
     if (event.comment && !await review.writer(event.comment)) {
       throw new Error("Only a Human with repository write access may trigger document work from a comment.");
     }
+    const { RunControl } = await import("./runs.mjs");
+    const control = new RunControl(review);
+    const previous = await review.load(intent);
+    if (!previous && await review.ref(lifecycleBranch(intent))) {
+      throw new Error("Legacy runs use PR review and Actions reruns; Issue run commands require an Issue-review run.");
+    }
+    const repository = await review.request("");
+    const baseline = previous?.state.baseline ?? await review.ref(repository.default_branch);
+    const run = await control.processControls(intent, baseline);
+    if (run.state.status !== "active") {
+      if (previous) await review.hub(await review.request(`/issues/${intent}`), previous, await review.list(`/issues/${intent}/sub_issues`));
+      appendFileSync(process.env.GITHUB_OUTPUT, "generate=false\n");
+      return;
+    }
     const snapshot = await review.process(intent);
+    if (!snapshot.state.pending && run.state.failure?.stage === "documents") await control.failure(intent, null);
     const pending = snapshot.state.pending;
     appendFileSync(process.env.GITHUB_OUTPUT,
       `generate=${Boolean(pending)}\nrequest-sha=${snapshot.sha}\nsource-sha=${snapshot.state.baseline}\n`);
@@ -430,7 +408,13 @@ async function main() {
     await review.publish(intent, process.env.DOCUMENT_REQUEST_SHA, readFileSync(process.env.DOCUMENT_OUTPUT_PATH, "utf8"));
   } else if (process.argv[2] === "failure") {
     await review.comment(intent, `<!-- sdlc-run-failure:${process.env.GITHUB_RUN_ID} -->`,
-      `Document workflow failed. [Inspect the run](https://github.com/${review.owner}/${review.repo}/actions/runs/${process.env.GITHUB_RUN_ID}) for the explicit error. No failed output counts as approval. After resolving it, submit \`/sdlc retry\` or resume **Brownfield Delivery · Documents** with this Issue number.`);
+      `Document or run-control workflow failed. [Inspect the run](https://github.com/${review.owner}/${review.repo}/actions/runs/${process.env.GITHUB_RUN_ID}) for the explicit error. After resolving it, submit \`/sdlc retry\` or resume **Brownfield Delivery · Documents** with this Issue number. Recorded Human decisions remain recorded even if a later cleanup step failed.`);
+    const { RunControl } = await import("./runs.mjs");
+    await new RunControl(review).failure(intent, {
+      stage: "documents",
+      runUrl: `https://github.com/${review.owner}/${review.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+      message: "Document generation, command processing or handoff failed; inspect the Actions log.",
+    });
   } else throw new Error("Expected prepare, publish, or failure.");
 }
 

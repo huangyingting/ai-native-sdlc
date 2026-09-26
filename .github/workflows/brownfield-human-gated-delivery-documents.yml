@@ -35,6 +35,8 @@ jobs:
       contents: write
       issues: write
       actions: write
+      statuses: write
+      pull-requests: write
     outputs:
       generate: ${{ steps.review.outputs.generate }}
       request-sha: ${{ steps.review.outputs.request-sha }}
@@ -142,7 +144,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
       issues: write
     steps:
       - uses: actions/checkout@v7

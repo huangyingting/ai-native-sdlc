@@ -83,23 +83,67 @@ data.
 ## Brownfield Human-Gated Delivery demo
 
 The IT service desk is the existing application in a brownfield, human-gated
-delivery loop. A GitHub Intent moves through AI-authored Spec and Plan
-artifacts, controlled TDD Red evidence, Copilot Coding Agent implementation,
-GHCR publishing, temporary container verification, and delivery feedback to
-the originating Issue.
+delivery loop. For new Intents, the parent Issue is the Spec/Plan review hub:
+full rendered Markdown revision comments, current document links, discussion,
+and explicit Human commands all stay there until engineering handoff.
+**Brownfield Delivery · Documents**
+(`brownfield-human-gated-delivery-documents.yml`) runs read-only Copilot CLI
+generation in Actions, with separate trusted publication and approval jobs.
+It does not build the application or introduce an external service, UI, or
+package.
+
+The repository's custom Actions commands are `/sdlc revise spec` and
+`/sdlc revise plan` followed by feedback on subsequent lines, and versioned
+approvals such as `/sdlc approve spec v2` and `/sdlc approve plan v1`.
+Submit them as new top-level Human comments on the parent Intent. They are
+not built-in `@copilot` commands; ordinary discussion does not invoke AI or
+approve a document. `/sdlc retry` resumes failed generation without supplying
+new feedback. Each run reconciles a durable command queue, so a rerun or manual
+Documents dispatch with `issue_number` can recover without losing commands
+from superseded pending runs.
+
+Each revision and approval is saved on `brownfield-documents/<intent>` under
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/` as `spec.md`,
+`plan.md`, and `document-review.json`. Recorded approvals bind the reviewed
+revision comment ID/body, version, and hash to the approval command comment and
+Human ID/login/time; editing or deleting a processed approval comment does not
+revoke it. Only current configured Humans with repository write access, including
+configured team members, can satisfy `minimumApprovals`; bots cannot. Issue
+approval has no native PR independent-review restriction.
+
+A Spec revision before handoff invalidates Spec approvals and the existing
+Plan. Each Plan links its approved Spec. Once the Plan is fully approved,
+documents freeze and automation creates `brownfield-delivery/<intent>` at the
+approved document commit, closes internal Spec/Plan tracking issues, and assigns
+only TDD Tests to Coding Agent. Tests and Implementation PRs preserve all
+approved document and approval-state blobs. Controlled Red, Green, GHCR
+publishing, temporary container verification, and delivery feedback continue
+unchanged. Existing Intents with lifecycle branches stay in **legacy Spec/Plan
+PR mode**, without automatic migration.
 
 Use the [step-by-step walkthrough](./brownfield-human-gated-delivery-walkthrough.md)
 to run the demo in GitHub Web. See
 [Brownfield Human-Gated Delivery demo](./brownfield-human-gated-delivery.md)
 for reviewer configuration, credentials, branch rules, stage artifacts, and
-failure behavior. This write-enabled Coding Agent flow is one AI-native delivery
-pattern and remains separate from the read-only Copilot CLI orchestration
-workflows below.
+failure behavior. This lifecycle combines read-only document generation with
+write-enabled Coding Agent engineering stages. It remains separate from the
+read-only Copilot CLI orchestration demonstrations below.
 
 For repeatable prerequisite configuration, use
 [`npm run setup:brownfield`](./brownfield-human-gated-delivery.md#run-the-setup-script).
 It previews changes unless explicitly passed `--apply`, preserves existing
-protections, and reports prerequisites that require manual configuration.
+protections by default, and reports prerequisites that require manual
+configuration. The explicit
+[`--single-owner` mode](./brownfield-human-gated-delivery.md#single-owner-demo-mode)
+changes native approval counts to zero while retaining the configured Human
+approval policy for PR stages. It is not needed for new Issue document approvals.
+Full setup must verify/register the Documents workflow; the default-branch
+files and workflow registration must be checked rather than assuming local
+changes are deployed. Copilot CLI generation additionally needs
+`copilot-requests: write` and CLI entitlement, not the write-enabled assignment
+token. Managed rulesets cover only `main` and `brownfield-delivery/**`.
+Document branches need trusted automation writes, not a ruleset bypass;
+an existing unprotected `main` is not changed automatically.
 
 ## Copilot CLI demonstration workflow
 

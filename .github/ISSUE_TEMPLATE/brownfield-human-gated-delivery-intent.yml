@@ -8,7 +8,9 @@ body:
       value: |
         You write the Intent: what is needed, why it matters, who is affected, and which constraints apply. The prefilled ticket-ownership example is editable; review it before submitting, or replace it with your own intent.
 
-        Leave unresolved decisions in Open questions instead of writing a specification or implementation plan. After repository setup, submitting starts the AI-written Spec stage. Spec and Plan can each go through multiple feedback and revision rounds in the same pull request. Only explicit approval from the configured Human reviewers and passing required checks allow merging and advancement. TDD Tests and Implementation also require Human review before verified delivery.
+        Leave unresolved decisions in Open questions instead of writing a specification or implementation plan. After repository setup, a new Intent starts AI-written Spec and Plan review here in this Issue, not in document pull requests. Read each published version, discuss it, and submit `/sdlc revise spec` or `/sdlc revise plan` followed by feedback on a new line. Approve only a version you have read with `/sdlc approve spec vN` or `/sdlc approve plan vN`.
+
+        Only explicit approval from configured Human reviewers of both documents starts TDD. Tests and Implementation still use reviewed pull requests and required checks before verified delivery. Existing runs with lifecycle branches keep their original document-PR review process.
 
         Only repository owners, members, and collaborators can start the automated lifecycle. The Intent author is not automatically a reviewer; configure the intended approver in the repository's delivery configuration.
   - type: textarea

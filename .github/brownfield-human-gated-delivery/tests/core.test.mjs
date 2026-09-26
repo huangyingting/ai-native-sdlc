@@ -387,6 +387,15 @@ test("counts only current configured human approvals", () => {
       assert.throws(() => validateApprovedFiles(42, config.project.path, approvedTree, tree(renamed), cwd), /deleted or renamed/);
       delete renamed["demos/it-service-desk/src/renamed.test.ts"];
       assert.throws(() => validateApprovedFiles(42, config.project.path, approvedTree, tree(renamed), cwd), /deleted or renamed/);
+      const receiptPath = `${paths.root}/document-review.json`;
+      const issueApproved = { ...approved, [receiptPath]: '{"sealed":true}' };
+      const issueImplementation = { ...implementation, [receiptPath]: issueApproved[receiptPath] };
+      const issueTree = tree(issueApproved);
+      assert.equal(validateApprovedFiles(42, config.project.path, issueTree, tree(issueImplementation), cwd).length, 5);
+      assert.throws(() => validateApprovedFiles(42, config.project.path, issueTree, tree({
+        ...issueImplementation, [receiptPath]: '{"sealed":false}',
+      }), cwd), /Approved file was modified/);
+      assert.throws(() => validateApprovedFiles(42, config.project.path, issueTree, tree(implementation), cwd), /deleted or renamed/);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -558,6 +567,8 @@ test("prefills a complete editable brownfield demo intent rather than placeholde
   }
   assert.match(issueForm, /label: Affected users and systems/);
   assert.match(issueForm, /label: Open questions/);
+  assert.match(issueForm, /here in this Issue, not in document pull requests/);
+  assert.match(issueForm, /\/sdlc approve spec vN/);
   assert.doesNotMatch(issueForm, /id: success|Given\/When\/Then|container smoke checks/);
 });
 

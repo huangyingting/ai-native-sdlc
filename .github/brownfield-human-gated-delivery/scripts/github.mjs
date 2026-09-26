@@ -41,7 +41,7 @@ function repositoryCoordinates() {
   return { owner, repo };
 }
 
-async function githubRequest(token, path, options = {}) {
+export async function githubRequest(token, path, options = {}) {
   if (!token) throw new Error(`A GitHub token is required for ${path}.`);
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
@@ -63,7 +63,7 @@ async function githubRequest(token, path, options = {}) {
   return body;
 }
 
-async function graphql(token, query, variables) {
+export async function graphql(token, query, variables) {
   const response = await githubRequest(token, "/graphql", {
     method: "POST",
     headers: {
@@ -78,7 +78,7 @@ async function graphql(token, query, variables) {
   return response.data;
 }
 
-async function listAll(token, path) {
+export async function listAll(token, path) {
   const separator = path.includes("?") ? "&" : "?";
   const items = [];
   for (let page = 1; ; page += 1) {
@@ -111,7 +111,7 @@ function intentFromBody(body) {
   return match ? Number(match[1]) : null;
 }
 
-async function ensureLabel(token, owner, repo, name, color, description) {
+export async function ensureLabel(token, owner, repo, name, color, description) {
   try {
     return await githubRequest(token, `/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
   } catch (error) {
@@ -157,22 +157,27 @@ function stageIssueTitle(intentNumber, stage, intentTitle) {
   return `[Brownfield Delivery #${intentNumber}][${label}] ${conciseIntent}`;
 }
 
-function stageIssueBody(intentNumber, stage, stageIssueNumber = null) {
+function stageIssueBody(intentNumber, stage, stageIssueNumber = null, issueDocuments = false) {
   return [
     `Delivery Demo: ${demoName}`,
     `Delivery Intent: #${intentNumber}`,
     `Delivery Stage: ${stage}`,
     stageIssueNumber ? `Delivery Stage Issue: #${stageIssueNumber}` : "",
+    issueDocuments ? "Delivery Document Review: issue-v1" : "",
     "",
     `This is the **${stage}** stage for Intent #${intentNumber}.`,
     "The workflow assigns this Issue when all preceding human review gates are complete.",
-    "Review is iterative: use Request changes and ask @copilot to address feedback in the same pull request. Repeat until the configured Human reviewers explicitly approve the latest revision.",
-    "Only approval plus passing required checks permits merging; the next stage starts after merge, not after comments or CI alone.",
-    "Do not close this Issue from a pull request; lifecycle automation closes it after the stage PR merges.",
+    issueDocuments && ["spec", "plan"].includes(stage)
+      ? `Read, discuss, and approve document versions on parent Intent #${intentNumber}. Use /sdlc revise ${stage} followed by feedback, or /sdlc approve ${stage} vN. No document PR is created.`
+      : "Review is iterative: use Request changes and ask @copilot to address feedback in the same pull request. Repeat until the configured Human reviewers explicitly approve the latest revision.",
+    issueDocuments
+      ? "Only approved Spec and Plan snapshots start TDD. Tests and implementation advance after approved PRs pass checks and merge."
+      : "Only approval plus passing required checks permits merging; the next stage starts after merge, not after comments or CI alone.",
+    "Do not close this Issue manually; lifecycle automation closes it when its gate completes.",
   ].filter(Boolean).join("\n");
 }
 
-async function ensureStageIssues(token, owner, repo, parentIssue) {
+export async function ensureStageIssues(token, owner, repo, parentIssue, issueDocuments = false) {
   const subIssues = await listAll(
     token,
     `/repos/${owner}/${repo}/issues/${parentIssue.number}/sub_issues`,
@@ -195,7 +200,7 @@ async function ensureStageIssues(token, owner, repo, parentIssue) {
         method: "POST",
         body: JSON.stringify({
           title: stageIssueTitle(parentIssue.number, stage, parentIssue.title),
-          body: stageIssueBody(parentIssue.number, stage),
+          body: stageIssueBody(parentIssue.number, stage, null, issueDocuments),
           labels: [stageWorkItemLabel, `${stageLabelPrefix}${stage}`],
         }),
       });
@@ -205,17 +210,17 @@ async function ensureStageIssues(token, owner, repo, parentIssue) {
         {
           method: "PATCH",
           body: JSON.stringify({
-            body: stageIssueBody(parentIssue.number, stage, created.number),
+            body: stageIssueBody(parentIssue.number, stage, created.number, issueDocuments),
           }),
         },
       );
       created = {
         ...created,
-        body: stageIssueBody(parentIssue.number, stage, created.number),
+        body: stageIssueBody(parentIssue.number, stage, created.number, issueDocuments),
       };
     }
     if (!String(created.body ?? "").includes("Delivery Stage Issue:")) {
-      const body = stageIssueBody(parentIssue.number, stage, created.number);
+      const body = stageIssueBody(parentIssue.number, stage, created.number, issueDocuments);
       await githubRequest(
         token,
         `/repos/${owner}/${repo}/issues/${created.number}`,
@@ -268,6 +273,13 @@ function progressBody(parentIssue, stageIssues, current = {}) {
 }
 
 async function updateProgress(token, owner, repo, parentIssue, stageIssues, current) {
+  if (stageIssues.some((issue) => issue.body?.includes("Delivery Document Review: issue-v1"))) {
+    const { DocumentReview } = await import("./documents.mjs");
+    const review = new DocumentReview({ token, owner, repo, config: loadConfig() });
+    const snapshot = await review.load(parentIssue.number);
+    if (!snapshot) throw new Error("Missing Issue document review history.");
+    return review.hub(parentIssue, snapshot, stageIssues, current);
+  }
   const comments = await listAll(
     token,
     `/repos/${owner}/${repo}/issues/${parentIssue.number}/comments`,
@@ -293,7 +305,7 @@ async function updateProgress(token, owner, repo, parentIssue, stageIssues, curr
   );
 }
 
-async function assignCopilot(
+export async function assignCopilot(
   token,
   owner,
   repo,
@@ -382,6 +394,11 @@ async function validateStageContext(token, owner, repo, pullRequest, { deliveryR
     token,
     `/repos/${owner}/${repo}/issues/${metadata.stageIssueNumber}`,
   );
+  if (stageIssue.body?.includes("Delivery Document Review: issue-v1")) {
+    const { DocumentReview } = await import("./documents.mjs");
+    await new DocumentReview({ token, owner, repo, config: loadConfig() })
+      .verifyPullRequest(metadata.intentNumber, metadata.stage, pullRequest);
+  }
   if (!hasLabel(stageIssue, `${stageLabelPrefix}${metadata.stage}`)) {
     throw new Error(`Stage Issue #${stageIssue.number} has the wrong stage label.`);
   }
@@ -445,7 +462,7 @@ async function validateStageContext(token, owner, repo, pullRequest, { deliveryR
   return { metadata, stageIssue, stageIssues, parent, repository };
 }
 
-async function resolveTeamMembers(token, owner, teams) {
+export async function resolveTeamMembers(token, owner, teams) {
   const members = new Set();
   for (const team of teams) {
     const teamMembers = await listAll(
@@ -669,7 +686,8 @@ async function evaluateReview(token, mergeToken, owner, repo, pullRequest) {
     }
     return file.previous_filename ? [file.previous_filename, file.filename] : [file.filename];
   });
-  validateStageFiles(context.metadata.stage, paths, context.metadata.intentNumber, config.project.path);
+  validateStageFiles(context.metadata.stage, paths, context.metadata.intentNumber, config.project.path,
+    context.stageIssue.body.includes("Delivery Document Review: issue-v1"));
   const policy = config.stages[context.metadata.stage];
   const reviews = await listAll(token, `/repos/${owner}/${repo}/pulls/${pullRequest.number}/reviews`);
   const teamMembers = await resolveTeamMembers(mergeToken, owner, policy.reviewers.teams);
@@ -1028,6 +1046,10 @@ export async function delivery() {
 }
 
 const commands = { kickoff, intake, review, advance, verify, delivery, classify, coordinate };
+commands["route-kickoff"] = async () => {
+  const { routeDocumentKickoff } = await import("./documents.mjs");
+  await routeDocumentKickoff();
+};
 const command = process.argv[2];
 if (
   process.argv[1] &&

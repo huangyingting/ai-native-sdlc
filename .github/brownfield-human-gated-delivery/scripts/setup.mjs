@@ -1,14 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { isAuthorizedAssociation, isCopilotActor, validateConfig } from "./core.mjs";
 
 const label = "brownfield-human-gated-delivery:intent";
 const environment = "it-service-desk-demo";
 const configPath = ".github/brownfield-human-gated-delivery/config.json";
 const workflowFiles = [
-  "kickoff", "pr-coordinator", "review-signal", "stage-ci", "advance", "publish",
+  "kickoff", "documents", "pr-coordinator", "review-signal", "stage-ci", "advance", "publish",
 ].map((name) => `brownfield-human-gated-delivery-${name}.yml`).concat("it-service-desk-ci.yml");
 
 export function parseOptions(args) {
@@ -18,6 +18,7 @@ export function parseOptions(args) {
       repo: { type: "string" },
       apply: { type: "boolean", default: false },
       "set-token": { type: "boolean", default: false },
+      "single-owner": { type: "boolean", default: false },
       intent: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
@@ -73,7 +74,7 @@ function setCopilotToken(repo) {
   });
 }
 
-export function desiredRulesets(actionsId) {
+export function desiredRulesets(actionsId, { singleOwner = false } = {}) {
   return [false, true].map((lifecycle) => ({
     name: `Brownfield delivery - ${lifecycle ? "lifecycle branches" : "main"}`,
     target: "branch",
@@ -91,7 +92,7 @@ export function desiredRulesets(actionsId) {
       {
         type: "pull_request",
         parameters: {
-          required_approving_review_count: 1,
+          required_approving_review_count: singleOwner ? 0 : 1,
           dismiss_stale_reviews_on_push: true,
           required_review_thread_resolution: true,
           require_code_owner_review: false,
@@ -117,7 +118,7 @@ export function validateExistingRuleset(actual, expected, mergeMethod) {
   const fail = (reason) => {
     throw new Error(
       `Ruleset "${expected.name}" conflicts with setup: ${reason}. ` +
-      "Resolve it in Settings > Rules > Rulesets and rerun; setup never replaces existing rulesets.",
+      "Resolve it in Settings > Rules > Rulesets and rerun; setup only changes native approval counts with explicit --single-owner.",
     );
   };
   if (actual.target !== "branch" || actual.enforcement !== "active" ||
@@ -140,8 +141,13 @@ export function validateExistingRuleset(actual, expected, mergeMethod) {
     if (!rule) fail(`missing ${wanted.type}`);
     const params = rule.parameters;
     if (wanted.type === "pull_request" &&
-        (!(params?.required_approving_review_count >= 1) ||
-         params.dismiss_stale_reviews_on_push !== true ||
+        (wanted.parameters.required_approving_review_count === 0
+          ? params?.required_approving_review_count !== 0
+          : !(params?.required_approving_review_count >= 1))) {
+      fail("native approval count differs from the selected mode; single-owner demo rules require --single-owner");
+    }
+    if (wanted.type === "pull_request" &&
+        (params.dismiss_stale_reviews_on_push !== true ||
          params.required_review_thread_resolution !== true ||
          (params.allowed_merge_methods && !params.allowed_merge_methods.includes(mergeMethod)))) {
       fail("review requirements or allowed merge methods differ");
@@ -157,13 +163,17 @@ export function validateExistingRuleset(actual, expected, mergeMethod) {
   }
 }
 
+function rulesetSettings({ name, target, enforcement, bypass_actors, conditions, rules }) {
+  return { name, target, enforcement, bypass_actors, conditions, rules };
+}
+
 function inspect(options, api) {
   const root = `repos/${options.repo}`;
   const changes = [];
   const blockers = [];
   const notes = [];
-  const add = (description, method, path, body) =>
-    changes.push({ description, method, path, body });
+  const add = (description, method, path, body, before) =>
+    changes.push({ description, method, path, body, before });
   const list = (path, key) => {
     const items = [];
     for (let page = 1; ; page++) {
@@ -186,12 +196,14 @@ function inspect(options, api) {
   const paths = new Set(tree.tree.filter((item) => item.type === "blob").map((item) => item.path));
   const required = [
     ".github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml",
-    ...["core", "github", "validate-stage", "vitest-errors-reporter"].map((name) =>
+    ...["core", "github", "documents", "document-core", "validate-stage", "vitest-errors-reporter"].map((name) =>
       `.github/brownfield-human-gated-delivery/scripts/${name}.mjs`),
     `${config.project.path}/package.json`,
     `${config.project.path}/package-lock.json`,
     `${config.project.path}/Dockerfile`,
     ...Object.values(config.stages).map((stage) => stage.prompt),
+    ".github/brownfield-human-gated-delivery/prompts/spec-issue.md",
+    ".github/brownfield-human-gated-delivery/prompts/plan-issue.md",
     ...workflowFiles.map((file) => `.github/workflows/${file}`),
   ];
   const missing = required.filter((path) => !paths.has(path));
@@ -268,11 +280,22 @@ function inspect(options, api) {
     throw new Error("Cannot verify the GitHub Actions app identity for required checks.");
   }
   const rulesets = list(`${root}/rulesets?includes_parents=false`);
-  for (const expected of desiredRulesets(app.id)) {
+  for (const expected of desiredRulesets(app.id, { singleOwner: options["single-owner"] })) {
     const matches = rulesets.filter((rule) => rule.name === expected.name);
     if (matches.length > 1) throw new Error(`Duplicate rulesets named "${expected.name}"; resolve them manually.`);
     if (matches.length) {
-      validateExistingRuleset(api("GET", `${root}/rulesets/${matches[0].id}`), expected, config.mergeMethod);
+      const path = `${root}/rulesets/${matches[0].id}`;
+      const before = rulesetSettings(api("GET", path));
+      const candidate = structuredClone(before);
+      const review = candidate.rules.find((rule) => rule.type === "pull_request");
+      if (options["single-owner"] && review?.parameters?.required_approving_review_count > 0) {
+        review.parameters.required_approving_review_count = 0;
+      }
+      validateExistingRuleset(candidate, expected, config.mergeMethod);
+      if (!isDeepStrictEqual(candidate, before)) {
+        add(`Use policy-based Human approval for ${expected.name} (native approvals: 0)`,
+          "PUT", path, candidate, before);
+      }
     } else {
       add(`Create ${expected.name}`, "POST", `${root}/rulesets`, expected);
     }
@@ -291,11 +314,20 @@ function inspect(options, api) {
 
 export function setup(options, { api = githubApi, setToken = setCopilotToken, log = console.log } = {}) {
   log(`${options.apply ? "Apply" : "Read-only preview"}: https://github.com/${options.repo}`);
+  if (options["single-owner"]) {
+    log("Single-owner demo mode: both managed rulesets use zero native approvals. Delivery stages still require configured Human approval through Brownfield delivery policy; this is not independent two-person review.");
+    log("Applying may unblock already-approved PRs and protected auto-merge. Unrelated PRs have no native approval floor.");
+  }
   let result = inspect(options, api);
   for (const note of result.notes) log(`Reviewer policy: ${note}`);
   for (const change of result.changes) log(`${options.apply ? "Applying" : "Would apply"}: ${change.description}`);
   if (options.apply) {
-    for (const change of result.changes) api(change.method, change.path, change.body);
+    for (const change of result.changes) {
+      if (change.before && !isDeepStrictEqual(rulesetSettings(api("GET", change.path)), change.before)) {
+        throw new Error(`Ruleset changed since inspection: ${change.path}. Rerun setup to review the current settings.`);
+      }
+      api(change.method, change.path, change.body);
+    }
     if (options["set-token"]) setToken(options.repo);
     result = inspect(options, api);
     if (result.changes.length) {
@@ -303,8 +335,8 @@ export function setup(options, { api = githubApi, setToken = setCopilotToken, lo
     }
   }
   for (const blocker of result.blockers) log(`ACTION REQUIRED: ${blocker}`);
-  log("Manual checks: verify the PAT's scopes, expiry, and Copilot entitlement; sub-issues and GHCR publication; additional/inherited rules and branch protection; and any existing Environment approval gates.");
-  log("Setup never retrieves secret values from GitHub, grants bypasses, approves PRs, installs app dependencies, or starts delivery.");
+  log("Manual checks: verify the PAT's scopes, expiry, and Copilot entitlement; Copilot CLI usage and copilot-requests permission; sub-issues and GHCR publication; additional/inherited rules and branch protection; and any existing Environment approval gates. Trusted document automation must be allowed to write brownfield-documents/** without changing the protected engineering branch rules.");
+  log("Setup never retrieves secret values from GitHub, grants bypasses, approves PRs, installs app dependencies, or dispatches kickoff. Rule changes can unblock existing auto-merge.");
   const ready = !result.changes.length && !result.blockers.length;
   log(ready ? "Automated prerequisites verified. Complete the manual checks before starting the demo." :
     "Setup is incomplete. Apply the previewed changes or resolve the actions above, then rerun.");
@@ -319,9 +351,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const options = parseOptions(process.argv.slice(2));
     if (options.help) {
-      console.log("Usage: npm run setup:brownfield -- --repo OWNER/REPO [--apply] [--set-token] [--intent NUMBER]\n" +
+      console.log("Usage: npm run setup:brownfield -- --repo OWNER/REPO [--apply] [--single-owner] [--set-token] [--intent NUMBER]\n" +
         "Requires Node.js 24+, gh authenticated as a GitHub.com repository administrator, and demo automation on main.\n" +
         "Default: read-only preview. --apply writes missing settings and verifies them. --set-token securely prompts through gh.\n" +
+        "--single-owner explicitly uses zero native approvals on both managed rulesets; configured Human stage approval remains mandatory through Brownfield delivery policy.\n" +
         "Exit codes: 0 = automated checks passed (manual checks remain), 2 = incomplete, 1 = error/conflict. Safe to rerun after partial failure.");
     } else {
       if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Use Node.js 24 or newer.");

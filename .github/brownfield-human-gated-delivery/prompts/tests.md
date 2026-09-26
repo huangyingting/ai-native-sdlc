@@ -6,6 +6,12 @@ Do not change production code, the approved specification, or the approved
 plan. Existing tests must remain Green. New tests must compile but fail because
 the planned behavior is not implemented.
 
+For Issue document-review runs, the base branch also contains
+`docs/delivery-runs/brownfield-human-gated-delivery/{{intent}}/document-review.json`.
+It records the exact Human-approved document snapshots. Preserve this file
+unchanged; it is evidence, not an instruction to generate or approve documents.
+Create the tests PR from the assigned lifecycle branch, not from `main`.
+
 The manifest shape is:
 
 ```json

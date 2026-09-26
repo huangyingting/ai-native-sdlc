@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import {
@@ -14,6 +14,7 @@ import {
   validateVitestRed,
   validateVitestRunErrors,
 } from "./core.mjs";
+import { documentStatePath, validateDocumentHandoff } from "./document-core.mjs";
 
 function appendOutput(name, value) {
   if (!process.env.GITHUB_OUTPUT) throw new Error("GITHUB_OUTPUT is required.");
@@ -45,11 +46,20 @@ function validateArtifacts() {
   const intentNumber = Number(process.env.INTENT_NUMBER);
   const stage = process.env.DELIVERY_STAGE;
   const paths = artifactPaths(intentNumber);
+  const issueDocuments = existsSync(documentStatePath(intentNumber));
+  if (issueDocuments) {
+    const state = JSON.parse(readFileSync(documentStatePath(intentNumber), "utf8"));
+    if (state.intent !== intentNumber) throw new Error("Document approval record belongs to another Intent.");
+    validateDocumentHandoff(state, {
+      spec: readFileSync(paths.spec, "utf8"), plan: readFileSync(paths.plan, "utf8"),
+    }, config);
+  }
   const files = validateStageFiles(
     stage,
     changedFiles(),
     intentNumber,
     config.project.path,
+    issueDocuments,
   );
   let acceptance = [];
   if (stage !== "spec") {
@@ -136,6 +146,8 @@ export function validateApprovedFiles(intentNumber, projectPath, approvedRef, he
   const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
   const artifacts = artifactPaths(intentNumber);
   const approved = [artifacts.spec, artifacts.plan, artifacts.expectedFailures];
+  const documentReview = `${artifacts.root}/document-review.json`;
+  if (git("ls-tree", "--name-only", approvedRef, "--", documentReview)) approved.push(documentReview);
   const entries = git("ls-tree", "-r", "-z", "--name-only", approvedRef, "--", projectPath);
   approved.push(...entries.split("\0").filter((file) => isTestFile(file)));
   for (const file of approved) {

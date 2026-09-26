@@ -34,6 +34,27 @@ npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
 This previews prerequisites without changing GitHub. Add `--apply` to configure
 missing settings. See the [setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
 for secure token entry, existing-Intent recovery, and remaining manual checks.
+If you are the only Human reviewer, use the explicit
+[`--single-owner` demo mode](docs/brownfield-human-gated-delivery.md#single-owner-demo-mode)
+for the TDD Tests and Implementation PR gates without GitHub's native
+independent-review requirement. New Spec/Plan reviews take place on the parent
+Intent Issue and do not have that native PR restriction.
+
+For new Intents, **Brownfield Delivery · Documents** publishes full rendered
+Spec and Plan revisions on that Issue. Humans explicitly submit custom
+`/sdlc revise spec` or `/sdlc revise plan` commands with feedback, then approve
+the latest version with commands such as `/sdlc approve spec v2` and
+`/sdlc approve plan v1`. Ordinary discussion does not run AI or approve a stage.
+Revisions and approval snapshots are saved in Git before handoff to the
+existing Tests/Implementation PR flow. Existing Intents with lifecycle branches
+remain in legacy Spec/Plan PR mode; they are not automatically migrated.
+
+Setup must verify/register
+`brownfield-human-gated-delivery-documents.yml` on the default branch.
+Document generation uses read-only Copilot CLI in Actions and additionally
+requires `copilot-requests: write` and Copilot CLI entitlement; it never receives
+the existing write-enabled `COPILOT_ASSIGN_TOKEN`. See the setup guide before
+running this workflow; local documentation does not establish remote deployment.
 
 ## Documentation
 

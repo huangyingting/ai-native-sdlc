@@ -491,7 +491,7 @@ export function isTestFile(path) {
   return /(?:^|\/)(?:[^/]+\.(?:test|spec)\.[^/]+|__tests__\/.+)$/.test(path);
 }
 
-export function validateStageFiles(stage, changedFiles, intentNumber, projectPath) {
+export function validateStageFiles(stage, changedFiles, intentNumber, projectPath, issueDocuments = false) {
   const artifacts = artifactPaths(intentNumber);
   const files = [...new Set(changedFiles)];
   if (!files.length) throw new Error(`${stage} PR has no changed files.`);
@@ -520,6 +520,7 @@ export function validateStageFiles(stage, changedFiles, intentNumber, projectPat
       artifacts.spec,
       artifacts.plan,
       artifacts.expectedFailures,
+      ...(issueDocuments ? [`${artifacts.root}/document-review.json`] : []),
     ]);
     for (const file of files) {
       if (!file.startsWith(`${projectPath}/`) && !approvedArtifacts.has(file)) {

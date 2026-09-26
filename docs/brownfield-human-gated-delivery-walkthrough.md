@@ -7,6 +7,9 @@ Web; running the application locally is optional.
 The example starts with **unclear ticket ownership**. The Human writes the
 Intent, AI proposes the Spec and Plan, and the Human can request as many
 revisions as needed before approving the next stage.
+For new Intents, the Human stays on the parent Issue for full rendered
+Spec/Plan revision comments, discussion, and versioned approval commands.
+Only the engineering stages use PR reviews.
 
 ```text
 Human Intent
@@ -17,9 +20,16 @@ Human Intent
   -> Merge -> Publish image -> Smoke verification -> Close Intent
 ```
 
-This walkthrough describes the repository's implemented workflow. Use the
+This walkthrough describes the new Issue document-review workflow. Intents with
+existing lifecycle branches remain in
+[legacy Spec/Plan PR mode](./brownfield-human-gated-delivery.md#legacy-specplan-pr-mode);
+there is no automatic migration. Verify the new workflow is deployed on remote
+`main` before a live session; this guide does not establish that it is already
+deployed. Use the
 [setup and policy reference](./brownfield-human-gated-delivery.md) for configuration
-details. It is separate from the read-only Copilot CLI orchestration demos.
+details. Document generation uses read-only Copilot CLI in Actions, separate
+from the repository's orchestration-pattern demos and from Coding Agent's later
+PR work.
 
 ## 1. Prepare the repository
 
@@ -36,15 +46,32 @@ npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc --apply
 
 Use `--apply --set-token` for secure interactive token entry, or
 `--apply --intent 7` to repair the label on an existing Intent. Setup does not
-start kickoff, publish local changes, or replace existing protections.
+dispatch kickoff or publish local changes. By default, it preserves existing
+protections.
 See [setup script details](./brownfield-human-gated-delivery.md#run-the-setup-script)
 for permissions, exit codes, and manual checks. No root dependencies need to
 be installed.
 
+If you are the only Human reviewer, add `--single-owner` to both preview and
+apply commands for the Tests and Implementation PR stages. New Issue
+Spec/Plan approvals do not have GitHub's native PR independent-review
+restriction. Native PR review rules can exclude your approval when you
+collaborated with Copilot. [Single-owner demo mode](./brownfield-human-gated-delivery.md#single-owner-demo-mode)
+uses zero native approvals while retaining your explicit current-revision
+approval through **Brownfield delivery policy**, required checks, and no
+bypasses. It is not independent two-person review. The option changes only
+native approval counts in existing managed rulesets; applying it may unblock
+already-approved auto-merge PRs. Keep full setup's workflow verification and
+registration; a ruleset-only edit is not enough. An existing unprotected `main`
+is not changed automatically; inspect the preview and configure any needed
+protection separately.
+
 | Check | Where to verify in GitHub |
 |---|---|
 | Current issue forms, prompts, and workflows are on the default branch | **Code**; the demo workflows assume `main` |
+| Documents is registered and enabled | **Actions > Brownfield Delivery · Documents**; file `brownfield-human-gated-delivery-documents.yml`; full setup verifies/registers it |
 | Copilot Coding Agent is available and allowed to work in this repository | Repository/organization Copilot settings |
+| Copilot CLI can generate documents in Actions | `copilot-requests: write`, CLI entitlement, and any organization CLI billing policy |
 | Issues, sub-issues, Actions, and Packages are available | Repository tabs and settings |
 | Pull-request auto-merge is enabled | **Settings > General > Pull Requests** |
 | `brownfield-human-gated-delivery:intent` exists | **Issues > Labels** |
@@ -52,16 +79,22 @@ be installed.
 | `it-service-desk-demo` exists | **Settings > Environments** |
 | Human reviewers are configured | [Delivery configuration](../.github/brownfield-human-gated-delivery/config.json) on `main` |
 | Required checks and review rules are enforced | **Settings > Rules > Rulesets** |
+| Trusted automation can write `brownfield-documents/**` | No conflicting PR-required ruleset; no bypass is granted |
 
 Use the [token instructions](./brownfield-human-gated-delivery.md#configure-the-copilot-token)
-for the automation credential. Human reviewers sign in to GitHub normally;
-they do not need to create a token to review a PR.
+for the automation credential. Generation never receives that credential or
+other repository write credentials; trusted publication and approval are
+separate steps. Human reviewers sign in to GitHub normally; they do not need
+to create a token to review documents or PRs.
 
 The checked-in configuration assigns `huangyingting` and requires one approval
 at every stage. Change it before the demo if another person will approve.
 Submitting the Intent does not automatically make its author a reviewer.
 For mandatory approval by one particular end user, configure that person as
-the sole Spec and Plan reviewer with a threshold of one.
+the sole Spec and Plan reviewer with a threshold of one. Issue approvers must
+be current configured Humans with repository write access, including current
+members of configured teams. Bots cannot approve. Do not lower
+`minimumApprovals` for single-owner mode.
 
 Check the [ruleset instructions](./brownfield-human-gated-delivery.md#configure-branch-rulesets):
 
@@ -70,8 +103,12 @@ Check the [ruleset instructions](./brownfield-human-gated-delivery.md#configure-
 - `main` also requires `validate` and `container-smoke`.
 - Dismiss stale approvals, require conversation resolution, and do not allow
   humans or automation to bypass the gates.
-- Exempt initial lifecycle-branch creation from status checks so kickoff can
-  create the branch; keep subsequent updates protected and allow final cleanup.
+- Exempt initial lifecycle-branch creation from status checks so the approved
+  document handoff can create it; keep subsequent updates protected and allow
+  final cleanup.
+- Managed rulesets cover only `main` and `brownfield-delivery/**`, not
+  `brownfield-documents/**`. Document branches need trusted automation writes,
+  not a ruleset bypass.
 
 **Ready when:** the form is visible, the intended reviewer is configured, and
 the automation prerequisites and branch protections are in place.
@@ -129,103 +166,122 @@ Check the Issue's **Labels** immediately. If the label is absent, confirm it was
 created in the repository, apply it to this Issue, and follow the manual kickoff
 recovery below. GitHub does not create labels from the form definition.
 
+Once document review starts, the Intent's title and body are snapshotted.
+Do not edit them afterward: Documents rejects changes to that original request.
+Use explicit revision-command feedback to refine the documents, or create a
+new Intent for a changed original request.
+
 ## 4. Verify automatic kickoff
 
 1. Open **Actions > Brownfield Delivery · Kickoff**.
 2. Open the run associated with the Intent and wait for it to complete.
-3. Return to the Intent Issue and inspect the progress comment and sub-issues.
+3. Confirm it routes the new Intent to **Brownfield Delivery · Documents**.
+4. Return to the Intent Issue and inspect its current review hub.
 
 You should see:
 
-- a `brownfield-delivery/<intent-number>` branch;
-- four stage sub-issues: Spec, Plan, TDD Tests, and Implementation;
-- Copilot assigned to **Spec** first; later stages wait;
-- a progress table that is updated as the lifecycle advances.
+- a `brownfield-documents/<intent-number>` branch;
+- a current hub on the parent Issue, linking the latest document versions and
+  their review status;
+- a full rendered Markdown **Spec v1** revision comment after generation and
+  trusted publication succeed;
+- possibly four internal stage issues: Spec, Plan, TDD Tests, and
+  Implementation, with no Spec/Plan Coding Agent assignment.
 
-Open the Spec sub-issue and follow its linked Copilot PR when available.
-Agent execution is asynchronous; a completed kickoff run does not mean the
-Spec has already been written.
+Stay on the parent Intent. A completed kickoff run does not itself mean Spec
+generation and publication have finished; inspect the Documents run too.
+For a new Intent there should not yet be a `brownfield-delivery/<intent-number>`
+branch or a Spec PR.
 
-**Expected result:** Copilot prepares a Spec PR targeting the lifecycle branch,
-not `main`, and the configured Human reviewer is requested.
-Its title includes **Spec review** and the Intent number. The Intent's progress
-row links to the PR and to **Read document** once the revision is reconciled.
+**Expected result:** read-only Copilot CLI generates the first Spec; trusted
+automation validates and saves the revision in Git, then publishes the full
+document for Human review on the Issue. No application build runs.
 
 ## 5. Review and iterate on the Spec
 
-1. Wait for Copilot's initial work to finish. If the PR is still a draft when
-   it is ready for Human review, use **Ready for review**.
-2. Click **Read document** in the Intent's progress comment, or use **Review
-   document** in the PR description, to read the rendered Spec at that commit.
+1. Wait for Documents to publish the first full Spec revision comment.
+2. Use the parent Intent's hub to locate the latest version and read it.
 3. Check that it describes the intended outcome, scope, non-goals, actors,
    constraints, and stable Given/When/Then acceptance scenarios.
-4. Read **Summary**, **Open questions**, and **Review checklist** in the PR
-   description. Return to the PR's **Files changed** tab for inline comments
-   and the formal review.
+4. Review open questions and proposed decisions. Ordinary Issue comments are
+   available for discussion; they do not execute AI or approve the document.
 
-The rendered link is a revision snapshot, not a live `main` document. After a
-new commit, use the refreshed progress link and review that revision. Checking
-the checklist boxes does not constitute approval.
+Each revision is saved under
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/` on the
+document branch as `spec.md`, with review state in `document-review.json`.
+The full comment is the reading surface, and the Git revision is durable
+evidence. Only document structure/scope and approval validation apply here;
+there is no Spec PR or application test, build, or container job.
 
-Only document/scope validation and the Human approval policy apply here.
-Application tests, builds, and container smoke jobs are skipped for Spec PRs;
-`stage-validation` must still pass. A skipped application job is not missing
-Spec evidence.
-
-For a deliberate first feedback round, submit **Request changes**, then post
-this as a PR conversation comment:
+For a deliberate first feedback round, submit the following as a **new
+top-level comment on the parent Intent**, with the command on its first line:
 
 ```text
-@copilot For this demo, tickets may remain unassigned. Use a simple free-text
+/sdlc revise spec
+For this demo, tickets may remain unassigned. Use a simple free-text
 owner name rather than a user directory, and include filtering by owner.
-Preserve existing tickets and workflows. Revise only the specification in this
-same PR, make these decisions explicit, and summarize the changes for re-review.
-Do not start the Plan stage.
+Preserve existing tickets and workflows. Make these decisions explicit in
+the specification for re-review.
 ```
 
 These are example Human decisions for this run, not requirements automatically
 imposed by the Intent form. Adapt them to the feature you actually want.
 
-When Copilot pushes a revision:
+This is a custom repository Actions command, not a built-in `@copilot` command.
+Post the text itself, not a quoted example or fenced block. Wait for Documents
+to publish **Spec v2**, then:
 
-1. Inspect the changed sections and rerun check results.
-2. If further clarification is needed, submit another **Request changes**.
-3. Post another focused `@copilot` request, for example:
+1. Read the full revised document and inspect the changes against your feedback.
+2. If further clarification is needed, submit another revision command:
 
    ```text
-   @copilot Clarify the behavior for blank and overlong owner names, and explain
+   /sdlc revise spec
+   Clarify the behavior for blank and overlong owner names, and explain
    how invalid updates preserve stored ticket data. Add the missing acceptance
-   scenarios in this same Spec PR and wait for my re-review.
+   scenarios for re-review.
    ```
 
-4. Repeat until the Spec is acceptable and open decisions are resolved.
-5. Submit **Review changes > Approve > Submit review** on the latest revision.
+3. Repeat until the Spec is acceptable and open decisions are resolved.
+4. If **v2 is still the latest version**, submit this new top-level comment:
 
-**Expected result:** once the required Human approvals and checks pass, the PR
-auto-merges into the lifecycle branch. **Brownfield Delivery · Advance** closes
-the Spec stage Issue and assigns Plan to Copilot.
+   ```text
+   /sdlc approve spec v2
+   ```
+
+   If you requested another revision, use its actual latest version instead;
+   a stale-version approval is rejected.
+
+**Expected result:** the approval is recorded in Git with the reviewed revision
+comment ID/body, document version/hash, approval command comment, and Human
+ID/login/time. After the configured threshold is satisfied, Documents generates
+Plan v1 linked to the approved Spec. There is no Spec PR to merge.
 
 ### The rule for every review round
 
-- Keep the same PR, branch, and stage Issue during revisions.
-- Submit feedback, then explicitly ask `@copilot` to act on it. The coordinator
-  enforces gates; it does not independently launch revisions for every comment.
-- New commits require fresh approval of the latest revision.
-- A comment saying "looks good," resolving a thread, or passing CI is not approval.
-- Outstanding change requests, missing approvals, or draft status keep the
-  gate blocked. There is no iteration limit or automatic approval timeout.
-- Approval alone does not start the next stage: required checks must pass and
-  the current PR must merge. Closing without merging does not advance.
-
-The policy check may be unsuccessful while it waits for Human approval. That
-is expected; do not bypass it merely to make the PR appear green.
+- Keep the same parent Intent and document branch throughout document review.
+- Submit new top-level `/sdlc` comments explicitly; ordinary discussion,
+  `@copilot` mentions, and edits to existing comments do not trigger this flow.
+- Only the latest version is approvable, by current configured Humans with
+  write access. Team membership and `minimumApprovals` still apply; bots cannot
+  approve. There is no native PR independent-review restriction here.
+- A comment saying "looks good," checklist changes, or successful generation is
+  not approval. There is no iteration limit or automatic approval timeout.
+- Editing or deleting a processed approval comment does **not** revoke its
+  Git-recorded decision. Submit an explicit revision before handoff instead.
+- Revising Spec before handoff invalidates all Spec approvals and the draft or
+  approved Plan, including its approvals. A new Spec review and new Plan
+  version are required.
+- Full Plan approval freezes the documents. Do not approve it while a Spec
+  change is still needed.
+- Commands are durably queued and reconciled on each run. If a pending run is
+  superseded or execution fails, resume Documents; do not assume comments were
+  lost or create a replacement Intent.
 
 ## 6. Review and iterate on the Plan
 
-1. Follow the separate **Plan review** PR from the Intent or its stage Issue.
-2. Confirm its base is `brownfield-delivery/<intent-number>`.
-3. Open the rendered Plan through **Read document** or **Review document**.
-   Review its summary, open questions, checklist, and the linked approved Spec.
+1. Follow the latest full **Plan v1** revision comment from the parent hub.
+2. Confirm its linked Spec is the version you approved.
+3. Review its open questions and proposed approach.
 4. Check that:
    - every approved acceptance scenario maps to at least one task;
    - task IDs and dependencies are clear and acyclic;
@@ -234,28 +290,42 @@ is expected; do not bypass it merely to make the PR appear green.
 5. Confirm this stage has not changed the approved Spec or written application
    code or tests.
 
-As with Spec, Plan runs document/scope checks and the Human approval policy,
-not application builds or container checks.
+As with Spec, Plan runs document/scope and approval validation, not application
+builds or container checks. It is saved as `plan.md` with review state on
+`brownfield-documents/<intent-number>`.
 
-If improvement is needed, submit **Request changes** and post:
+If improvement is needed, submit a new top-level parent-Issue comment:
 
 ```text
-@copilot Refine this plan into small, dependency-ordered tasks for storage
+/sdlc revise plan
+Refine this plan into small, dependency-ordered tasks for storage
 compatibility, server-side behavior, UI changes, and regression coverage where
 required by the approved Spec. Map each task to acceptance scenarios and explain
-its validation. Update only the plan in this same PR, summarize the changes,
-and wait for my re-review. Do not start TDD or implementation.
+its validation. Preserve the approved specification.
 ```
 
-Repeat review and revision until satisfied. Mark the PR ready for review if
-needed, then explicitly approve its latest revision.
+Repeat review and revision until satisfied. If no Plan revision was needed and
+**v1 remains latest**, submit:
 
-**Expected result:** the Plan PR merges only after approvals and checks pass;
-the workflow closes the Plan stage Issue and assigns TDD Tests.
+```text
+/sdlc approve plan v1
+```
 
-If planning exposes a problem with the approved Spec, stop and flag it. This
-demo does not automatically roll back completed stages; the Plan must not
-silently rewrite approved requirements.
+If you used the revision command above, wait for the new Plan and approve that
+version instead (for example `/sdlc approve plan v2`). Do not approve an older
+version merely to follow this example.
+
+If planning exposes a problem with the approved Spec, use `/sdlc revise spec`
+with feedback **before fully approving the Plan**. This invalidates Spec
+approvals and the existing Plan. Review and approve the new Spec, then the new
+Plan version. The Plan must not silently rewrite approved requirements.
+
+**Expected result:** after the latest Plan has all configured Human approvals,
+automation freezes `spec.md`, `plan.md`, and `document-review.json`, creates
+`brownfield-delivery/<intent-number>` from the approved document commit, closes
+the internal Spec/Plan stage issues, and assigns **only TDD Tests** to Coding
+Agent. The next review surface is a Tests PR. After this handoff, contract
+changes need a new Intent rather than editing approved artifacts.
 
 ## 7. Review the TDD Red evidence
 
@@ -264,7 +334,8 @@ silently rewrite approved requirements.
    `docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/expected-failures.json`.
 3. Confirm test names map to approved acceptance scenarios and the assertions
    describe real behavior rather than unconditional failures.
-4. Confirm production code and approved Spec/Plan artifacts are unchanged.
+4. Confirm production code and approved `spec.md`, `plan.md`, and
+   `document-review.json` blobs are unchanged.
 5. Open the **Brownfield Delivery · Stage CI** run and inspect the `tdd-red`
    job and its summary.
 
@@ -290,7 +361,7 @@ become an immutable contract for that implementation.
 
 1. Open the Implementation PR after Copilot finishes its initial work.
 2. Confirm the coordinator has retargeted it to `main`. It contains the complete
-   increment: Spec, Plan, tests, and implementation.
+   increment: Spec, Plan, document approval state, tests, and implementation.
 3. Review the code against the approved artifacts.
 4. Confirm approved tests and lifecycle artifacts have not been weakened,
    edited, deleted, or renamed. Additional tests may be added in new files.
@@ -338,10 +409,12 @@ Use the merged source or published image for an optional after-demo UI tour.
 ## Completion checklist
 
 - [ ] Human submitted the Intent.
-- [ ] Spec feedback and revisions are visible in the same PR.
-- [ ] Human approved the final Spec before Plan started.
-- [ ] Plan feedback and revisions are visible in the same PR.
-- [ ] Human approved the final Plan before TDD started.
+- [ ] Full Spec revisions, discussion, and explicit commands are visible on the parent Intent.
+- [ ] Humans approved the latest Spec version before Plan started.
+- [ ] Full Plan revisions on that same Issue link the approved Spec.
+- [ ] Humans approved the latest Plan before TDD started; approvals and document hashes are saved in Git.
+- [ ] Documents froze and the delivery branch was created from the approved document commit.
+- [ ] Only TDD Tests was assigned at engineering handoff.
 - [ ] Controlled Red evidence was validated and approved.
 - [ ] Implementation passed Green tests, build, and container checks.
 - [ ] Human approved the implementation before it merged.
@@ -353,15 +426,47 @@ Use the merged source or published image for an optional after-demo UI tour.
 | Symptom | What to check or do |
 |---|---|
 | Form is missing or has old content | Confirm the template is on the default branch; open a fresh **New issue** form |
+| Documents is missing from Actions | Confirm `brownfield-human-gated-delivery-documents.yml` is deployed on remote `main`; rerun full setup to verify/register **Brownfield Delivery · Documents**. Local edits are not a remote deployment |
 | Kickoff did not start | Check the Intent label and author association. Adding a label later is not a kickoff trigger; use **Actions > Brownfield Delivery · Kickoff > Run workflow** with the existing Intent number |
 | Kickoff failed partway through | Fix the reported prerequisite, then dispatch Kickoff with the same Intent number; do not create duplicate Intents just to retry |
-| Copilot did not revise the PR | Submit the review, then post a direct `@copilot` request in that PR and inspect the agent session |
-| Approval did not unblock policy | Check configured reviewer identity, current-head approval, outstanding change requests, and draft state. Review Signal and PR Coordinator run asynchronously; inspect their latest runs |
-| Required policy/check never appears | Confirm the Review Signal, PR Coordinator, and Stage CI workflows are installed and enabled, and that rulesets use the exact required names |
+| Documents rejects a changed Intent title/body | The original request is snapshotted at startup. Keep it unchanged; use revision-command feedback for refinements or a new Intent for a changed original request |
+| An ordinary comment or `@copilot` mention did not revise the document | Expected: submit a new top-level `/sdlc revise spec` or `/sdlc revise plan` with feedback on the parent Issue; discussion and edited comments do not run the command interface |
+| Document generation failed | Check the Documents run, `copilot-requests: write`, CLI entitlement/billing, and Actions policy. Fix the cause, then submit `/sdlc retry` or manually dispatch Documents with `issue_number` |
+| A pending run was replaced, or publication/approval/handoff failed | Resume Documents for the same parent Issue; its durable queue reconciles submitted commands on every run. Do not repost commands just because their original run was superseded |
+| Issue approval did not advance | Check the exact latest version, current configured Human login/team membership, repository write access, and `minimumApprovals`; bots cannot approve |
+| Deleting or editing an approval comment did not revoke it | Expected for a processed approval snapshot. Request an explicit revision before full Plan approval; after handoff, use a new Intent |
+| A Spec revision invalidated the Plan | Expected: reapprove the new Spec, then review and approve a new Plan version; old Spec/Plan approvals cannot be reused |
+| Document publication cannot write its Git branch | Inspect rules matching `brownfield-documents/**`. Allow trusted automation writes without granting a bypass; managed rulesets cover only `main` and `brownfield-delivery/**` |
+| An existing Intent still uses Spec/Plan PRs | This is [legacy mode](./brownfield-human-gated-delivery.md#legacy-specplan-pr-mode), not a failed migration. Keep its PR workflow |
+| Copilot did not revise a Tests, Implementation, or legacy document PR | Submit the review, then post a direct `@copilot` request in that PR and inspect the agent session |
+| PR approval did not unblock policy | Check configured reviewer identity, current-head approval, outstanding change requests, and draft state. Review Signal and PR Coordinator run asynchronously; inspect their latest runs |
+| PR policy passed, but GitHub rejects approval from a Copilot collaborator | Native PR rules need an independent person with write access. For a one-Human demo, use [single-owner mode](./brownfield-human-gated-delivery.md#single-owner-demo-mode); do not remove the policy or stage checks. This restriction does not apply to Issue approvals |
+| Required PR policy/check never appears | Confirm the Review Signal, PR Coordinator, and Stage CI workflows are installed and enabled, and that rulesets use the exact required names. New Issue documents do not wait for these PR checks |
 | Stage check failed | Read the failing job and request a correction in the same PR; do not weaken the validator or approve an unrelated failure |
 | Classification rejects a generated `Fixes` suffix | The updated coordinator repairs only Copilot's recognized closing reference to the current stage Issue, then body-edited CI reruns. Ensure the compatibility fix is on the default branch; unrelated closing references still need correction |
 | Approved PR has not advanced | Check required checks, unresolved conversations, branch freshness, auto-merge, and whether the PR actually merged. Then inspect **Brownfield Delivery · Advance** |
 | Publish or smoke verification failed | Read the Publish run. Retry infrastructure failures with **Re-run failed jobs**; report code defects through a new remediation Intent |
+
+To resume Documents without new feedback, post this as a new top-level comment
+on the existing parent Intent:
+
+```text
+/sdlc retry
+```
+
+Alternatively, open **Actions > Brownfield Delivery · Documents > Run workflow**,
+select `main`, and supply that parent Issue's number in the manual
+`workflow_dispatch` input `issue_number`. The equivalent command, replacing the
+repository and example number as needed, is:
+
+```sh
+gh workflow run brownfield-human-gated-delivery-documents.yml \
+  --repo huangyingting/ai-native-sdlc --ref main -f issue_number=7
+```
+
+Inspect the latest hub and run result after recovery. A full Plan approval
+keeps documents frozen even if branch creation or the Tests assignment must be
+retried.
 
 If the delivery Environment has an additional approval rule, its reviewer must
 also release the pending verification job. Keep the original Intent open while

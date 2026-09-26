@@ -97,6 +97,10 @@ function fixture({ configured = false } = {}) {
     if (method === "POST" && path === `${root}/rulesets`) {
       return state.rulesets.push({ ...structuredClone(body), id: state.rulesets.length });
     }
+    if (method === "PUT" && path.startsWith(`${root}/rulesets/`)) {
+      const ruleset = state.rulesets.find((item) => item.id === Number(path.split("/").at(-1)));
+      return Object.assign(ruleset, structuredClone(body));
+    }
     if (method === "POST" && path === `${root}/issues/7/labels`) {
       state.issue.labels.push(...body.labels.map((name) => ({ name })));
       return null;
@@ -125,6 +129,8 @@ test("setup CLI requires explicit safe coordinates and write opt-in", () => {
     assert.throws(() => parseOptions(args));
   }
   assert.equal(options().apply, false);
+  assert.equal(options()["single-owner"], false);
+  assert.equal(options(["--single-owner"])["single-owner"], true);
   assert.equal(options(["--apply", "--set-token", "--intent", "7"]).intent, "7");
   const help = execFileSync(process.execPath, [fileURLToPath(script), "--help"], { encoding: "utf8" });
   assert.match(help, /read-only preview/i);
@@ -201,6 +207,86 @@ test("rulesets have exact check sources and lifecycle creation exemption without
   assert.ok(mainChecks.required_status_checks.every((item) => item.integration_id === 15368));
   assert.ok(main.rules.some((rule) => rule.type === "deletion"));
   assert.ok(!lifecycle.rules.some((rule) => ["creation", "deletion", "update"].includes(rule.type)));
+});
+
+test("single-owner creation changes only the native floor, not Human stage approval or checks", () => {
+  const expected = desiredRulesets(15368);
+  for (const rule of expected) {
+    rule.rules.find((item) => item.type === "pull_request").parameters.required_approving_review_count = 0;
+  }
+  assert.deepEqual(desiredRulesets(15368, { singleOwner: true }), expected);
+  const mock = fixture();
+  assert.equal(setup(options(["--single-owner", "--apply", "--set-token"]), mock.deps).ready, true);
+  assert.deepEqual(mock.state.rulesets.map(({ id, ...rule }) => rule), expected);
+  assert.deepEqual(mock.state.config, config);
+  assert.ok(Object.values(mock.state.config.stages).every((stage) => stage.minimumApprovals >= 1));
+  assert.ok(mock.messages.some((message) => message.includes("not independent two-person review")));
+});
+
+test("single-owner opt-in previews then updates only approval counts and is idempotent", () => {
+  const mock = fixture({ configured: true });
+  for (const rule of mock.state.rulesets) {
+    const review = rule.rules.find((item) => item.type === "pull_request").parameters;
+    review.required_approving_review_count = 2;
+    review.require_extra_approval_for_unattributed_changes = true;
+    review.allowed_merge_methods = ["squash"];
+    rule.rules.find((item) => item.type === "required_status_checks").parameters.required_status_checks.push({ context: "additional-check", integration_id: 15368 });
+  }
+  mock.state.rulesets.push({ id: 99, name: "Unrelated policy", rules: [{ type: "creation" }] });
+  const before = structuredClone(mock.state);
+  const preview = setup(options(["--single-owner"]), mock.deps);
+  assert.equal(preview.changes.length, 2);
+  assert.equal(preview.ready, false);
+  assert.deepEqual(mock.writes(), []);
+  assert.deepEqual(mock.state, before);
+  assert.equal(setup(options(["--single-owner", "--apply"]), mock.deps).ready, true);
+  const expected = structuredClone(before);
+  for (const ruleset of expected.rulesets.slice(0, 2)) {
+    ruleset.rules.find((item) => item.type === "pull_request").parameters.required_approving_review_count = 0;
+  }
+  assert.deepEqual(mock.state, expected);
+  assert.deepEqual(mock.writes().map(({ method, endpoint }) => ({ method, endpoint })), [
+    { method: "PUT", endpoint: `${root}/rulesets/0` },
+    { method: "PUT", endpoint: `${root}/rulesets/1` },
+  ]);
+  assert.equal(setup(options(["--single-owner", "--apply"]), mock.deps).ready, true);
+  assert.equal(mock.writes().length, 2);
+  assert.throws(() => setup(options(["--apply"]), mock.deps), /single-owner demo rules require --single-owner/);
+  assert.equal(mock.writes().length, 2);
+});
+
+test("single-owner opt-in does not allow weakening required policy checks or granting bypasses", () => {
+  for (const modify of [
+    (rule) => { rule.bypass_actors.push({ actor_type: "RepositoryRole", actor_id: 5, bypass_mode: "always" }); },
+    (rule) => { rule.rules.find((item) => item.type === "required_status_checks").parameters.required_status_checks.shift(); },
+    (rule) => { rule.rules.find((item) => item.type === "required_status_checks").parameters.required_status_checks[0].integration_id = null; },
+    (rule) => { rule.rules.find((item) => item.type === "pull_request").parameters.required_review_thread_resolution = false; },
+  ]) {
+    const mock = fixture({ configured: true });
+    modify(mock.state.rulesets[1]);
+    assert.throws(() => setup(options(["--single-owner", "--apply"]), mock.deps), /conflicts with setup/);
+    assert.deepEqual(mock.writes(), []);
+  }
+});
+
+test("single-owner updates reject concurrent policy edits and verify persisted approval counts", () => {
+  const mock = fixture({ configured: true });
+  let reads = 0;
+  assert.throws(() => setup(options(["--single-owner", "--apply"]), {
+    ...mock.deps,
+    api: (method, path, body) => {
+      if (method === "GET" && path === `${root}/rulesets/0` && ++reads === 2) {
+        mock.state.rulesets[0].rules.push({ type: "required_signatures" });
+      }
+      return mock.deps.api(method, path, body);
+    },
+  }), /Ruleset changed since inspection/);
+  assert.deepEqual(mock.writes(), []);
+  const unchanged = fixture({ configured: true });
+  assert.throws(() => setup(options(["--single-owner", "--apply"]), {
+    ...unchanged.deps,
+    api: (method, path, body) => method === "PUT" && path.includes("/rulesets/") ? {} : unchanged.deps.api(method, path, body),
+  }), /Read-back verification failed/);
 });
 
 test("conflicting rulesets stop all writes rather than replacing or weakening protections", () => {

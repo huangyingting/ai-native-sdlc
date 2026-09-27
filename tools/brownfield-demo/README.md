@@ -286,6 +286,11 @@ The destination must not exist. Outputs:
   related workflow runs, runtime record, and summary.
 - `summary.json`: minimal machine-readable corroboration result and limitations.
 
+Replay does not download raw Actions logs or report artifacts. Follow the
+[case study's preservation steps](../../docs/brownfield-human-gated-delivery-case-study.md#preserve-ci-logs-and-reports)
+to archive available attempt-specific evidence separately, outside Git.
+Reports that were never uploaded cannot be recovered by `replay`.
+
 Every page says **read-only replay — NOT LIVE**. No markdown/HTML from GitHub
 is executed. Links are constructed for the explicit repository; existing
 Spec/Plan documents link to immutable commits, not mutable branch URLs.

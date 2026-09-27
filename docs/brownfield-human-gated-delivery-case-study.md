@@ -129,6 +129,51 @@ The customization lives in the existing [workflow files][workflows] and
 inside the [application's automation directory][scenario-directory]. The
 [toolkit][toolkit] is a separate reusable utility, not an application dependency.
 
+### Application request and storage path
+
+The delivered application has a separate, much smaller architecture than the
+GitHub delivery system:
+
+```mermaid
+flowchart LR
+    Form["Ticket-detail owner form"] --> Action["Server action: validate ID and owner"]
+    Action --> Store["TicketStore.updateOwner"]
+    Store -->|read; update only when owner changes| DB["SQLite: nullable owner and CHECK constraint"]
+    Store -->|success, including no-op| Refresh["Action: revalidate pages and redirect"]
+    Refresh --> Pages["Dashboard and detail"]
+    Pages --> Reads["TicketStore.find / list / summary"]
+    Reads --> DB
+    Query["Dashboard query parameters"] --> Pages
+```
+
+- **Validation:** the server action validates a positive ticket ID and an owner
+  from the fixed roster, or an empty form value. The store independently rejects
+  invalid non-null owners; SQLite also constrains persisted owner values.
+- **Normalization:** an empty ownership form value becomes database `null`.
+  In the dashboard filter, an empty selection instead means **All owners**;
+  the explicit `unassigned` filter means `owner IS NULL`.
+- **Migration:** store initialization checks the existing schema and adds the
+  nullable column in a transaction only when absent. It does not recreate the
+  tickets or rewrite their original timestamps.
+- **No-op and timestamps:** an already-current owner returns before any
+  `UPDATE`. A changed owner updates only `owner` and `updated_at`, using a
+  nondecreasing timestamp; invalid persisted timestamps raise an error.
+- **Read behavior:** owner, status, priority, and search predicates intersect.
+  The overview uses an unfiltered summary query, explaining why filtering the
+  queue does not change the summary cards.
+
+The change map below links to the **delivered demo at merge `0ef94e0...`**,
+not the ownership-free source checkout. Paths are relative to
+`demos/it-service-desk/`.
+
+| File | Ownership responsibility |
+|---|---|
+| [`src/lib/ticket.ts`][app-model] | Shared roster, owner types, labels, and mutation schema |
+| [`src/lib/ticket-store.ts`][app-store] | Migration, database constraints, filtering, storage validation, and write-free no-ops |
+| [`src/app/actions.ts`][app-actions] | Validate submitted values, normalize Unassigned, report missing tickets, revalidate, and redirect |
+| [`src/app/page.tsx`][app-dashboard] | Owner column, combined query filters, and owner-select state across navigation |
+| [`src/app/tickets/[id]/page.tsx`][app-detail] | Persisted owner metadata and the labeled ownership form, separate from status updates |
+
 ### Trust boundaries
 
 1. Copilot CLI generates candidate documents without the write-enabled
@@ -171,16 +216,19 @@ prescribing a patch. AI generated full Spec and Plan revisions on that Issue.
 
 The important sequence was:
 
-1. Spec v1 was approved and Plan v1 was generated.
-2. A Spec revision clarified that clearing the **owner filter** means selecting
-   All owners while retaining the existing search/status/priority selections.
-   It does not clear a ticket's assigned owner.
+1. Spec v1 was [approved][spec-v1-approval] and Plan v1 was generated.
+2. A [Spec revision request][spec-revision] clarified that clearing the
+   **owner filter** means selecting All owners while retaining the existing
+   search/status/priority selections. It does not clear a ticket's assigned owner.
 3. Spec v2 replaced v1, invalidating its approval and the earlier Plan. A stale
-   `/sdlc approve spec v1` command was explicitly rejected.
-4. Plan questions were resolved before approval: unchanged owners are
-   write-free successful no-ops; empty form values mean Unassigned/database
-   `null`; invalid owners and missing tickets surface errors.
-5. [Spec v2][spec] and [Plan v3][plan] were approved and
+   [`/sdlc approve spec v1` command][stale-approval] was explicitly
+   [rejected by the workflow][stale-rejection].
+4. [Plan revision feedback][plan-revision] resolved questions before approval:
+   unchanged owners are write-free successful no-ops; empty form values mean
+   Unassigned/database `null`; invalid owners and missing tickets surface errors.
+5. [Spec v2][spec] and [Plan v3][plan] received their
+   [version-specific Spec approval][spec-v2-approval] and
+   [Plan approval][plan-v3-approval], then were
    [sealed at commit `4d9bef47...`][contract].
 
 This is the key document-review demonstration: feedback changes a versioned
@@ -198,7 +246,8 @@ around rejected mutations, and used an independent SQLite connection's
 `PRAGMA data_version` to detect writes. A timestamp-only comparison would have
 missed writes within the same clock tick.
 
-The controlled-Red result was **11 expected assertion failures and 27 passes**,
+The [controlled-Red run, attempt 2][red-ci], produced
+**11 expected assertion failures and 27 passes**,
 with no skipped or pending tests. The trusted Red validator, lint, and build
 passed. This was an expected missing-capability result, not a broken import,
 collection error, or infrastructure failure presented as TDD.
@@ -314,8 +363,11 @@ those result sets.
 | Evidence | Source |
 |---|---|
 | Intent and complete discussion | [huangyingting/ai-native-sdlc-demo#3][intent] |
+| Revision and stale-approval handling | [Spec feedback][spec-revision], [stale command][stale-approval], [rejection receipt][stale-rejection] |
+| Final version-specific document approvals | [Spec v2 approval][spec-v2-approval], [Plan v3 approval][plan-v3-approval] |
 | Frozen document contract | [Spec v2][spec], [Plan v3][plan], [approval-state JSON][contract] |
 | Tests and implementation reviews | [huangyingting/ai-native-sdlc-demo#10][tests-pr], [huangyingting/ai-native-sdlc-demo#11][implementation-pr] |
+| Controlled Red and its trusted validator | [Red run, attempt 2][red-ci]; [`tdd-red` job][red-job] and `stage-validation` passed |
 | Final-head artifact preservation and Green checks | [Stage CI][stage-ci] |
 | Application tests, lint, build, and container smoke | [IT Service Desk CI][app-ci] |
 | Published digest and verification attempt | [Publish run 36286787715, attempt 2][publish-run] |
@@ -393,6 +445,30 @@ historical evidence. Do not describe them as a new live execution. AI generation
 review iterations, and workflow authorization take variable time; do not promise
 that the full workflow completes within a short presentation slot.
 
+**Observed timing, not a benchmark:** GitHub records the Intent opening at
+`2026-09-27T00:26:52Z` and closing at `2026-09-27T02:19:59Z`: **1 hour,
+53 minutes, 7 seconds** of elapsed wall time. That includes review, workflow
+authorization, waiting, and maintenance fixes, not just model execution.
+Token usage and monetary cost were not collected; no productivity or cost-saving
+claim is derived from this single rehearsal.
+
+### Prerequisites for the commands below
+
+| Check | Requirement |
+|---|---|
+| Source tools | A checkout containing the [toolkit fixes][fixed-source]; Node.js 24+ |
+| GitHub reads | Installed `gh`, authenticated for `github.com`, with access to the repository and Actions logs |
+| Shell utilities | The preservation example uses Bash and Linux `sha256sum`; it requires an existing parent directory outside the repository |
+| Container runtime | Docker installed **and its daemon running**, with permission to pull images and create containers/volumes |
+| Registry access | Ability to pull the exact GHCR digest; GitHub CLI authentication alone does not establish Docker registry access |
+| Image platform | This delivered image was verified as `linux/amd64`. Other architectures require compatible emulation and separate verification, not an assumed native build |
+| Local isolation | An available loopback port and no existing toolkit resources for this repository/Intent; otherwise inspect/use the existing instance instead of resetting it |
+
+Read-only checks include `node --version`, `gh auth status --hostname github.com`,
+and `docker info`. Docker is not required just to export replay or CI logs.
+For a new full lifecycle run, also complete the [setup and credential checks][reference];
+these local checks do not prove Copilot entitlement or reviewer readiness.
+
 ### Regenerate the read-only evidence bundle
 
 With Node.js 24+ and an authenticated `gh`, run from the source repository:
@@ -409,6 +485,69 @@ The destination must not exist and its parent must exist. The command writes
 or change GitHub. Keep the **NOT LIVE** label. Collection is timestamped and
 spans multiple API requests, not an atomic snapshot. Actions logs/artifacts are
 subject to retention, so preserve evidence before a presentation.
+
+### Preserve CI logs and reports
+
+**Replay is not a complete Actions backup.** It captures discussions, reviews,
+check results, and workflow metadata, but does not download raw job logs or
+Actions artifacts. Preserve those separately, outside Git, alongside the replay.
+
+As checked on September 27, 2026, the artifact API returned **no downloadable
+artifacts** for the recorded Red run `36284532260` or Green Stage CI run
+`36286576173`. The stage workflow generated `vitest-red.json`,
+`vitest-red-errors.json`, `vitest-green.json`, and `vitest-green-errors.json`
+in runner temporary storage; it did not upload them as artifacts. No standalone
+report artifact is available from those runs; a later test rerun must be labeled
+as new evidence, not the original report.
+
+The following commands were exercised against the actual recorded runs.
+Replace the absolute destination with a **new directory outside the repository**;
+its parent must already exist. The subshell stops on errors and refuses to
+overwrite files:
+
+```bash
+(
+  set -eu
+  set -C
+  umask 077
+  mkdir /absolute/path/to/new-ci-evidence
+  cd /absolute/path/to/new-ci-evidence
+
+  gh run view 36284532260 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --json databaseId,url,headSha,attempt,conclusion,jobs > red-run.json
+  gh run view 36284532260 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --log > red-attempt-2.log
+  gh run view 36286576173 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --json databaseId,url,headSha,attempt,conclusion,jobs > green-run.json
+  gh run view 36286576173 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --log > green-attempt-2.log
+  gh run view 36286576185 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --log > application-attempt-2.log
+  gh run view 36286787715 --repo huangyingting/ai-native-sdlc-demo --attempt 2 \
+    --log > publish-attempt-2.log
+  gh run view 36282753405 --repo huangyingting/ai-native-sdlc-demo --attempt 1 \
+    --log > document-failure-attempt-1.log
+  gh run view 36287717954 --repo huangyingting/ai-native-sdlc-demo --attempt 1 \
+    --log > acceptance-failure-attempt-1.log
+
+  sha256sum red-run.json green-run.json *.log > SHA256SUMS
+  sha256sum --check SHA256SUMS
+)
+```
+
+If a request fails or logs have expired, retain the partial capture only as
+**incomplete** evidence. Checksums detect subsequent local file changes; they
+are not a GitHub attestation or proof that missing evidence exists. Review
+captured data before sharing it and do not commit logs, credentials, or raw
+evidence bundles into the source repository.
+
+For a future run that actually uploads reports, list its artifacts first with
+`gh api repos/OWNER/REPO/actions/runs/RUN_ID/artifacts --paginate`, check names and expiry,
+and download the exact available artifact using
+`gh run download RUN_ID --repo OWNER/REPO --name ARTIFACT_NAME --dir NEW_DIRECTORY`.
+Future workflow changes should explicitly upload the desired test reports with
+an agreed retention policy. That is a separate improvement; this case study
+does not claim that it happened in the historical runs.
 
 ### Inspect the exact delivered application
 
@@ -456,6 +595,13 @@ limits: **AI proposes and implements; explicit decisions and verifiable
 evidence determine whether work advances.**
 
 [intent]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3
+[spec-v1-approval]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851338756
+[spec-revision]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851353633
+[stale-approval]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851363575
+[stale-rejection]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851365861
+[spec-v2-approval]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851367871
+[plan-revision]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851385720
+[plan-v3-approval]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851400259
 [tests-pr]: https://github.com/huangyingting/ai-native-sdlc-demo/pull/10
 [implementation-pr]: https://github.com/huangyingting/ai-native-sdlc-demo/pull/11
 [original-source]: https://github.com/huangyingting/ai-native-sdlc/commit/5dbdc035cd357ab9ee3713493402919a70746440
@@ -466,12 +612,19 @@ evidence determine whether work advances.**
 [plan]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/4d9bef47d1ddc91e6cb3d3ebed1aa826c6c97e1e/docs/delivery-runs/brownfield-human-gated-delivery/3/plan.md
 [contract]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/4d9bef47d1ddc91e6cb3d3ebed1aa826c6c97e1e/docs/delivery-runs/brownfield-human-gated-delivery/3/document-review.json
 [implementation-merge]: https://github.com/huangyingting/ai-native-sdlc-demo/commit/0ef94e0deb685136102ca8ac5351d53e565e2efc
+[app-model]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/lib/ticket.ts
+[app-store]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/lib/ticket-store.ts
+[app-actions]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/app/actions.ts
+[app-dashboard]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/app/page.tsx
+[app-detail]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/app/tickets/%5Bid%5D/page.tsx
 [storage-tests]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/lib/ownership.test.ts
 [ui-tests]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/app/ownership.test.tsx
 [navigation-test]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/app/owner-filter-navigation.test.tsx
 [timestamp-tests]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/0ef94e0deb685136102ca8ac5351d53e565e2efc/demos/it-service-desk/src/lib/ownership-timestamp-regression.test.ts
-[stage-ci]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36286576173
-[app-ci]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36286576185
+[stage-ci]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36286576173/attempts/2
+[red-ci]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36284532260/attempts/2
+[red-job]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36284532260/job/108523540004
+[app-ci]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36286576185/attempts/2
 [publish-run]: https://github.com/huangyingting/ai-native-sdlc-demo/actions/runs/36286787715/attempts/2
 [acceptance]: https://github.com/huangyingting/ai-native-sdlc-demo/issues/3#issuecomment-5851863733
 [run-record]: https://github.com/huangyingting/ai-native-sdlc-demo/blob/639c27e43a3acf1699d2b39a83c78d7dc07cbbbd/docs/delivery-runs/brownfield-human-gated-delivery/3/run-state.json

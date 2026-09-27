@@ -494,7 +494,7 @@ Actions artifacts. Preserve those separately, outside Git, alongside the replay.
 
 As checked on September 27, 2026, the artifact API returned **no downloadable
 artifacts** for the recorded Red run `36284532260` or Green Stage CI run
-`36286576173`. The stage workflow generated `vitest-red.json`,
+`36286576173`. The workflow used by those runs generated `vitest-red.json`,
 `vitest-red-errors.json`, `vitest-green.json`, and `vitest-green-errors.json`
 in runner temporary storage; it did not upload them as artifacts. No standalone
 report artifact is available from those runs; a later test rerun must be labeled
@@ -541,13 +541,17 @@ are not a GitHub attestation or proof that missing evidence exists. Review
 captured data before sharing it and do not commit logs, credentials, or raw
 evidence bundles into the source repository.
 
-For a future run that actually uploads reports, list its artifacts first with
-`gh api repos/OWNER/REPO/actions/runs/RUN_ID/artifacts --paginate`, check names and expiry,
-and download the exact available artifact using
-`gh run download RUN_ID --repo OWNER/REPO --name ARTIFACT_NAME --dir NEW_DIRECTORY`.
-Future workflow changes should explicitly upload the desired test reports with
-an agreed retention policy. That is a separate improvement; this case study
-does not claim that it happened in the historical runs.
+The current source workflow now preserves reports for future runs using the
+updated workflow. Its **14-day** artifacts are named
+`brownfield-red-<RUN_ID>-attempt-<ATTEMPT>` and
+`brownfield-green-<RUN_ID>-attempt-<ATTEMPT>`. Completed captures remain eligible
+for upload after test or validation failure, without turning a failed stage
+into success. See [CI report archives](./brownfield-human-gated-delivery.md#ci-report-archives)
+for exact contents, failure behavior, and download commands.
+
+Previously prepared demo repositories need the workflow update separately.
+This improvement does not create artifacts for the historical runs above;
+always inspect the selected run's actual artifact inventory before downloading.
 
 ### Inspect the exact delivered application
 

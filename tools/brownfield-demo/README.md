@@ -290,6 +290,9 @@ Replay does not download raw Actions logs or report artifacts. Follow the
 [case study's preservation steps](../../docs/brownfield-human-gated-delivery-case-study.md#preserve-ci-logs-and-reports)
 to archive available attempt-specific evidence separately, outside Git.
 Reports that were never uploaded cannot be recovered by `replay`.
+Executions using the current Stage CI workflow preserve attempt-scoped Red/Green
+report artifacts for 14 days; see
+[CI report archives](../../docs/brownfield-human-gated-delivery.md#ci-report-archives).
 
 Every page says **read-only replay — NOT LIVE**. No markdown/HTML from GitHub
 is executed. Links are constructed for the explicit repository; existing

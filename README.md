@@ -79,10 +79,16 @@ Start the presentation toolkit with `npm run demo:brownfield -- help`; use its
 [README](tools/brownfield-demo/README.md) for exact commands and safety boundaries.
 The [presenter runbook](docs/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
 requires three actual completed isolated rehearsals before claiming **Demo
-Ready**. No such rehearsal or live deployment is established by these changes.
+Ready**. An [illustrated case study](docs/brownfield-human-gated-delivery-case-study.md)
+records a completed, explicitly authorized `development-test` run, including
+its real image, failures, and recovery. It does not count toward genuine Human
+acceptance or the three-live-run readiness gate.
 
 ## Documentation
 
+- [Illustrated delivery case study](docs/brownfield-human-gated-delivery-case-study.md)
+  — the actual ownership rehearsal, architecture, screenshots, review decisions,
+  failures and fixes, and linked evidence with explicit limitations.
 - [Step-by-step brownfield demo](docs/brownfield-human-gated-delivery-walkthrough.md)
   — run the human Intent, iterative Spec/Plan reviews, TDD, and verified delivery
   demonstration through GitHub Web, then accept the verified result.

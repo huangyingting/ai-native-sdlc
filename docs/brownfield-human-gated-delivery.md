@@ -3,6 +3,9 @@
 For a hands-on session, follow the
 [step-by-step walkthrough](./brownfield-human-gated-delivery-walkthrough.md).
 This page is the setup, policy, and implementation reference.
+The [illustrated case study](./brownfield-human-gated-delivery-case-study.md)
+connects that design to a real development-test execution, including screenshots,
+review iterations, operational failures, and immutable evidence links.
 
 This demo safely evolves the existing IT service desk from a human-authored Intent into
 a reviewed specification, implementation plan, executable tests, working

@@ -6,6 +6,10 @@ checks, runs an exact delivered image locally, and exports actual GitHub
 evidence. It never creates a remote repository, dispatches a workflow, edits
 GitHub, approves work, resets the source, or commits/pushes.
 
+See the [illustrated delivery case study](../../docs/brownfield-human-gated-delivery-case-study.md)
+for the architecture, screenshots, and actual evidence from a completed
+development-test run. This README remains the command and safety reference.
+
 This is a reusable utility, not an npm workspace or application dependency.
 Run from the repository root:
 

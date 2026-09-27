@@ -4,6 +4,23 @@ Demonstrations and tooling for exploring AI-native software delivery with
 GitHub Copilot CLI, dynamic agent orchestration, OpenTelemetry traces, and
 Issue-to-PR workflows.
 
+## Start here
+
+| What you want to do | Where to begin |
+|---|---|
+| Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
+| Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
+| Run only the service-desk application | [Application quick start](demos/it-service-desk/README.md) |
+| Explore Copilot orchestration patterns | [Agent orchestration guide](docs/copilot-cli-agent-orchestration-patterns.md) |
+
+For a fresh ownership run, use the ownership-free **source** to prepare a
+**new isolated repository**. The existing
+[completed demo](https://github.com/huangyingting/ai-native-sdlc-demo) already
+has ownership; use it for inspection or replay, not as a fresh baseline.
+The walkthrough is the main path. The [toolkit README](tools/brownfield-demo/README.md)
+and [setup reference](docs/brownfield-human-gated-delivery.md) provide command
+details and troubleshooting when that path links to them.
+
 ## Projects
 
 - [`demos/it-service-desk/`](demos/it-service-desk/) — independent Next.js and
@@ -28,16 +45,23 @@ Each demo owns its dependencies and additional validation commands.
 
 ## Set up the brownfield demo
 
-With Node.js 24+ and GitHub CLI authenticated as a repository administrator:
+For a first run, follow the walkthrough's
+[ordered operator setup](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository):
+prepare, inspect, publish, configure, then preflight. Setup alone does not
+create a repository or publish its workflows.
+
+After publishing your new repository, an explicitly single-owner preview is:
 
 ```sh
-npm run setup:brownfield -- --repo huangyingting/ai-native-sdlc
+npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner
 ```
 
+Replace `OWNER/NEW_DEMO_REPO` with that selected repository, not the source.
 This previews prerequisites without changing GitHub. **Full `--apply` creates
 missing managed rulesets, including protection for an unprotected `main`.**
-This repository's `main` is intentionally unprotected; do not apply full setup
-there without explicit agreement. Prefer an isolated demo repository. See the
+Do not assume the target is unprotected or replace its existing policy.
+The original source repository's `main` is intentionally unprotected; do not
+apply full setup there without explicit agreement. See the
 [setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
 for secure token entry, existing-Intent recovery, and remaining manual checks.
 If you are the only Human reviewer, use the explicit

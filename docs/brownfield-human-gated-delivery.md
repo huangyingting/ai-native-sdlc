@@ -995,7 +995,9 @@ Required checks prove:
 - all existing tests pass;
 - lint and production build pass;
 - the production container builds;
-- `/api/health` and the dashboard smoke test pass.
+- `/api/health` and the ticket queue/detail read journey pass;
+- when the checked-out application includes readiness, its exact ready/no-store
+  contract and an isolated invalid-database 503 control pass.
 
 The Human performs the final code and behavior review. Approval enables
 auto-merge only after every required check is Green.
@@ -1053,10 +1055,17 @@ The **Brownfield Delivery · Publish** workflow:
 2. builds the merged commit;
 3. publishes its SHA tag and immutable digest to GHCR;
 4. runs that exact digest in the `it-service-desk-demo` Environment;
-5. verifies `/api/health` and the dashboard's stable
-   `data-testid="service-desk-dashboard"` marker;
+5. verifies `/api/health` and the filtered ticket queue/detail journey, including
+   the stable dashboard marker; the explicit readiness profile additionally
+   verifies ready/no-store and an isolated invalid-database 503 control;
 6. publishes verification evidence with the digest, merge SHA, Actions run ID,
    and attempt on the parent Intent and in its trusted run record.
+
+The shared verifier uses newly labelled, loopback-only containers, cleans only
+its own resources and preserves sanitized attempt-specific evidence. The
+ownership-free source explicitly uses the baseline profile; it does not claim
+readiness coverage. See the [reliability walkthrough](brownfield-reliability-loops.md)
+for exact contracts, local fault exercises and remaining limitations.
 
 For **every Issue-based (`issue-v1`) run**, including an existing run after
 upgrade, successful smoke verification leaves the parent

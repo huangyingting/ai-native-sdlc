@@ -9,6 +9,7 @@ on:
     paths:
       - "demos/it-service-desk/**"
       - ".github/workflows/it-service-desk-ci.yml"
+      - "tools/brownfield-demo/**"
 
 permissions:
   contents: read
@@ -65,31 +66,23 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
       - name: Build container
         run: docker build --tag it-service-desk:ci demos/it-service-desk
-      - name: Start container
-        id: container
+      - name: Verify immutable image and fault control
         run: |
-          container_id="$(docker run --detach --publish 3000:3000 it-service-desk:ci)"
-          echo "container-id=${container_id}" >> "$GITHUB_OUTPUT"
-      - name: Wait for health
-        run: |
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/api/health \
-              | jq -e '.status == "ok"' >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Service desk did not become healthy." >&2
-          exit 1
-      - name: Smoke test dashboard
-        run: |
-          curl --fail --silent http://127.0.0.1:3000/ \
-            | grep --fixed-strings 'data-testid="service-desk-dashboard"' >/dev/null
-      - name: Show container logs
-        if: failure() && steps.container.outputs.container-id != ''
-        run: docker logs "${{ steps.container.outputs.container-id }}"
-      - name: Stop container
-        if: always() && steps.container.outputs.container-id != ''
-        run: docker stop "${{ steps.container.outputs.container-id }}"
+          image="$(docker image inspect it-service-desk:ci --format '{{.Id}}')"
+          profile=baseline
+          if test -f demos/it-service-desk/src/app/api/ready/route.ts; then profile=readiness; fi
+          node tools/brownfield-demo/cli.mjs verify-image \
+            --image "$image" --profile "$profile" --dest "$RUNNER_TEMP/container-verification"
+      - name: Preserve sanitized container verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-verification-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/container-verification/evidence.json
+          if-no-files-found: error
+          retention-days: 14

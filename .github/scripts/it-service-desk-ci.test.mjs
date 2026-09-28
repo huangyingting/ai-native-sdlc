@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 
 const workflow = readFileSync(".github/workflows/it-service-desk-ci.yml", "utf8");
 const stageCi = readFileSync(".github/workflows/brownfield-human-gated-delivery-stage-ci.yml", "utf8");
+const publish = readFileSync(".github/workflows/brownfield-human-gated-delivery-publish.yml", "utf8");
 const pullRequestTrigger = workflow.match(/^  pull_request:([\s\S]*?)(?=^  push:)/m)?.[1];
 
 test("required application checks run for documentation and tooling pull requests", () => {
@@ -89,6 +90,33 @@ test("default-branch PRs cannot skip required Green checks through body text", (
 test("CI exercises real Vitest hook regressions after installing demo dependencies", () => {
   assert.match(workflow, /- run: npm ci[\s\S]*?name: Verify lifecycle hook reporter against installed Vitest/);
   assert.match(workflow, /working-directory: \.\n\s+run: >-\n\s+node --test --test-name-pattern="installed Vitest runtime"\n\s+\.github\/brownfield-human-gated-delivery\/tests\/core\.test\.mjs/);
+});
+
+test("container checks bind immutable identities and explicitly select readiness coverage", () => {
+  assert.match(workflow, /docker image inspect it-service-desk:ci --format '\{\{\.Id\}\}'/);
+  for (const definition of [workflow, publish]) {
+    assert.match(definition, /profile=baseline/);
+    assert.match(definition, /test -f demos\/it-service-desk\/src\/app\/api\/ready\/route.ts; then profile=readiness/);
+    assert.match(definition, /node tools\/brownfield-demo\/cli.mjs verify-image/);
+    assert.match(definition, /--image "\$(?:image|IMAGE)" --profile "\$profile"/);
+    assert.match(definition, /name: (?:container|published)-verification-\$\{\{ github.run_id \}\}-attempt-\$\{\{ github.run_attempt \}\}/);
+    assert.match(definition, /if-no-files-found: error/);
+    assert.doesNotMatch(definition, /docker logs|--publish 3000:3000/);
+  }
+  assert.match(publish, /IMAGE: \$\{\{ needs.publish.outputs.image \}\}@\$\{\{ needs.publish.outputs.digest \}\}/);
+  assert.match(publish, /ref: \$\{\{ github.event.pull_request.merge_commit_sha \}\}/);
+});
+
+test("manual three-loop workflow qualifies committed tests before running faults without GitHub writes", () => {
+  const reliability = readFileSync(".github/workflows/brownfield-reliability.yml", "utf8");
+  assert.match(reliability, /^  workflow_dispatch:/m);
+  assert.match(reliability, /--source "\$GITHUB_WORKSPACE" --source-ref "\$GITHUB_SHA"/);
+  assert.ok(reliability.indexOf("cli.mjs qualify") < reliability.indexOf("cli.mjs rehearse"));
+  assert.match(reliability, /IMAGE: \$\{\{ inputs.image \}\}/);
+  assert.match(reliability, /--image "\$IMAGE"/);
+  assert.doesNotMatch(reliability, /issues: write|contents: write|continue-on-error|--allow-all/);
+  assert.match(reliability, /qualification-report.json/);
+  assert.doesNotMatch(reliability, /qualification-evidence\/|stdout.txt|stderr.txt/);
 });
 
 for (const [phase, job, captureName, validationName] of [

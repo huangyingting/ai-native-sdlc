@@ -87,45 +87,37 @@ jobs:
     environment:
       name: it-service-desk-demo
     permissions:
+      contents: read
       packages: read
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
       - name: Sign in to GHCR
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Pull published digest
-        run: docker pull "${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}"
-      - name: Start published digest
-        id: container
+      - name: Verify published digest and fault control
+        env:
+          IMAGE: ${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}
         run: |
-          container_id="$(
-            docker run --detach --publish 3000:3000 \
-              "${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}"
-          )"
-          echo "container-id=${container_id}" >> "$GITHUB_OUTPUT"
-      - name: Wait for health
-        run: |
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/api/health \
-              | jq -e '.status == "ok"' >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Published service desk did not become healthy." >&2
-          exit 1
-      - name: Smoke test dashboard
-        run: |
-          curl --fail --silent http://127.0.0.1:3000/ \
-            | grep --fixed-strings 'data-testid="service-desk-dashboard"' >/dev/null
-      - name: Show container logs
-        if: failure() && steps.container.outputs.container-id != ''
-        run: docker logs "${{ steps.container.outputs.container-id }}"
-      - name: Stop container
-        if: always() && steps.container.outputs.container-id != ''
-        run: docker stop "${{ steps.container.outputs.container-id }}"
+          profile=baseline
+          if test -f demos/it-service-desk/src/app/api/ready/route.ts; then profile=readiness; fi
+          node tools/brownfield-demo/cli.mjs verify-image \
+            --image "$IMAGE" --profile "$profile" --dest "$RUNNER_TEMP/published-verification"
+      - name: Preserve sanitized published-image verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: published-verification-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/published-verification/evidence.json
+          if-no-files-found: error
+          retention-days: 14
 
   report:
     if: always() && needs.resolve-issue.result == 'success'

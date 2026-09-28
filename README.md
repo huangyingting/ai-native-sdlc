@@ -12,6 +12,8 @@ Issue-to-PR workflows.
 | Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
 | Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
 | Understand Intent/Spec/Plan gaps and improvements | [Early-stage research and implementation status](docs/ai-native-sdlc-early-stage-research.md) |
+| Understand Build/Verify/Deploy/Operate gaps | [Delivery and operations research](docs/ai-native-sdlc-delivery-operations-research.md) |
+| Exercise trustworthy tests, safe local releases and operational feedback | [Three reliability loops: start here](docs/brownfield-reliability-loops.md) |
 | Run only the service-desk application | [Application quick start](demos/it-service-desk/README.md) |
 | Explore Copilot orchestration patterns | [Agent orchestration guide](docs/copilot-cli-agent-orchestration-patterns.md) |
 
@@ -122,6 +124,12 @@ its real image, failures, and recovery. It does not count toward genuine Human
 acceptance or the three-live-run readiness gate.
 
 ## Documentation
+
+- [Delivery and operations research](docs/ai-native-sdlc-delivery-operations-research.md)
+  — ten later-stage pain points, dated coverage, and three bounded improvements.
+- [Three reliability loops](docs/brownfield-reliability-loops.md)
+  — test qualification, immutable-image fault checks, read-only traffic
+  admission, compatible local recovery and an operational maintenance handoff.
 
 - [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md)
   — actual discovery decisions, corrected tests and plans, immutable delivery,

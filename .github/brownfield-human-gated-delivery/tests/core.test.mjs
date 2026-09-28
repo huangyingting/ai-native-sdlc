@@ -628,7 +628,10 @@ test("keeps staged workflows and trusted boundaries synchronized", () => {
   assert.match(stageCi, /expected controlled Red/);
   assert.match(stageCi, /Validate expected Red tests are Green/);
   assert.match(delivery, /Delivery Stage: implementation/);
-  assert.match(delivery, /grep --fixed-strings 'data-testid="service-desk-dashboard"'/);
+  assert.match(delivery, /node tools\/brownfield-demo\/cli.mjs verify-image/);
+  const probes = readFileSync("tools/brownfield-demo/probes.mjs", "utf8");
+  assert.match(probes, /data-testid="service-desk-dashboard"/);
+  assert.match(probes, /\/tickets\/1/);
   assert.doesNotMatch(delivery, /IT support tickets/);
   assert.match(delivery, /DELIVERY_RETRY: "true"/);
   assert.match(stageCi, /types: \[opened, reopened, synchronize, edited, ready_for_review, converted_to_draft\]/);

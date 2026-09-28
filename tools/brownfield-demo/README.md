@@ -15,6 +15,15 @@ See the [illustrated delivery case study](../../docs/brownfield-human-gated-deli
 for the architecture, screenshots, and actual evidence from a completed
 development-test run. This README remains the command and safety reference.
 
+**Build/Verify/Deploy/Operate follow-up:** use the
+[three reliability loops walkthrough](../../docs/brownfield-reliability-loops.md)
+for `qualify`, `verify-image`, and `rehearse`. These additive commands qualify
+readiness tests in a scratch export and exercise real immutable containers,
+read-only local traffic, isolated faults and an owned maintenance draft.
+They do not change the ownership-free baseline, publish GitHub decisions, or
+establish production readiness. Temporary runtime resources are cleaned;
+evidence is retained outside the repository.
+
 This is a reusable utility, not an npm workspace or application dependency.
 Run from the repository root:
 

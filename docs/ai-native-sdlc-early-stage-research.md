@@ -2,6 +2,10 @@
 
 Assessment date: 2026-09-28.
 
+For the later lifecycle, see the companion
+[Build/Verify/Deploy/Operate analysis](ai-native-sdlc-delivery-operations-research.md)
+and [three reliability loops](brownfield-reliability-loops.md).
+
 **Status:** the research below is a dated baseline assessment. The first
 discovery/decision slice is now implemented in source for newly initialized
 `decisions-v1` runs; the remaining roadmap is still proposed. A subsequent

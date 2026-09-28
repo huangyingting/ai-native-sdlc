@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { approveImpact, benchmark, callAgent, proposalDigest, summarizeCells, validateDiagnosis, validateImpactProposal } from "../experiments.mjs";
-import { IMPACT_CONTRACT } from "../cases.mjs";
-import { root as source, treeHash, writeJson } from "../workspace.mjs";
+import { CASE_IDS, getCase, IMPACT_CONTRACT } from "../cases.mjs";
+import { exportFixture, root as source, treeHash, writeJson } from "../workspace.mjs";
 import { parseTap } from "../validation.mjs";
 
 test("diagnosis requires source-grounded citations rather than plausible prose", () => {
@@ -85,6 +85,19 @@ test("comparison retains failed cells and does not turn missing costs into zero"
   assert.equal(summary[1].calls, 2);
 });
 
+test("verified fixes with rejected citations are not mislabeled as false repair claims", () => {
+  const summary = summarizeCells([{
+    strategy: "direct", calls: [], wallMs: 1, evaluated: true,
+    repairVerified: true, diagnosisValid: false, passed: false,
+    falseCompletion: false, unacceptedCompletion: true,
+  }])[0];
+  assert.equal(summary.repairsVerified, 1);
+  assert.equal(summary.evidenceAccepted, 0);
+  assert.equal(summary.falseCompletionClaims, 0);
+  assert.equal(summary.unacceptedCompletionClaims, 1);
+  assert.equal(summary.passed, 0);
+});
+
 test("failed paid calls retain telemetry and consume the same bounded call budget", async () => {
   const calls = [];
   const metrics = { inputTokens: 100, outputTokens: 40, premiumRequestCost: 1, models: ["observed-model"] };
@@ -117,6 +130,7 @@ test("infrastructure failures abort as exit one without grading unexecuted trial
         throw new Error("Docker unavailable");
       },
     });
+
     assert.equal(result.exitCode, 1);
     assert.equal(result.status, "failed");
     assert.equal(calls, 0);
@@ -125,5 +139,46 @@ test("infrastructure failures abort as exit one without grading unexecuted trial
     assert.equal(result.summary[0].evaluated, 0);
     assert.equal(result.summary[0].infrastructureFailures, 1);
     assert.equal(result.summary[1].cells, 0);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("full fixed matrix separates valid repairs from rejected evidence without extra calls", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "engineering-matrix-"));
+  try {
+    const sourceRef = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const baseline = exportFixture(source, sourceRef);
+    let calls = 0;
+    const result = await benchmark({ source, sourceRef, image: "sha256:" + "a".repeat(64), dest: join(directory, "run") }, {
+      agent: async ({ prompt }) => {
+        calls += 1;
+        assert.match(prompt, /literal "test-output"/);
+        assert.match(prompt, /exact contiguous substring/);
+        const scenario = CASE_IDS.map(getCase).find((item) => prompt.includes(item.request));
+        return { answer: {
+          classification: scenario.classification, claimedFixed: true,
+          evidence: [{ path: "contract.md", quote: "An invented quotation that must not pass." }],
+          files: scenario.allowedPaths.map((path) => ({ path, content: baseline[path] })),
+        }, metrics: { inputTokens: 1, outputTokens: 1 } };
+      },
+      visible: ({ workspace }) => ({
+        valid: true, passed: !workspace.endsWith("/before"),
+        fail: workspace.endsWith("/before") ? 1 : 0, output: "# fail 1",
+      }),
+      oracle: () => ({ passed: true, checks: 20 }),
+    });
+    assert.equal(calls, 9);
+    assert.equal(result.cells.length, 6);
+    assert.equal(result.exitCode, 2);
+    for (const cell of result.cells) {
+      assert.equal(cell.repairVerified, true);
+      assert.equal(cell.passed, false);
+      assert.equal(cell.falseCompletion, false);
+      assert.equal(cell.unacceptedCompletion, true);
+    }
+    for (const summary of result.summary) {
+      assert.equal(summary.repairsVerified, 3);
+      assert.equal(summary.falseCompletionClaims, 0);
+      assert.equal(summary.evidenceAccepted, 0);
+    }
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

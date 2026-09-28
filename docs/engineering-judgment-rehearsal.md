@@ -8,6 +8,8 @@ tooling failures separate from evaluated Agent outcomes.
 
 - Source fixture commit:
   `540cacd2a10be5ed326479fd959d21eec5d4997c`.
+- Executed orchestration revision:
+  `f6f26f9b4bfdb79f4fadd93617f1049a2b41d709`.
 - Exported fixture SHA-256:
   `57dc5e092135fe4e55c34fc094302c24cbb254050d9729c844939dc8dcd11f5f`.
 - Runtime:
@@ -110,6 +112,130 @@ Including it, pre-acceptance overhead is six actual calls/units, 56,266 input
 tokens, 5,371 output tokens and 38,873,200,000 nano-AIU. The pre-spawn blocked
 attempt is not counted as a model call.
 
+## Completed change-impact loop
+
+The fresh fourth impact attempt completed the full loop:
+
+1. Copilot produced 20 verified source quotations, decisions, Spec, objective
+   acceptance criteria and a seven-step implementation plan.
+2. The authorized development-test operator reviewed accountability, proxy
+   precedence, filtering, migration, invalid input, API compatibility and
+   unchanged consumers, then approved the exact proposal hash.
+3. A second real, tool-free Copilot call proposed the four allowed files.
+4. Restricted Docker execution passed **15 unchanged visible tests and all
+   35 independent checks**, including real old-schema migration, data
+   preservation, assignment/clearing, validation and reopen persistence.
+5. Contract documentation was updated, only the four allowed files changed,
+   and every new verification container was removed.
+
+| Measurement | Proposal | Implementation |
+|---|---:|---:|
+| Actual requests / premium-request units | 1 | 1 |
+| Input tokens | 7,196 | 9,579 |
+| Output tokens | 2,758 | 2,323 |
+| Cache-read tokens | 0 | 0 |
+| Cache-write tokens | 7,193 | 9,576 |
+| Nano-AIU | 9,113,700,000 | 9,435,200,000 |
+| Call wall time | 36,670 ms | 33,609 ms |
+| Verified zero-tool telemetry | yes | yes |
+
+The two accepted calls total 16,775 input tokens, 5,081 output tokens and
+18,548,900,000 nano-AIU. Dollar cost is unavailable, not zero.
+
+Evidence identities:
+
+- Approved proposal digest, canonical JSON:
+  `42403b22398e17d836a58bb26d51f0da34f59e64c2f1a471421928930b9fd5e0`.
+- Proposal file SHA-256:
+  `08278deb9cd0aae3640a522e2ebb532b6e8d45648f3bb4fd3ed1505060f49e2d`.
+- Approval file SHA-256:
+  `7bdbda6cc36f9cc5abfaab33dfe70387040a8f0c020f52912d3b94387f8f4d45`.
+- Final impact report SHA-256:
+  `afd24d752a138118264bdfff07bf95a24eaf2e2f9168d3943eaed39087e74b6c`.
+- Verified candidate tree SHA-256:
+  `4c19563a4270ae815027cc8ed966b5f83afbdc446a9d0deaaf2819f5cdc4b9af`.
+
+The proposal digest deliberately differs from the pretty-printed file hash.
+The operator receipt explicitly records `independentHumanReview:false`.
+This is not independent Human acceptance. The proxy implementation remains
+in isolated evidence output; the committed baseline intentionally remains
+proxy-free for repeatable demonstrations.
+
+## Completed diagnosis and strategy pilot
+
+All six cells and all nine planned calls ran once, in alternating strategy
+order, without model retries or human patches. Every call reported
+`gpt-5.6-sol` and verified zero available tools. The benchmark finished with
+`completed-with-failures`, exit **2**, not a successful acceptance result.
+
+| Case | Strategy | Real Red failures / 15 | Green / independent oracle | Classification / scope | Exact evidence gate | Cell wall time |
+|---|---|---:|---|---|---|---:|
+| Product filter | Direct | 5 | 15/15 and 20/20 | correct / preserved | rejected | 30,280 ms |
+| Product filter | Diagnose-first | 5 | 15/15 and 20/20 | correct / preserved | rejected | 60,757 ms |
+| Test expectation | Diagnose-first | 1 | 15/15 and 20/20 | correct / preserved | rejected | 51,627 ms |
+| Test expectation | Direct | 1 | 15/15 and 20/20 | correct / preserved | rejected | 38,517 ms |
+| Invalid environment | Direct | 2 | 15/15 and 20/20 | correct / preserved | rejected | 23,068 ms |
+| Invalid environment | Diagnose-first | 2 | 15/15 and 20/20 | correct / preserved | rejected | 42,756 ms |
+
+**Functional repairs: 6/6 verified. Full evidence-based acceptance: 0/6.**
+Every candidate restored the exact baseline tree hash
+`57dc5e092135fe4e55c34fc094302c24cbb254050d9729c844939dc8dcd11f5f`.
+Product/environment repairs preserved all tests; the harness repair restored
+the deliberately corrupted assertion to its exact original version.
+
+The failures were in evidence representation, not failed repairs:
+
+- Contract quotations omitted or normalized Markdown punctuation/newlines, so
+  they were not exact contiguous source excerpts.
+- Diagnostic outputs used names such as `Actual failing test output` rather
+  than the validator's `test-output` identifier. The original prompt did not
+  state that reserved identifier clearly enough.
+
+The prompt now explicitly states the allowed citation paths, reserved output
+identifier, 1-to-8-entry limit, 5-to-500-character bounds and exact formatting
+requirements. Those changes have offline regression coverage. **This pilot was
+not rerun after the clarification**, so it does not establish a new evidence
+acceptance rate or support blaming the model for an underspecified protocol.
+The original failed reports remain unchanged.
+
+The executed report also used `falseCompletionClaims` too broadly: its
+three claims per strategy meant failed overall acceptance, even though all
+claimed code repairs passed independent verification. Those are **not six
+false repair claims**. Current tooling separates `repairsVerified`,
+`evidenceAccepted`, `unacceptedCompletionClaims` and actual failed-repair
+`falseCompletionClaims`; an end-to-end injected matrix regression verifies
+that evidence rejection cannot relabel a valid repair as a false one.
+
+| Measured strategy totals | Direct | Diagnose-first |
+|---|---:|---:|
+| Cells / independently verified repairs | 3 / 3 | 3 / 3 |
+| Full acceptance | 0 / 3 | 0 / 3 |
+| Actual calls / premium-request units | 3 | 6 |
+| Input tokens | 24,591 | 50,262 |
+| Output tokens | 1,136 | 2,449 |
+| Cache-read tokens | 0 | 0 |
+| Cache-write tokens | 24,582 | 50,244 |
+| Nano-AIU | 14,566,600,000 | 30,027,200,000 |
+| Summed cell wall time | 91,865 ms | 155,140 ms |
+| Human repair interventions | 0 | 0 |
+
+Diagnose-first consumed more calls, tokens and time in this pilot without
+changing the measured repair or acceptance outcomes. This does not establish
+a general strategy ranking. In particular, the evidence protocol ambiguity
+limits interpretation of the acceptance metric.
+
+- Benchmark report SHA-256:
+  `624abc4e025cf66729c39f2dd07e2b2f7db8e5285f540b120e6ed66777cf1930`.
+- Actual interval: `2026-09-28T09:16:14.259Z` through
+  `2026-09-28T09:20:52.179Z`.
+- No infrastructure failures, skipped cells, automatic retries or unresolved
+  sandbox containers occurred.
+
+Across qualification, rejected attempts, accepted impact work and the complete
+pilot, there were **17 actual model requests**, 147,894 input tokens, 14,037
+output tokens, 17 reported premium-request units and 102,015,900,000 nano-AIU.
+Dollar cost remains unknown. The pre-spawn blocked attempt consumed no request.
+
 ## Interpretation and preservation
 
 Private evidence remains in new external experiment directories: original
@@ -122,3 +248,22 @@ not statistically significant. Measured premium-request units and nano-AIU
 are not dollars, and cache tokens must not be added to total input twice.
 Preflight, transport qualification and failed setup attempts are overhead,
 not hidden inside a successful benchmark cell.
+
+## Validation and application preservation
+
+Complete source validation passed:
+
+- 186 automation tests, 26 trace-viewer tests, 174 existing toolkit tests and
+  70 engineering-toolkit tests: **456 repository tests**.
+- **15 independent engineering application tests**.
+- No editor diagnostics in the changed orchestration or regression tests.
+
+After all real trials, there were no remaining engineering sandbox containers.
+The three previously accepted local applications still returned HTTP 200 on
+their health endpoints. Their containers and volumes were not used for these
+experiments.
+
+Unchanged application Git trees:
+
+- Source service desk: `ac82ccf290c576248a5d26d79a9b71a8aaa1830e`.
+- Accepted discovery service desk: `8aed50dfacb527f3550b4a779514701383fa5bea`.

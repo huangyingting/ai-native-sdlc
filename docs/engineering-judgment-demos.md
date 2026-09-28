@@ -135,6 +135,11 @@ For each cell the runner:
 7. Records classification, correctness, false completion, elapsed time and
    actual CLI usage; retains failed cells without automatic retries.
 
+Report dimensions are deliberately separate: a repair can pass all behavioral
+checks while its evidence is rejected. `unacceptedCompletionClaims` records
+claims that fail the overall gate; `falseCompletionClaims` is reserved for
+claimed repairs that actually fail independent behavioral verification.
+
 Budget: nine CLI calls for the six cells, two calls for the separate impact
 loop, maximum 120 seconds per call and 300 seconds per benchmark cell. These
 are execution bounds, **not a dollar-spend guarantee or equal token allocation**.

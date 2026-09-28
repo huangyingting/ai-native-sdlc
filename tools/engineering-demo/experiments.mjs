@@ -132,6 +132,10 @@ export async function benchmark(options, { agent = realCopilot, visible = runVis
           const input = `Task: ${scenario.request}
 Allowed candidate surfaces: ${candidates.join(", ")}.
 Classify as product, test-harness, environment, or unknown.
+Evidence contract: supply 1 to 8 entries. Each path must be an exact supplied relative file path,
+or the literal "test-output" for the test output below. Each quote must be a 5-to-500-character
+exact contiguous substring, preserving Markdown punctuation, indentation and newlines.
+Do not paraphrase inside quotes. JSON-escape any newlines. Put explanations outside evidence.
 Relevant synthetic source files:
 ${JSON.stringify(publicFiles(faulty))}
 Actual failing test output:
@@ -168,10 +172,12 @@ For test-harness mistakes, restore assertions to the documented product contract
           cell.oracle = oracle({ image: options.image, workspace: candidateDir, caseId, ...scenario, dest: checksDir, timeoutMs: verificationBudget(started) });
           cell.oraclePassed = cell.oracle.passed;
           cell.evaluated = true;
-          cell.passed = cell.green.passed && cell.oraclePassed && cell.scopeValid &&
+          cell.repairVerified = cell.green.passed && cell.oraclePassed;
+          cell.passed = cell.repairVerified && cell.scopeValid &&
             cell.testsPreserved && cell.classificationCorrect && cell.diagnosisValid &&
             performance.now() - started <= 300000;
-          cell.falseCompletion = cell.claimedFixed && !cell.passed;
+          cell.falseCompletion = cell.claimedFixed && !cell.repairVerified;
+          cell.unacceptedCompletion = cell.claimedFixed && !cell.passed;
           cell.candidateHash = treeHash(candidate);
           cell.status = cell.passed ? "passed" : "failed";
         } catch (error) {
@@ -179,7 +185,8 @@ For test-harness mistakes, restore assertions to the documented product contract
           cell.status = cell.infrastructureFailure ? "infrastructure-error" : "failed";
           cell.error = "Cell failed; inspect its private evidence. No automatic retry or human patch was applied.";
           writeJson(join(path, "failure.json"), { message: error.message }, { exclusive: true });
-          cell.falseCompletion = cell.claimedFixed === true;
+          cell.falseCompletion = false;
+          cell.unacceptedCompletion = cell.claimedFixed === true;
           if (cell.infrastructureFailure) {
             cell.falseCompletion = false;
             cell.wallMs = Math.round(performance.now() - started);
@@ -224,9 +231,12 @@ export function summarizeCells(cells) {
         ? calls.reduce((sum, call) => sum + call.metrics[key], 0) : null]));
     return {
       strategy, cells: selected.length, passed: selected.filter((cell) => cell.passed).length,
+      repairsVerified: selected.filter((cell) => cell.repairVerified).length,
+      evidenceAccepted: selected.filter((cell) => cell.diagnosisValid).length,
       evaluated: selected.filter((cell) => cell.evaluated).length,
       infrastructureFailures: selected.filter((cell) => cell.infrastructureFailure).length,
       falseCompletionClaims: selected.filter((cell) => cell.falseCompletion).length,
+      unacceptedCompletionClaims: selected.filter((cell) => cell.unacceptedCompletion).length,
       calls: selected.reduce((sum, cell) => sum + cell.calls.length, 0),
       wallMs: selected.reduce((sum, cell) => sum + cell.wallMs, 0),
       humanInterventions: 0, dollarCost: null,

@@ -251,7 +251,7 @@ not hidden inside a successful benchmark cell.
 
 ## Validation and application preservation
 
-Complete source validation passed:
+Complete source and synchronized discovery-demo validation passed:
 
 - 186 automation tests, 26 trace-viewer tests, 174 existing toolkit tests and
   70 engineering-toolkit tests: **456 repository tests**.
@@ -267,3 +267,25 @@ Unchanged application Git trees:
 
 - Source service desk: `ac82ccf290c576248a5d26d79a9b71a8aaa1830e`.
 - Accepted discovery service desk: `8aed50dfacb527f3550b4a779514701383fa5bea`.
+
+## Published source and protected demo update
+
+- Source implementation and evidence publication:
+  [`0074eea`](https://github.com/huangyingting/ai-native-sdlc/commit/0074eea32dcdb6bc80dc910db6c6a835db779c0a).
+- Successful [source Repository CI](https://github.com/huangyingting/ai-native-sdlc/actions/runs/36403499096).
+- Ordinary protected
+  [discovery-demo PR #27](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/27),
+  reviewed at exact head `1c5952f628e11717612b810d8978b7fb19642373`.
+- [Authorized operator COMMENT review](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/27#pullrequestreview-5336553560),
+  explicitly not independent Human approval.
+- Successful [demo Repository CI](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36403693809)
+  and [application validation/container smoke](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36403693825).
+- Normal protected merge:
+  [`b225590`](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/commit/b225590fd0c6933c1f6b98b365db8781d11f4939),
+  followed by successful
+  [post-merge Repository CI](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36403957310).
+
+The synchronized toolkit and fixture Git trees are identical in both
+repositories: `16198dcc789d93c2510b4cf9b701e5d1828f7358` and
+`89923e017d3a976dc7f4c703f7642a2af8c3c95a`, respectively. The discovery README
+and walkthrough link this canonical report instead of duplicating it.

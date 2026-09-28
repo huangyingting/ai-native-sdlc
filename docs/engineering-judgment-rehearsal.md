@@ -86,6 +86,30 @@ targeted regression tests:
 
 The fixed synthetic source was not changed to hide any of these failures.
 
+### Impact coverage is not the same as allowed edit paths
+
+One subsequent attempt was blocked before any CLI process was spawned while
+tool-isolation qualification was being integrated; it incurred no model request.
+
+The first zero-tool, lossless proposal then supplied **17 exact source
+quotations**. It correctly cited multiple responsibilities in individual files
+and unchanged CLI/test consumers. The original validator incorrectly demanded
+exactly one entry per required edit surface and rejected this useful analysis.
+
+This was a harness defect, not fabricated model evidence. The validator now
+allows distinct quotations from any supplied source file, still requires every
+mandatory domain/storage/API/documentation surface, and rejects duplicated
+quotations, unknown files and inexact excerpts. Implementation edit paths remain
+unchanged and restricted to four files. The rejected report and original
+response remain intact; the corrected validator also accepts that original
+response without modifying it.
+
+That model call recorded 7,173 input tokens, 3,316 output tokens,
+10,218,200,000 nano-AIU, one premium-request unit and 47,499 ms wall time.
+Including it, pre-acceptance overhead is six actual calls/units, 56,266 input
+tokens, 5,371 output tokens and 38,873,200,000 nano-AIU. The pre-spawn blocked
+attempt is not counted as a model call.
+
 ## Interpretation and preservation
 
 Private evidence remains in new external experiment directories: original

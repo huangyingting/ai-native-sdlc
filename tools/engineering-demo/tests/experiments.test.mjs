@@ -37,6 +37,18 @@ test("impact analysis must cover every known surface with exact quotes", () => {
   assert.throws(() => validateImpactProposal({ ...candidate, impacts: [...candidate.impacts, candidate.impacts[0]] }, files));
 });
 
+test("impact analysis accepts multiple distinct facts per file and unchanged consumers", () => {
+  const { files, candidate } = proposalFixture();
+  files["src/cli.mjs"] = "console.log(JSON.stringify(listTickets(store)));";
+  candidate.impacts.push(
+    { path: "src/domain.mjs", quote: "Existing source", reason: "A separate existing fact from the same domain file." },
+    { path: "src/cli.mjs", quote: files["src/cli.mjs"], reason: "Unchanged consumer must keep serializing compatible fields." },
+  );
+  validateImpactProposal(candidate, files);
+  assert.throws(() => validateImpactProposal({
+    ...candidate, impacts: [...candidate.impacts, { path: "hidden-oracle.mjs", quote: "invented", reason: "An unavailable hidden file." }],
+  }, files));
+});
 test("review binds current proposal, source fixture and acceptance contract and cannot be replayed", () => {
   const dir = mkdtempSync(join(tmpdir(), "engineering-review-"));
   try {

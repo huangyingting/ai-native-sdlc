@@ -249,13 +249,18 @@ export function validateImpactProposal(answer, files) {
       answer.decisions.some((decision) => ["question", "selected", "rationale"].some((key) =>
         typeof decision?.[key] !== "string" || !decision[key].trim()))) throw new Error("Incomplete impact/spec/plan proposal.");
   const paths = new Set();
+  const citations = new Set();
+  const suppliedFiles = publicFiles(files);
+  if (answer.impacts.length > 24) throw new Error("Impact analysis exceeds the bounded citation count.");
   for (const item of answer.impacts) {
-    if (!IMPACT_CONTRACT.requiredSurfaces.includes(item.path) || paths.has(item.path) ||
-        typeof item.quote !== "string" || item.quote.length < 5 || !files[item.path]?.includes(item.quote) ||
+    const citation = JSON.stringify([item.path, item.quote]);
+    if (!Object.hasOwn(suppliedFiles, item.path) || citations.has(citation) ||
+        typeof item.quote !== "string" || item.quote.length < 5 || !suppliedFiles[item.path]?.includes(item.quote) ||
         typeof item.reason !== "string" || item.reason.length < 10) {
-      throw new Error("Impact evidence must cite a unique affected surface and exact source quote.");
+      throw new Error("Impact evidence must contain distinct exact quotations from supplied source files.");
     }
     paths.add(item.path);
+    citations.add(citation);
   }
   if (IMPACT_CONTRACT.requiredSurfaces.some((path) => !paths.has(path))) throw new Error("Impact analysis missed a required consumer/storage/contract surface.");
   if (answer.decisions.length < 2 || answer.acceptanceCriteria.length < 4 || answer.plan.length < 3) {
@@ -278,6 +283,7 @@ Files:\n${JSON.stringify(publicFiles(baseline))}
 Return {impacts:[{path,quote,reason}],decisions:[{question,selected,rationale}],
 spec:string,acceptanceCriteria:[string],plan:[string]}.
 Cover every affected domain, database, API-consumer and documentation surface.
+Use at most 24 impact entries; distinct facts may cite the same file, and unchanged consumers may be included.
 Each quote MUST be a short, exact, contiguous excerpt copied from that file's supplied content.
 Put explanations in reason; do not paraphrase or summarize inside quote. Escape newlines correctly in JSON.
 Do not implement. Distinguish existing facts from proposed decisions.`, destination, {

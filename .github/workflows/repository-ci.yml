@@ -20,6 +20,8 @@ on:
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"
       - "tools/brownfield-demo/**"
+      - "tools/engineering-demo/**"
+      - "demos/engineering-lab/**"
       - "demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/**"
       - ".node-version"
       - "package.json"
@@ -43,6 +45,8 @@ on:
       - ".github/workflows/repository-ci.yml"
       - "tools/trace-viewer/**"
       - "tools/brownfield-demo/**"
+      - "tools/engineering-demo/**"
+      - "demos/engineering-lab/**"
       - "demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/**"
       - ".node-version"
       - "package.json"
@@ -60,3 +64,5 @@ jobs:
         with:
           node-version-file: .node-version
       - run: npm test
+      - name: Verify independent engineering fixture
+        run: npm --prefix demos/engineering-lab test

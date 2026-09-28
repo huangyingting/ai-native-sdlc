@@ -16,6 +16,7 @@ Issue-to-PR workflows.
 | Exercise trustworthy tests, safe local releases and operational feedback | [Three reliability loops: start here](docs/brownfield-reliability-loops.md) |
 | Run only the service-desk application | [Application quick start](demos/it-service-desk/README.md) |
 | Explore Copilot orchestration patterns | [Agent orchestration guide](docs/copilot-cli-agent-orchestration-patterns.md) |
+| Demonstrate change impact, CI diagnosis and Agent evaluation | [Engineering judgment demos: start here](docs/engineering-judgment-demos.md) |
 
 For a fresh ownership run, use the ownership-free **source** to prepare a
 **new isolated repository**. The existing
@@ -29,6 +30,10 @@ details and troubleshooting when that path links to them.
 
 - [`demos/it-service-desk/`](demos/it-service-desk/) — independent Next.js and
   SQLite service-desk demonstration.
+- [`demos/engineering-lab/`](demos/engineering-lab/) — dependency-free synthetic
+  ticket application for isolated change-impact and CI-diagnosis experiments.
+- [`tools/engineering-demo/`](tools/engineering-demo/README.md) — bounded real
+  Copilot proposals, restricted execution and fixed-case strategy evaluation.
 - [`tools/trace-viewer/`](tools/trace-viewer/) — dependency-free trace model,
   renderer, composite action, and GitHub Pages client.
 - [`tools/brownfield-demo/`](tools/brownfield-demo/README.md) — isolated demo
@@ -43,6 +48,7 @@ Use Node.js 24 and run:
 
 ```sh
 npm test
+npm --prefix demos/engineering-lab test
 ```
 
 Each demo owns its dependencies and additional validation commands.
@@ -124,6 +130,12 @@ its real image, failures, and recovery. It does not count toward genuine Human
 acceptance or the three-live-run readiness gate.
 
 ## Documentation
+
+- [Engineering judgment demos](docs/engineering-judgment-demos.md)
+  — change impact with version-bound operator review, evidence-grounded CI
+  diagnosis, and a measured direct-versus-diagnosis-first strategy pilot.
+  See [actual rehearsal evidence](docs/engineering-judgment-rehearsal.md) for
+  observed failures, corrections, measured results and limitations.
 
 - [Delivery and operations research](docs/ai-native-sdlc-delivery-operations-research.md)
   — ten later-stage pain points, dated coverage, and three bounded improvements.

@@ -51,5 +51,14 @@ npm run lint
 npm run build
 ```
 
+For the independent engineering fixture:
+
+```sh
+npm --prefix demos/engineering-lab test
+```
+
+Root tests include its deterministic experiment-tooling checks. Real Copilot
+experiments require explicit operator execution and are not part of offline CI.
+
 Run the smallest relevant checks while iterating, then run the complete checks
 for every project affected by the change.

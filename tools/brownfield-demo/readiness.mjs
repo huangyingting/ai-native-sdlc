@@ -1,10 +1,12 @@
 import {
-  configPath, fullSha, intentNumber, positive, provenancePath, repository, sha256, validateProvenance, workflowFiles,
+  configPath, fullSha, intentNumber, positive, provenancePath, repository, validateProvenance, workflowFiles,
 } from "./common.mjs";
 import { contentFile, github, readOnlyApi } from "./github.mjs";
 import { baselineProblems } from "./prepare.mjs";
-import { acceptanceEvidence, collectEvidence, trustedRecord } from "./replay.mjs";
+import { acceptanceEvidence, collectEvidence, documentEvidence, trustedRecord } from "./replay.mjs";
 import { loadManifest } from "./scenarios.mjs";
+
+export { documentEvidence } from "./replay.mjs";
 
 const documentLedger = "<!-- brownfield-human-gated-delivery-document-ledger -->";
 const failureTypes = ["workflow-failed", "verification-failed"];
@@ -28,62 +30,6 @@ export function runTargets(options) {
   const targets = intents.map((intent, index) => ({ repo: repos[index], intent }));
   if (new Set(targets.map(({ repo, intent }) => `${repo}#${intent}`)).size !== 3) throw new Error("Three distinct repository/Intent pairs are required.");
   return targets;
-}
-
-function uneditedHuman(comment) {
-  return comment?.user?.type === "User" && positive(comment.user.id) &&
-    ["OWNER", "MEMBER", "COLLABORATOR"].includes(comment.authorAssociation) &&
-    typeof comment.createdAt === "string" && comment.createdAt === comment.updatedAt;
-}
-
-export function documentEvidence(evidence, state, texts, trusted) {
-  const { record, config } = evidence;
-  const comments = evidence.issues.find((issue) => issue.number === record?.intent)?.comments ?? [];
-  const reasons = [];
-  if (!trusted) reasons.push("Document state lacks a trusted workflow audit entry.");
-  if (state?.version !== 1 || state.intent !== record?.intent || state.baseline !== record?.baseline ||
-      state.sealed !== true || state.pending !== null || !Array.isArray(state.receipts)) {
-    reasons.push("Documents are not a sealed, versioned handoff for this run and baseline.");
-  }
-  const approvals = {};
-  for (const stage of ["spec", "plan"]) {
-    const doc = state?.documents?.[stage];
-    const policy = config.stages[stage];
-    const policyHash = sha256(JSON.stringify({ minimumApprovals: policy.minimumApprovals, reviewers: policy.reviewers }));
-    if (!positive(state?.counters?.[stage]) || doc?.version !== state.counters[stage] ||
-        !/^[a-f0-9]{64}$/.test(doc?.hash ?? "") || typeof texts[stage] !== "string" ||
-        sha256(texts[stage]) !== doc.hash || doc.policyHash !== policyHash ||
-        !Array.isArray(doc.approvals) || policy.reviewers.teams.length) {
-      reasons.push(`The ${stage} revision, content, or individual Human policy cannot be verified.`);
-      continue;
-    }
-    const verified = doc.approvals.filter((approval) => {
-      const comment = comments.find((item) => item.id === approval.commentId);
-      return uneditedHuman(comment) && comment.user.id === approval.user?.id &&
-        comment.user.login?.toLowerCase() === approval.user.login?.toLowerCase() &&
-        policy.reviewers.users.some((login) => login.toLowerCase() === comment.user.login.toLowerCase()) &&
-        comment.body?.trim() === `/sdlc approve ${stage} v${doc.version}` &&
-        approval.commentBody === comment.body && approval.approvedAt === comment.createdAt &&
-        approval.hash === doc.hash && approval.version === doc.version;
-    });
-    if (new Set(verified.map((approval) => approval.user.id)).size < policy.minimumApprovals) {
-      reasons.push(`Missing actual Human approval of the current ${stage} revision.`);
-    }
-    approvals[stage] = verified.map((approval) => approval.commentId);
-  }
-  if (!state?.documents?.spec || state.documents.plan?.specHash !== state.documents.spec.hash) {
-    reasons.push("Plan does not reference the current Spec hash.");
-  }
-  const revisions = comments.filter((comment) => uneditedHuman(comment) &&
-    /^\/sdlc revise spec\r?\n+\s*\S/.test(comment.body ?? "") &&
-    state?.receipts?.some((receipt) => receipt.id === comment.id &&
-      receipt.message === `Command #${comment.id} recorded: revise spec.`) &&
-    state.documents?.spec?.approvals?.some((approval) => Date.parse(comment.createdAt) < Date.parse(approval.approvedAt)));
-  if (state?.counters?.spec > 1 && !revisions.length) reasons.push("Spec counter increased without an actual recorded Human revision request.");
-  return {
-    verified: reasons.length === 0, counters: state?.counters ?? null,
-    approvalCommentIds: approvals, revisionCommentIds: revisions.map((comment) => comment.id), reasons,
-  };
 }
 
 function failureReference(event, repo) {
@@ -181,7 +127,8 @@ export function scenarioEvidence(evidence, documents, recovery, baseline) {
     if (recovery.verified) variant = "ownership-failure-recovery";
     else if (recovery.recordedFailures) reasons.push("Recorded failure has no corroborated failed Actions attempt and subsequent recovery.");
     else if (documents.counters.spec > 1 && documents.revisionCommentIds.length) variant = "ownership-spec-revision";
-    else if (documents.counters.spec === 1 && documents.counters.plan === 1) variant = "ownership-standard";
+    else if (documents.counters.spec === 1 + (documents.decisionCommentIds?.length ?? 0) &&
+        documents.counters.plan === 1 && !documents.revisionCommentIds.length) variant = "ownership-standard";
     else reasons.push("Document history does not match one of the three fixed process variants.");
   }
   return {
@@ -232,16 +179,19 @@ export async function readiness(options, { api = readOnlyApi, now = () => new Da
       if (!baselines.has(baselineKey)) baselines.set(baselineKey, await baselineEvidence(client, baseline, manifest));
       const stateLink = evidence.summary.documents.find((item) => item.path.endsWith("/document-review.json"));
       if (!stateLink || !fullSha(stateLink.commit)) throw new Error("No immutable document approval record is available.");
-      const raw = contentFile(client.get(`contents/${stateLink.path}?ref=${stateLink.commit}`));
-      const trusted = await trustedRecord(api, evidence.issues[0].comments, stateLink.commit, raw, documentLedger);
-      const state = JSON.parse(raw);
-      const texts = {};
-      for (const stage of ["spec", "plan"]) {
-        const path = stateLink.path.replace("document-review.json", `${stage}.md`);
-        texts[stage] = contentFile(client.get(`contents/${path}?ref=${stateLink.commit}`)).toString("utf8");
+      let snapshot = evidence.documentSnapshot;
+      if (!snapshot || snapshot.commit !== stateLink.commit || snapshot.path !== stateLink.path) {
+        const raw = contentFile(client.get(`contents/${stateLink.path}?ref=${stateLink.commit}`));
+        const trusted = await trustedRecord(api, evidence.issues[0].comments, stateLink.commit, raw, documentLedger);
+        const texts = {};
+        for (const stage of ["spec", "plan"]) {
+          const path = stateLink.path.replace("document-review.json", `${stage}.md`);
+          texts[stage] = contentFile(client.get(`contents/${path}?ref=${stateLink.commit}`)).toString("utf8");
+        }
+        snapshot = { state: JSON.parse(raw), texts, trusted };
       }
       const documents = {
-        ...documentEvidence(evidence, state, texts, trusted),
+        ...documentEvidence(evidence, snapshot.state, snapshot.texts, snapshot.trusted),
         recordUrl: `https://github.com/${repo}/blob/${stateLink.commit}/${stateLink.path}`,
       };
       const recovery = recoveryEvidence(evidence.record, await workflowAttempts(evidence.record, client));

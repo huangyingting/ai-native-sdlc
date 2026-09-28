@@ -16,6 +16,8 @@ const help = [
   "- `/sdlc pause` / `/sdlc resume`: stop or restore new work. Already-running agents are not terminated and completed merges cannot be undone.",
   "- `/sdlc cancel`: permanently stop this run. Evidence, branches, Issues and PRs are retained; no automatic destructive cleanup.",
   "- `/sdlc retry`: retry document generation/handoff. For failed engineering CI use the linked PR; for Advance/Publish rerun the failed Actions run after fixing its cause.",
+  "- New decisions-v1 runs: `/sdlc decide spec vN Q-n` with `Outcome:` and `Rationale:` lines records a Spec reviewer's answer and requests a new Spec.",
+  "- `/sdlc defer spec vN Q-n` with `Rationale:`, `Owner:`, `Follow-up:`, and `Risk:` lines records an explicit deferred risk. Use a GitHub login for Owner. See the document hub for current blockers; decisions are not approval.",
   "- `/sdlc accept sha256:<digest>` plus observed results on a new line: configured Human business acceptance.",
   "- `/sdlc reject sha256:<digest>` plus failures on a new line: keep the Intent open for remediation.",
   "",

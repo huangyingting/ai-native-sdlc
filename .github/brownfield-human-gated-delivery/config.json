@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "specReadiness": "decisions-v1",
   "mergeMethod": "squash",
   "project": {
     "path": "demos/it-service-desk",

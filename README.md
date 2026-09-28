@@ -10,6 +10,7 @@ Issue-to-PR workflows.
 |---|---|
 | Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
 | Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
+| Understand Intent/Spec/Plan gaps and improvements | [Early-stage research and implementation status](docs/ai-native-sdlc-early-stage-research.md) |
 | Run only the service-desk application | [Application quick start](demos/it-service-desk/README.md) |
 | Explore Copilot orchestration patterns | [Agent orchestration guide](docs/copilot-cli-agent-orchestration-patterns.md) |
 
@@ -79,6 +80,14 @@ Revisions and approval snapshots are saved in Git before handoff to the
 existing Tests/Implementation PR flow. Legacy document-PR Intents remain in
 Spec/Plan PR mode; they are not automatically migrated.
 
+The source configuration enables `specReadiness: "decisions-v1"` for newly
+initialized runs. Spec review includes a discovery brief and blocking Q-n
+questions. A configured Spec reviewer records an answer or explicit deferment;
+each decision triggers a new Spec, clears previous Spec approval and Plan, and
+must be incorporated before fresh approval. Existing runs keep their original
+profile. Follow the [decision loop instructions](docs/brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
+and the current Issue hub, not fixed version numbers from an old rehearsal.
+
 The workflows, including `brownfield-human-gated-delivery-documents.yml`, must
 already be published on remote `main` and registered by GitHub. Setup cannot
 register a missing workflow; it can enable an existing disabled workflow.
@@ -110,6 +119,9 @@ acceptance or the three-live-run readiness gate.
 
 ## Documentation
 
+- [Intent, Spec, and Plan research](docs/ai-native-sdlc-early-stage-research.md)
+  — ten early-stage pain points, evidence-based demo coverage, the implemented
+  discovery/decision slice, and the remaining proposed improvements.
 - [Illustrated delivery case study](docs/brownfield-human-gated-delivery-case-study.md)
   — the actual ownership rehearsal, architecture, screenshots, review decisions,
   failures and fixes, and linked evidence with explicit limitations.

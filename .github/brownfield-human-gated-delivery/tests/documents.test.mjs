@@ -7,16 +7,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { artifactPaths, lifecycleBranch, loadConfig, validateStageFiles } from "../scripts/core.mjs";
 import {
-  approveDocument, contentHash, documentBranch, documentMode, documentStatePath,
+  approveDocument, contentHash, discoveryBlockers, discoveryContextHash, documentBranch, documentMode, documentStatePath,
   hasDocumentApproval, initialDocumentState, parseDocumentCommand, publishDocumentRevision,
-  requestDocumentRevision, validateDocumentHandoff, validateGeneratedDocument,
+  latestDecisions, recordDiscoveryDecision, requestDocumentRevision, validateDiscoveryDocument,
+  validateDocumentHandoff, validateDocumentState, validateGeneratedDocument,
 } from "../scripts/document-core.mjs";
-import { DocumentReview, routeDocumentKickoff } from "../scripts/documents.mjs";
+import { discoveryPacket, DocumentReview, renderDocumentRevision, routeDocumentKickoff } from "../scripts/documents.mjs";
 import { RunControl } from "../scripts/runs.mjs";
 import { applyRunCommand, newRun, parseRunCommand, recordDelivery, runBranch, runStatePath, validateRun } from "../scripts/run-core.mjs";
 import { advance, delivery, verify } from "../scripts/github.mjs";
 
-const config = loadConfig();
+const config = { ...loadConfig(), specReadiness: "structural" };
+const discoveryConfig = { ...config, specReadiness: "decisions-v1" };
 
 test("actual CLI entrypoints finish module evaluation before loading mutually dependent helpers", () => {
   const directory = mkdtempSync(join(tmpdir(), "sdlc-cli-imports-"));
@@ -106,10 +108,158 @@ function sealedState() {
   return state;
 }
 
+const ownershipQuestion = { id: "Q-1", question: "May a ticket remain unassigned?", options: "Optional owner / mandatory owner" };
+function discoverySpec(discovery = { questions: [ownershipQuestion], decisions: [] }, changes = {}) {
+  const brief = {
+    problem: "Agents cannot identify responsibility during handoffs.",
+    evidence: "Human Intent; user research baseline is unknown.",
+    successMeasure: "Owner is visible and persists; business improvement is not measured.",
+    alternatives: "Keep current process, optional owner, or mandatory owner.",
+    questions: discovery.questions,
+    decisionMapping: latestDecisions(discovery).map((decision) => ({
+      questionId: decision.questionId, commentId: decision.commentId, acceptanceIds: ["AC-1"],
+      explanation: decision.disposition === "deferred" ? "Risk remains explicitly deferred." : "AC-1 permits an unassigned ticket.",
+    })),
+    ...changes,
+  };
+  return spec.replace("## Open questions\nNone.", `## Open questions\nSee the discovery register; deferments remain risks.
+## Discovery
+\`\`\`json
+${JSON.stringify(brief, null, 2)}
+\`\`\``);
+}
+const answer = (version = 1, id = "Q-1") => `/sdlc decide spec v${version} ${id}\nOutcome: A ticket may remain unassigned.\nRationale: New work arrives before triage.`;
+const defer = (version = 1) => `/sdlc defer spec v${version} Q-1\nRationale: Bounded rehearsal only.\nOwner: huangyingting\nFollow-up: Before production use in a linked Intent.\nRisk: No validated customer ownership policy.`;
+function discoveryDraft() {
+  const state = initialDocumentState(parent, baseline, discoveryConfig);
+  requestDocumentRevision(state, "spec", "Initial discovery", discoveryConfig);
+  publishDocumentRevision(state, discoverySpec(), null, discoveryConfig);
+  return state;
+}
+
+test("new-run discovery enrollment is explicit and persisted without migrating legacy states", () => {
+  assert.equal(loadConfig().specReadiness, "decisions-v1");
+  const legacy = initialDocumentState(parent, baseline);
+  assert.equal(legacy.version, 1);
+  assert.equal(initialDocumentState(parent, baseline, config).version, 1);
+  const state = discoveryDraft();
+  assert.equal(state.version, 2);
+  assert.equal(state.reviewProfile, "decisions-v1");
+  validateDocumentState(state, 42);
+  assert.throws(() => initialDocumentState(parent, baseline, { specReadiness: "future" }), /Unsupported/);
+  assert.throws(() => validateDocumentState({ ...legacy, reviewProfile: "decisions-v1" }, 42), /cannot enroll/);
+  assert.throws(() => validateDocumentState({ ...state, reviewProfile: "future" }, 42), /Unsupported/);
+  assert.throws(() => recordDiscoveryDecision(pureSpec(), parseDocumentCommand(answer()), command(answer()), discoveryConfig), /not migrated/);
+});
+
+test("discovery commands require version, question, and complete bounded decision or deferment fields", () => {
+  assert.equal(parseDocumentCommand(answer()).fields.Outcome, "A ticket may remain unassigned.");
+  assert.equal(parseDocumentCommand(defer()).fields.Owner, human.login);
+  for (const body of [answer().replace("v1", "v0"), answer().replace("Q-1", "Q-0"),
+    answer().replace("spec", "plan"), answer().replace("\nRationale:", "\nExtra:"),
+    answer().replace("Outcome: ", "Outcome:").replace("A ticket may remain unassigned.", ""),
+    answer() + "\nRationale: duplicate", defer().replace("Owner: huangyingting", "Owner: @invalid"),
+    defer().replace("\nRisk: No validated customer ownership policy.", ""), answer() + "x".repeat(4001)]) {
+    assert.throws(() => parseDocumentCommand(body));
+  }
+});
+
+test("all unanswered discovery questions block approval; ordinary prose cannot resolve them", () => {
+  const state = discoveryDraft();
+  assert.equal(discoveryBlockers(state).length, 1);
+  assert.throws(() => approveDocument(state, parseDocumentCommand("/sdlc approve spec v1"),
+    command("/sdlc approve spec v1"), discoveryConfig), /Unresolved discovery blockers: Q-1/);
+  assert.throws(() => requestDocumentRevision(state, "plan", "Bypass", discoveryConfig), /Approve/);
+  assert.equal(state.documents.spec.approvals.length, 0);
+});
+
+test("generation cannot remove questions, forge decisions, or substitute stale decision mappings", () => {
+  const state = discoveryDraft();
+  for (const changes of [
+    { questions: [] }, { questions: [{ ...ownershipQuestion, question: "A different question" }] },
+    { questions: [{ ...ownershipQuestion, options: "Always assigned" }] },
+    { questions: [{ ...ownershipQuestion, status: "resolved" }] },
+    { decisionMapping: [{ questionId: "Q-1", commentId: 123, acceptanceIds: ["AC-1"], explanation: "Invented Human answer" }] },
+  ]) assert.throws(() => validateDiscoveryDocument(discoverySpec(state.discovery, changes), state.discovery));
+  recordDiscoveryDecision(state, parseDocumentCommand(answer()), command(answer()), discoveryConfig);
+  assert.throws(() => validateDiscoveryDocument(discoverySpec(state.discovery, { decisionMapping: [] }), state.discovery), /every latest/);
+  const mapping = { questionId: "Q-1", commentId: 99, acceptanceIds: ["AC-1"], explanation: "Ignored actual answer" };
+  assert.throws(() => validateDiscoveryDocument(discoverySpec(state.discovery, { decisionMapping: [mapping] }), state.discovery), /stale/);
+  assert.throws(() => validateDiscoveryDocument(discoverySpec(state.discovery, { decisionMapping: [{ ...mapping, commentId: 100, acceptanceIds: ["AC-9"] }] }), state.discovery), /acceptance IDs/);
+  assert.throws(() => validateDiscoveryDocument(discoverySpec(state.discovery) + "\n## Discovery\nNone", state.discovery), /exactly one/);
+});
+
+test("Human decisions trigger a new Spec, bind context, retain deferred risk, and require fresh approval", () => {
+  const state = discoveryDraft();
+  const oldContext = state.documents.spec.contextHash;
+  recordDiscoveryDecision(state, parseDocumentCommand(defer()), command(defer()), discoveryConfig);
+  assert.equal(state.pending.version, 2);
+  assert.equal(state.discovery.decisions[0].disposition, "deferred");
+  assert.equal(state.discovery.decisions[0].commentBody, defer());
+  assert.equal(state.discovery.decisions[0].contextHash, oldContext);
+  assert.equal(discoveryBlockers(state).length, 0);
+  assert.throws(() => approveDocument(state, parseDocumentCommand("/sdlc approve spec v1"), command(""), config), /pending/);
+  const revised = discoverySpec(state.discovery);
+  publishDocumentRevision(state, revised, null, config);
+  assert.notEqual(state.documents.spec.contextHash, oldContext);
+  assert.equal(state.documents.spec.approvals.length, 0);
+  approveDocument(state, parseDocumentCommand("/sdlc approve spec v2"), command("/sdlc approve spec v2", 101), config);
+  assert.equal(state.documents.spec.approvals[0].contextHash, discoveryContextHash(state.discovery));
+  requestDocumentRevision(state, "plan", "Draft", config);
+  publishDocumentRevision(state, plan, revised, config);
+  approveDocument(state, parseDocumentCommand("/sdlc approve plan v1"), command("/sdlc approve plan v1", 102), config);
+  validateDocumentHandoff(state, { spec: revised, plan }, config);
+  const packet = discoveryPacket(state, revised);
+  assert.match(packet, /Explicitly deferred risks: \*\*1\*\*/);
+  assert.match(packet, /Follow-up: Before production use/);
+  const broken = structuredClone(state);
+  broken.documents.plan.approvals[0].contextHash = oldContext;
+  assert.throws(() => validateDocumentHandoff(broken, { spec: revised, plan }, config), /discovery binding/);
+  assert.throws(() => recordDiscoveryDecision(state, parseDocumentCommand(answer(2)), command(answer(2), 104), config), /handed off/);
+});
+
+test("changed decisions invalidate an approved Spec and Plan while retaining superseded receipts", () => {
+  const state = discoveryDraft();
+  recordDiscoveryDecision(state, parseDocumentCommand(answer()), command(answer()), discoveryConfig);
+  const revised = discoverySpec(state.discovery);
+  publishDocumentRevision(state, revised, null, discoveryConfig);
+  approveDocument(state, parseDocumentCommand("/sdlc approve spec v2"), command("/sdlc approve spec v2", 101), discoveryConfig);
+  requestDocumentRevision(state, "plan", "Draft", discoveryConfig);
+  publishDocumentRevision(state, plan, revised, discoveryConfig);
+  recordDiscoveryDecision(state, parseDocumentCommand(defer(2)), command(defer(2), 102), discoveryConfig);
+  assert.equal(state.documents.plan, null);
+  assert.deepEqual(state.documents.spec.approvals, []);
+  assert.equal(state.pending.version, 3);
+  assert.equal(state.discovery.decisions.length, 2);
+  assert.equal(latestDecisions(state.discovery)[0].commentId, 102);
+  assert.throws(() => publishDocumentRevision(state, revised, null, discoveryConfig), /stale/);
+  validateDocumentState(state, 42);
+});
+
+test("decision state rejects tampered receipts, missing bindings and unsupported fields", () => {
+  const state = discoveryDraft();
+  recordDiscoveryDecision(state, parseDocumentCommand(answer()), command(answer()), discoveryConfig);
+  publishDocumentRevision(state, discoverySpec(state.discovery), null, discoveryConfig);
+  for (const mutate of [
+    (copy) => { copy.discovery.decisions[0].fields.Outcome = "Tampered"; },
+    (copy) => { copy.discovery.decisions[0].commentBody = "Not a command"; },
+    (copy) => { copy.discovery.decisions[0].user.type = "Bot"; },
+    (copy) => { copy.discovery.decisions.push(copy.discovery.decisions[0]); },
+    (copy) => { copy.discovery.decisions[0].questionId = "Q-9"; },
+    (copy) => { delete copy.documents.spec.contextHash; },
+    (copy) => { copy.discovery.questions = []; },
+    (copy) => { copy.version = 99; },
+  ]) {
+    const copy = structuredClone(state);
+    mutate(copy);
+    assert.throws(() => validateDocumentState(copy, 42));
+  }
+});
+
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 
-function repository() {
+function repository(reviewConfig = config) {
   let counter = 1000;
   const initialTree = sha("initial-tree");
   const commits = new Map([[baseline, { tree: { sha: initialTree }, parents: [] }]]);
@@ -268,7 +418,7 @@ function repository() {
     if (path === "/actions/workflows/brownfield-human-gated-delivery-pr-coordinator.yml/dispatches") return reply(null, 204);
     throw new Error(`Unexpected document API request: ${method} ${path}`);
   };
-  const review = new DocumentReview({ token: "test-workflow", copilotToken: "test-assignment", owner: "example", repo: "repo", config: structuredClone(config) });
+  const review = new DocumentReview({ token: "test-workflow", copilotToken: "test-assignment", owner: "example", repo: "repo", config: structuredClone(reviewConfig) });
   return {
     ...state, state, review, treeAt,
     add(body, overrides = {}) {
@@ -293,6 +443,205 @@ test("Issue commands require exact submitted syntax and explicit document versio
   for (const text of ["/sdlc approve spec", "/sdlc approve plan v0", "/sdlc revise spec", "/sdlc approve plan v2\nAlso change code", "/sdlc approve spec v9007199254740992"]) {
     assert.throws(() => parseDocumentCommand(text), /Use \/sdlc/);
   }
+});
+
+async function publishDiscovery(mock) {
+  const pending = await mock.review.process(42);
+  return mock.review.publish(42, pending.sha, discoverySpec({
+    questions: pending.state.discovery.questions.length ? pending.state.discovery.questions : [ownershipQuestion],
+    decisions: pending.state.discovery.decisions,
+  }));
+}
+
+test("discovery run completes blocked draft -> Human decision -> revised Spec -> approved Plan -> Tests only", async () => {
+  const mock = repository(discoveryConfig);
+  let snapshot = await publishDiscovery(mock);
+  assert.equal(snapshot.state.reviewProfile, "decisions-v1");
+  assert.ok(mock.comments.some((item) => item.body.includes("Q-1 - BLOCKING")));
+  mock.add("Optional ownership is fine. Continue.");
+  mock.add("/sdlc approve spec v1");
+  snapshot = await mock.review.process(42);
+  assert.match(snapshot.state.receipts.at(-1).message, /Unresolved discovery blockers/);
+  assert.equal(snapshot.state.pending, null);
+  assert.equal(mock.state.assignments.length, 0);
+  const decision = mock.add(answer());
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.pending.version, 2);
+  assert.equal(snapshot.state.discovery.decisions[0].commentId, decision.id);
+  assert.match(await mock.review.prompt(snapshot), /latestDecisions/);
+  mock.review.config.specReadiness = "structural";
+  const revised = discoverySpec(snapshot.state.discovery);
+  snapshot = await mock.review.publish(42, snapshot.sha, revised);
+  assert.equal(snapshot.state.version, 2);
+  const duplicateRun = await mock.review.process(42);
+  assert.equal(duplicateRun.state.discovery.decisions.length, 1);
+  mock.add("/sdlc approve spec v1");
+  snapshot = await mock.review.process(42);
+  assert.match(snapshot.state.receipts.at(-1).message, /Stale/);
+  mock.add("/sdlc approve spec v2");
+  snapshot = await mock.draft("plan");
+  assert.match(mock.comments.find((item) => item.body.startsWith("<!-- sdlc-document:plan:")).body, /Human receipt/);
+  mock.add("/sdlc approve plan v1");
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.sealed, true);
+  assert.equal(mock.state.assignments.length, 1);
+  assert.equal(mock.state.assignments[0].assignableId, "ISSUE_45");
+  await mock.review.verifyPullRequest(42, "tests", { head: { sha: snapshot.sha } });
+  validateDocumentHandoff(snapshot.state, { spec: revised, plan }, discoveryConfig);
+});
+
+test("new configuration never enrolls an existing structural run", async () => {
+  const mock = repository();
+  await mock.draft();
+  mock.review.config.specReadiness = "decisions-v1";
+  mock.add(answer());
+  let snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.version, 1);
+  assert.match(snapshot.state.receipts.at(-1).message, /not migrated/);
+  mock.add("/sdlc approve spec v1");
+  snapshot = await mock.draft("plan");
+  assert.equal(snapshot.state.version, 1);
+});
+
+test("discovery rejects decisions before publication, from non-reviewers, or against stale contexts", async () => {
+  const mock = repository(discoveryConfig);
+  let snapshot = await mock.review.process(42);
+  mock.add(answer());
+  await mock.review.publish(42, snapshot.sha, discoverySpec());
+  snapshot = await mock.review.process(42);
+  assert.match(snapshot.state.receipts.at(-1).message, /predates publication/);
+  mock.state.permissions.set("writer", "write");
+  mock.add(answer(), { user: { id: 55, login: "writer", type: "User" } });
+  mock.add(answer(), { updated_at: "2026-09-27T00:00:00Z" });
+  mock.add(answer(), { user: { id: 55, login: "github-actions[bot]", type: "Bot" } });
+  mock.add(answer(2));
+  mock.add(answer(1, "Q-9"));
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.discovery.decisions.length, 0);
+  assert.equal(snapshot.state.receipts.filter((receipt) => receipt.message.includes("rejected")).length, 5);
+  mock.review.config.stages.spec.reviewers.teams = ["approvers"];
+  mock.add(answer());
+  snapshot = await mock.review.process(42);
+  assert.match(snapshot.state.receipts.at(-1).message, /policy changed/);
+});
+
+test("team reviewers can decide, with final approval quorum unchanged", async () => {
+  const multi = structuredClone(discoveryConfig);
+  multi.stages.spec.reviewers.teams = ["approvers"];
+  multi.stages.spec.minimumApprovals = 2;
+  const mock = repository(multi);
+  await publishDiscovery(mock);
+  const teammate = { id: 55, login: "teammate", type: "User" };
+  mock.state.teamMembers = [teammate];
+  mock.state.permissions.set(teammate.login, "write");
+  mock.add(answer(), { user: teammate });
+  let snapshot = await publishDiscovery(mock);
+  assert.equal(snapshot.state.discovery.decisions[0].user.id, teammate.id);
+  mock.add("/sdlc approve spec v2", { user: teammate });
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.pending, null);
+  assert.equal(snapshot.state.documents.spec.approvals.length, 1);
+  mock.add("/sdlc approve spec v2");
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.pending.stage, "plan");
+});
+
+test("decision persistence and publication failures recover without duplicate decisions or premature approval", async () => {
+  const mock = repository(discoveryConfig);
+  await publishDiscovery(mock);
+  const decision = mock.add(answer());
+  mock.state.fail = (call) => call.method === "POST" && call.body?.body?.startsWith(`<!-- sdlc-command:${decision.id} -->`);
+  await assert.rejects(() => mock.review.process(42), /503/);
+  let snapshot = await mock.review.load(42);
+  assert.equal(snapshot.state.discovery.decisions.length, 1);
+  assert.equal(snapshot.state.pending.version, 2);
+  mock.state.fail = null;
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.discovery.decisions.length, 1);
+  await assert.rejects(() => mock.review.publish(42, snapshot.sha, discoverySpec()), /every latest/);
+  mock.state.fail = (call) => call.method === "POST" && call.body?.body?.startsWith("<!-- sdlc-document:spec:v2:");
+  await assert.rejects(() => mock.review.publish(42, snapshot.sha, discoverySpec(snapshot.state.discovery)), /503/);
+  mock.add("/sdlc approve spec v2");
+  mock.state.fail = null;
+  snapshot = await mock.review.process(42);
+  assert.match(snapshot.state.receipts.at(-1).message, /predates publication/);
+  assert.equal(snapshot.state.documents.spec.approvals.length, 0);
+  assert.equal(snapshot.state.discovery.decisions.length, 1);
+  assert.equal(mock.comments.filter((item) => item.body.startsWith("<!-- sdlc-document:spec:v2:")).length, 1);
+  assert.equal(mock.state.assignments.length, 0);
+});
+
+test("decision retries after a ledger failure leave state untouched, and queued old answers are rejected", async () => {
+  const mock = repository(discoveryConfig);
+  const original = await publishDiscovery(mock);
+  mock.add(answer());
+  mock.add(defer());
+  mock.state.fail = (call) => call.method === "PATCH" && call.body?.body?.includes("document-ledger");
+  await assert.rejects(() => mock.review.process(42), /503/);
+  assert.equal(mock.refs.get(documentBranch(42)), original.sha);
+  assert.equal((await mock.review.load(42)).state.discovery.decisions.length, 0);
+  mock.state.fail = null;
+  let snapshot = await mock.review.process(42);
+  await mock.review.publish(42, snapshot.sha, discoverySpec(snapshot.state.discovery));
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.discovery.decisions.length, 1);
+  assert.match(snapshot.state.receipts.at(-1).message, /Stale/);
+});
+
+test("a missing invalidated revision comment cannot block pending decision-revision recovery", async () => {
+  const mock = repository(discoveryConfig);
+  const original = await publishDiscovery(mock);
+  mock.add(answer());
+  let snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.pending.version, 2);
+  await assert.rejects(() => mock.review.publish(42, snapshot.sha, discoverySpec()), /every latest/);
+  const oldComment = mock.comments.findIndex((item) => item.body.startsWith("<!-- sdlc-document:spec:v1:"));
+  assert.notEqual(oldComment, -1);
+  mock.comments.splice(oldComment, 1);
+  const retry = mock.add("/sdlc retry");
+  snapshot = await mock.review.process(42);
+  assert.ok(snapshot.state.receipts.some((receipt) => receipt.id === retry.id && receipt.message.includes("recorded")));
+  assert.equal(snapshot.state.pending.version, 2);
+  assert.equal(snapshot.state.discovery.decisions.length, 1);
+  assert.equal(snapshot.documents.spec, original.documents.spec);
+  assert.equal(mock.comments.some((item) => item.body.startsWith("<!-- sdlc-document:spec:v1:")), false);
+  snapshot = await mock.review.process(42);
+  snapshot = await mock.review.publish(42, snapshot.sha, discoverySpec(snapshot.state.discovery));
+  assert.ok(mock.comments.some((item) => item.body.startsWith("<!-- sdlc-document:spec:v2:")));
+  mock.add("/sdlc approve spec v2");
+  snapshot = await mock.review.process(42);
+  assert.equal(snapshot.state.pending.stage, "plan");
+});
+
+test("empty discovery questions are allowed, while newly found questions block subsequent approval", () => {
+  const state = initialDocumentState(parent, baseline, discoveryConfig);
+  requestDocumentRevision(state, "spec", "Fully specified Intent", discoveryConfig);
+  publishDocumentRevision(state, discoverySpec({ questions: [], decisions: [] }), null, discoveryConfig);
+  approveDocument(state, parseDocumentCommand("/sdlc approve spec v1"), command("/sdlc approve spec v1"), discoveryConfig);
+  requestDocumentRevision(state, "spec", "Discovered ambiguity", discoveryConfig);
+  publishDocumentRevision(state, discoverySpec(), null, discoveryConfig);
+  assert.throws(() => approveDocument(state, parseDocumentCommand("/sdlc approve spec v2"), command("/sdlc approve spec v2"), discoveryConfig), /blockers/);
+});
+
+test("discovery bounds and rendered packets retain all blockers without unbounded comment growth", () => {
+  const questions = Array.from({ length: 20 }, (_, i) => ({
+    id: `Q-${i + 1}`, question: "A".repeat(500), options: "B".repeat(500),
+  }));
+  const discovery = { questions, decisions: [] };
+  const text = discoverySpec(discovery);
+  const state = initialDocumentState(parent, baseline, discoveryConfig);
+  requestDocumentRevision(state, "spec", "Large bounded brief", discoveryConfig);
+  publishDocumentRevision(state, text, null, discoveryConfig);
+  const packet = renderDocumentRevision({ sha: baseline, state, documents: { spec: text } }, "spec", "example/repo");
+  assert.ok(Buffer.byteLength(packet) <= 60000);
+  assert.match(packet, /excerpt; see versioned record/);
+  for (const question of questions) assert.ok(packet.includes(`**${question.id} - BLOCKING:**`));
+  assert.ok(packet.includes(text));
+  assert.throws(() => validateDiscoveryDocument(discoverySpec(discovery, {
+    questions: [...questions, { ...ownershipQuestion, id: "Q-21" }],
+  }), discovery), /at most 20/);
+  const oversized = text.replace("Optional owner names.", "x".repeat(60000));
+  assert.throws(() => renderDocumentRevision({ sha: baseline, state, documents: { spec: oversized } }, "spec", "example/repo"), /exceeds 60 KB/);
 });
 
 test("document validation enforces existing contracts and complete review presentation", () => {

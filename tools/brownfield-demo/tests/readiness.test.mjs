@@ -6,6 +6,7 @@ import {
 import { parseOptions } from "../cli.mjs";
 import { provenancePath, sha256 } from "../common.mjs";
 import { baselineFiles, commit, config, encoded, fixtureManifest, image } from "./helpers.mjs";
+import { discoveryFixture } from "./discovery-fixture.mjs";
 
 const hash = (number) => number.toString(16).padStart(40, "0");
 const date = (time) => `2026-09-26T${time}:00Z`;
@@ -142,6 +143,28 @@ function fixtures() {
   return { data, files, api, collect, calls, manifest: fixtureManifest };
 }
 
+function discoveryRun(options = {}) {
+  const run = runEvidence(1);
+  const discovery = discoveryFixture({ intent: 1, ...options });
+  run.state = discovery.state;
+  run.texts = discovery.texts;
+  run.evidence.config = discovery.config;
+  run.evidence.issues[0].comments = [
+    ...discovery.comments,
+    ...run.evidence.issues[0].comments.filter((comment) => comment.body.startsWith("/sdlc accept") || comment.user.type === "Bot"),
+  ];
+  return run;
+}
+
+function rebindTexts(run) {
+  for (const stage of ["spec", "plan"]) {
+    const doc = run.state.documents[stage];
+    doc.hash = sha256(run.texts[stage]);
+    doc.approvals.forEach((approval) => { approval.hash = doc.hash; });
+  }
+  run.state.documents.plan.specHash = run.state.documents.spec.hash;
+}
+
 test("readiness requires exactly three distinct explicit Intent numbers and no completion switches", () => {
   assert.deepEqual(parseIntents("1,2,3"), [1, 2, 3]);
   assert.equal(parseOptions(["readiness", "--repo", "example/demo", "--intents", "1,2,3"]).command, "readiness");
@@ -190,6 +213,107 @@ test("recovery uses actual failed Actions attempts and later trusted recovery, n
   ]) assert.equal(recoveryEvidence(evidence.record, [{ ...attempts[0], workflow: changed }]).verified, false);
   evidence.record.events.splice(1, 1);
   assert.equal(recoveryEvidence(evidence.record, attempts).verified, false);
+});
+
+test("decisions-v1 handoff corroborates all receipts, latest answers, explicit deferments and decision revisions", () => {
+  const { evidence, state, texts } = discoveryRun();
+  const documents = documentEvidence(evidence, state, texts, true);
+  assert.deepEqual(documents.reasons, []);
+  assert.equal(documents.verified, true);
+  assert.equal(documents.reviewProfile, "decisions-v1");
+  assert.equal(documents.discovery.recordedReady, true);
+  assert.equal(documents.discovery.decisionEvidenceVerified, true);
+  assert.equal(documents.discovery.questions[0].decision.commentId, 4003);
+  assert.equal(documents.discovery.questions[1].decision.disposition, "deferred");
+  assert.equal(documents.discovery.questions[1].decision.fields.Owner, "reviewer");
+  assert.equal(documents.discovery.decisions.length, 3);
+  assert.deepEqual(documents.decisionCommentIds, [4001, 4002, 4003]);
+  assert.deepEqual(documents.revisionCommentIds, []);
+  assert.equal(documents.counters.spec, 4);
+  const untrusted = documentEvidence(evidence, state, texts, false);
+  assert.equal(untrusted.verified, false);
+  assert.equal(untrusted.discovery.decisionEvidenceVerified, false);
+});
+
+test("discovery revisions alone are normal; the revision variant still requires explicit Human feedback", () => {
+  for (const revise of [false, true]) {
+    const { evidence, state, texts } = discoveryRun({ revise });
+    const documents = documentEvidence(evidence, state, texts, true);
+    const result = scenarioEvidence(evidence, documents,
+      { verified: false, recordedFailures: 0, corroborated: [] }, { verified: true, commit, sourceCommit: commit, reasons: [] });
+    assert.deepEqual(result.reasons, []);
+    assert.equal(result.variant, revise ? "ownership-spec-revision" : "ownership-standard");
+  }
+});
+
+test("decisions-v1 rejects missing, edited, unauthorized and superseded decision evidence", () => {
+  for (const mutate of [
+    (run) => { run.evidence.issues[0].comments = run.evidence.issues[0].comments.filter((comment) => comment.id !== 4001); },
+    (run) => { run.evidence.issues[0].comments[0].body += "\nEdited"; },
+    (run) => { run.evidence.issues[0].comments[0].updatedAt = date("01:00"); },
+    (run) => { run.evidence.issues[0].comments[0].user.type = "Bot"; },
+    (run) => { run.evidence.issues[0].comments[0].authorAssociation = "NONE"; },
+    (run) => { run.state.discovery.decisions[0].user.id = 999; },
+    (run) => { run.state.discovery.decisions[0].user.login = "outsider"; },
+    (run) => { run.state.discovery.decisions[0].decidedAt = date("01:00"); },
+    (run) => { run.state.discovery.decisions[0].policyHash = "0".repeat(64); },
+    (run) => { run.state.receipts = run.state.receipts.filter((receipt) => receipt.id !== 4001); },
+    (run) => { run.state.receipts[0].message = "Command #4001 recorded: decide spec v2."; },
+    (run) => { run.state.receipts[0].message = "Command #4001 rejected: unauthorized."; },
+    (run) => { run.state.discovery.decisions[1].fields.Risk = ""; },
+    (run) => { run.state.discovery.decisions[1].disposition = "resolved"; },
+    (run) => { run.evidence.config.stages.spec.reviewers.teams = ["reviewers"]; },
+  ]) {
+    const run = discoveryRun();
+    mutate(run);
+    const result = documentEvidence(run.evidence, run.state, run.texts, true);
+    assert.equal(result.verified, false, mutate.toString());
+    assert.ok(result.reasons.length);
+  }
+});
+
+test("decisions-v1 uses shared validators on state, bound contexts and actual document contracts", () => {
+  for (const mutate of [
+    (run) => { run.state.reviewProfile = "decisions-v2"; },
+    (run) => { run.state.version = 3; },
+    (run) => { run.state.documents.spec.contextHash = "0".repeat(64); },
+    (run) => { run.state.documents.plan.contextHash = "0".repeat(64); },
+    (run) => { run.state.documents.spec.approvals[0].contextHash = "0".repeat(64); },
+    (run) => { run.state.discovery.questions.push({ id: "Q-3", question: "Who approves migration?", options: "Agent or owner." }); },
+    (run) => { run.texts.spec = run.texts.spec.replace('"commentId": 4003', '"commentId": 4001'); rebindTexts(run); },
+    (run) => { run.texts.spec = run.texts.spec.replace("## Discovery", "## Unbound narrative"); rebindTexts(run); },
+    (run) => { run.texts.plan = "Plan without any task mapping."; rebindTexts(run); },
+  ]) {
+    const run = discoveryRun();
+    mutate(run);
+    const result = documentEvidence(run.evidence, run.state, run.texts, true);
+    assert.equal(result.verified, false, mutate.toString());
+    assert.ok(result.reasons.length);
+  }
+  const legacy = runEvidence(1);
+  legacy.evidence.config = { ...config, specReadiness: "decisions-v1" };
+  assert.equal(documentEvidence(legacy.evidence, legacy.state, legacy.texts, true).verified, true);
+  legacy.state.reviewProfile = "decisions-v1";
+  assert.equal(documentEvidence(legacy.evidence, legacy.state, legacy.texts, true).verified, false);
+});
+
+test("unanswered discovery questions and unaccounted version increments cannot qualify", () => {
+  const open = discoveryRun({ complete: false });
+  const incomplete = documentEvidence(open.evidence, open.state, open.texts, true);
+  assert.equal(incomplete.verified, false);
+  assert.equal(incomplete.discovery.recordedReady, false);
+  assert.match(incomplete.discovery.reasons.join("\n"), /Q-1.*Q-2/);
+  const run = discoveryRun();
+  run.state.counters.spec += 1;
+  const doc = run.state.documents.spec;
+  doc.version = run.state.counters.spec;
+  doc.approvals[0].version = doc.version;
+  const comment = run.evidence.issues[0].comments.find((item) => item.id === doc.approvals[0].commentId);
+  comment.body = `/sdlc approve spec v${doc.version}`;
+  doc.approvals[0].commentBody = comment.body;
+  const result = documentEvidence(run.evidence, run.state, run.texts, true);
+  assert.equal(result.verified, false);
+  assert.match(result.reasons.join("\n"), /counter increased/);
 });
 
 test("three distinct real-shaped accepted runs cover the three variants; retries do not inflate counts", async () => {

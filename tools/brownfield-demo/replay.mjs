@@ -6,6 +6,10 @@ import {
 } from "./common.mjs";
 import { exactImage } from "./docker.mjs";
 import { contentFile, github, readOnlyApi } from "./github.mjs";
+import {
+  assertDiscoveryReady, discoveryContextHash, latestDecisions, parseDocumentCommand,
+  policyHash, validateDocumentHandoff, validateDocumentState,
+} from "../../.github/brownfield-human-gated-delivery/scripts/document-core.mjs";
 
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -56,6 +60,123 @@ function issueEvidence(issue, comments) {
       body: comment.body, createdAt: comment.created_at, updatedAt: comment.updated_at,
     })),
   };
+}
+
+function validateReviewProfile(state, intent) {
+  if (state?.version === 2) return validateDocumentState(state, intent);
+  if (state?.version !== 1 || state.reviewProfile !== undefined || state.discovery !== undefined) {
+    throw new Error("Unsupported or malformed document review profile.");
+  }
+  return state;
+}
+
+function uneditedHuman(comment) {
+  return comment?.user?.type === "User" && positive(comment.user.id) &&
+    ["OWNER", "MEMBER", "COLLABORATOR"].includes(comment.authorAssociation) &&
+    typeof comment.createdAt === "string" && Number.isFinite(Date.parse(comment.createdAt)) &&
+    comment.createdAt === comment.updatedAt;
+}
+
+export function documentEvidence(evidence, state, texts, trusted) {
+  const { record, config } = evidence;
+  const comments = evidence.issues.find((issue) => issue.number === (record?.intent ?? evidence.summary?.intent))?.comments ?? [];
+  const reasons = [];
+  const result = {
+    verified: false, trusted, reviewProfile: state?.version === 1 ? "structural" : state?.reviewProfile ?? null,
+    counters: state?.counters ?? null, sealed: state?.sealed ?? false, pending: state?.pending ?? null,
+    approvalCommentIds: {}, revisionCommentIds: [], decisionCommentIds: [], discovery: null, reasons,
+  };
+  if (!trusted) reasons.push("Document state lacks a trusted workflow audit entry.");
+  try {
+    validateHumanConfig(config);
+    validateReviewProfile(state, record?.intent ?? evidence.summary?.intent);
+  } catch (error) {
+    reasons.push(error.message);
+    return result;
+  }
+  if (state.intent !== record?.intent || state.baseline !== record?.baseline ||
+      state.sealed !== true || state.pending !== null || !Array.isArray(state.receipts)) {
+    reasons.push("Documents are not a sealed, versioned handoff for this run and baseline.");
+  }
+  if (state.version === 2) {
+    const discoveryReasons = [];
+    try { assertDiscoveryReady(state); } catch (error) { discoveryReasons.push(error.message); }
+    const latest = latestDecisions(state.discovery);
+    result.discovery = {
+      contextHash: discoveryContextHash(state.discovery),
+      recordedReady: discoveryReasons.length === 0, decisionEvidenceVerified: false,
+      questions: state.discovery.questions.map((question) => ({
+        ...question, decision: latest.find((decision) => decision.questionId === question.id) ?? null,
+      })),
+      decisions: state.discovery.decisions, reasons: discoveryReasons,
+    };
+    try { validateDocumentHandoff(state, texts, config); } catch (error) { reasons.push(error.message); }
+  }
+  for (const stage of ["spec", "plan"]) {
+    const doc = state.documents?.[stage];
+    const policy = config.stages[stage];
+    if (!positive(state.counters?.[stage]) || doc?.version !== state.counters[stage] ||
+        !/^[a-f0-9]{64}$/.test(doc?.hash ?? "") || typeof texts[stage] !== "string" ||
+        sha256(texts[stage]) !== doc.hash || doc.policyHash !== policyHash(policy) ||
+        !Array.isArray(doc.approvals) || policy.reviewers.teams.length) {
+      reasons.push(`The ${stage} revision, content, or individual Human policy cannot be verified.`);
+      continue;
+    }
+    const verified = doc.approvals.filter((approval) => {
+      const comment = comments.find((item) => item.id === approval.commentId);
+      return uneditedHuman(comment) && comment.user.id === approval.user?.id &&
+        comment.user.login?.toLowerCase() === approval.user.login?.toLowerCase() &&
+        policy.reviewers.users.some((login) => login.toLowerCase() === comment.user.login.toLowerCase()) &&
+        comment.body?.trim() === `/sdlc approve ${stage} v${doc.version}` &&
+        approval.commentBody === comment.body && approval.approvedAt === comment.createdAt &&
+        approval.hash === doc.hash && approval.version === doc.version &&
+        (state.version === 1 || approval.contextHash === doc.contextHash);
+    });
+    if (new Set(verified.map((approval) => approval.user.id)).size < policy.minimumApprovals) {
+      reasons.push(`Missing actual Human approval of the current ${stage} revision.`);
+    }
+    result.approvalCommentIds[stage] = verified.map((approval) => approval.commentId);
+  }
+  if (!state.documents?.spec || state.documents.plan?.specHash !== state.documents.spec.hash) {
+    reasons.push("Plan does not reference the current Spec hash.");
+  }
+  const revisions = comments.filter((comment) => uneditedHuman(comment) &&
+    /^\/sdlc revise spec\r?\n+\s*\S/.test(comment.body ?? "") &&
+    state.receipts?.some((receipt) => receipt.id === comment.id &&
+      receipt.message === `Command #${comment.id} recorded: revise spec.`) &&
+    state.documents?.spec?.approvals?.some((approval) => Date.parse(comment.createdAt) < Date.parse(approval.approvedAt)));
+  result.revisionCommentIds = revisions.map((comment) => comment.id);
+  if (state.version === 2) {
+    const policy = config.stages.spec;
+    let previousVersion = 0;
+    for (const decision of state.discovery.decisions) {
+      const comment = comments.find((item) => item.id === decision.commentId);
+      const command = parseDocumentCommand(decision.commentBody);
+      const receipt = `Command #${decision.commentId} recorded: ${command.action} spec v${decision.version}.`;
+      if (uneditedHuman(comment) && comment.user.id === decision.user.id &&
+          comment.user.login?.toLowerCase() === decision.user.login.toLowerCase() &&
+          policy.reviewers.users.some((login) => login.toLowerCase() === comment.user.login.toLowerCase()) &&
+          !policy.reviewers.teams.length && decision.policyHash === policyHash(policy) &&
+          comment.body === decision.commentBody && comment.createdAt === decision.decidedAt &&
+          state.receipts.some((item) => item.id === comment.id && item.message === receipt) &&
+          decision.version > previousVersion &&
+          (!state.sealed || (decision.version < state.counters.spec &&
+            state.documents.spec.approvals.every((approval) => Date.parse(decision.decidedAt) < Date.parse(approval.approvedAt))))) {
+        result.decisionCommentIds.push(decision.commentId);
+      } else {
+        reasons.push(`Human discovery decision ${decision.commentId} is missing, edited, unauthorized, or does not match its recorded revision and receipt.`);
+      }
+      previousVersion = decision.version;
+    }
+    result.discovery.decisionEvidenceVerified = trusted &&
+      result.decisionCommentIds.length === state.discovery.decisions.length;
+  }
+  if (state.counters?.spec > 1 && !revisions.length &&
+      (state.version === 1 || state.counters.spec !== 1 + result.decisionCommentIds.length)) {
+    reasons.push("Spec counter increased without actual recorded Human revision requests or matching decision-driven revisions.");
+  }
+  result.verified = reasons.length === 0;
+  return result;
 }
 
 export function acceptanceEvidence(record, issues, pulls, runs, config, recordTrusted = false) {
@@ -202,6 +323,8 @@ export async function collectEvidence(options, { api = readOnlyApi, now = () => 
     runs.set(run.id, run);
   }
   const documents = [];
+  let documentSnapshot = null;
+  let documentReview = null;
   const documentRef = client.optional(`git/ref/heads/brownfield-documents/${intent}`);
   if (documentRef) {
     const sha = documentRef.object?.sha;
@@ -214,17 +337,36 @@ export async function collectEvidence(options, { api = readOnlyApi, now = () => 
         documents.push({ path, commit: sha, url: `https://github.com/${repo}/blob/${sha}/${path}` });
       }
     }
+    const stateLink = documents.find((document) => document.path.endsWith("/document-review.json"));
+    if (stateLink) {
+      const raw = contentFile(client.get(`contents/${stateLink.path}?ref=${sha}`));
+      const state = validateReviewProfile(JSON.parse(raw), intent);
+      const texts = {};
+      for (const stage of ["spec", "plan"]) {
+        const link = documents.find((document) => document.path.endsWith(`/${stage}.md`));
+        if (link) texts[stage] = contentFile(client.get(`contents/${link.path}?ref=${sha}`)).toString("utf8");
+      }
+      const trusted = await trustedRecord(api, issues[0].comments, sha, raw,
+        "<!-- brownfield-human-gated-delivery-document-ledger -->");
+      documentSnapshot = { commit: sha, path: stateLink.path, state, texts, trusted };
+      documentReview = {
+        ...documentEvidence({ record, config, issues, summary: { intent } }, state, texts, trusted),
+        recordUrl: stateLink.url,
+      };
+      if (!documentReview.verified) warnings.push("Document handoff is not corroborated; inspect documentReview.reasons. Recorded discovery readiness alone is not verified Human approval.");
+    } else warnings.push("No document review state is available; document links alone cannot establish discovery readiness or approval.");
   }
   const acceptance = acceptanceEvidence(record, issues, pulls, [...runs.values()], config, recordTrusted);
   const summary = {
     version: 1, mode: "read-only-replay", live: false,
     capturedAt: now().toISOString(), repository: repo, intent,
     currentGitHubIssueState: parent.state, inspectedConfigCommit: main,
-    recordCommit, recordTrusted, executionMode: record?.mode ?? null, runtimeStatus: record?.status ?? null, acceptance, documents, warnings,
+    recordCommit, recordTrusted, executionMode: record?.mode ?? null, runtimeStatus: record?.status ?? null,
+    acceptance, documents, documentReview, warnings,
     recordUrl: recordCommit ? `https://github.com/${repo}/blob/${recordCommit}/docs/delivery-runs/brownfield-human-gated-delivery/${intent}/run-state.json` : null,
     scenarioRunsCompleted: "Not assessed. A single replay cannot prove three live scenario runs.",
   };
-  return { summary, record, issues, pulls, workflows: [...runs.values()], config };
+  return { summary, record, issues, pulls, workflows: [...runs.values()], config, documentSnapshot };
 }
 
 export async function replay(options, dependencies = {}) {
@@ -249,6 +391,9 @@ export async function replay(options, dependencies = {}) {
 <p>Snapshot of actual GitHub evidence at ${escapeHtml(summary.capturedAt)}.
 Issue closure, generated prose, and successful tests alone are not Human acceptance.</p>
 <p>Delivery acceptance corroborated: <strong>${acceptance.complete ? "yes" : "no"}</strong>.</p>
+<p>Document handoff corroborated: <strong>${summary.documentReview?.verified ? "yes" : "no"}</strong>.
+Recorded discovery readiness alone does not prove trusted Human decisions or semantic correctness.
+Decision receipt history relies on the document audit ledger; historical Spec texts are not independently fetched.</p>
 <ul>${links.map((link) => `<li><a rel="noreferrer" href="${escapeHtml(link.url)}">${escapeHtml(link.title)}</a></li>`).join("\n")}</ul>
 <h2>Evidence (untrusted text displayed literally)</h2><pre>${escapeHtml(JSON.stringify(evidence, null, 2))}</pre></body></html>
 `;

@@ -81,6 +81,9 @@ export function validateHumanConfig(config) {
       !["merge", "squash", "rebase"].includes(config.mergeMethod)) {
     throw new Error("Unsupported delivery config/project.");
   }
+  if (config.specReadiness !== undefined && !["structural", "decisions-v1"].includes(config.specReadiness)) {
+    throw new Error("Unsupported Spec readiness profile.");
+  }
   const policies = stages.map((stage) => [stage, config.stages?.[stage]]);
   for (const [name, policy] of policies) {
     if (!positive(policy?.minimumApprovals) || !Array.isArray(policy.reviewers?.users) ||

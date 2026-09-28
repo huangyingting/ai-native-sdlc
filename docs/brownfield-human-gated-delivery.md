@@ -6,6 +6,11 @@ This page is the setup, policy, and implementation reference.
 The [illustrated case study](./brownfield-human-gated-delivery-case-study.md)
 connects that design to a real development-test execution, including screenshots,
 review iterations, operational failures, and immutable evidence links.
+For the limits of the current Intent/Spec/Plan experience and a proposed
+decision-centered evolution, see the
+[early-stage research and improvement design](./ai-native-sdlc-early-stage-research.md).
+The first discovery/decision slice is implemented below; the rest remains
+proposed. Local implementation does not establish deployment on a remote.
 
 This demo safely evolves the existing IT service desk from a human-authored Intent into
 a reviewed specification, implementation plan, executable tests, working
@@ -13,6 +18,7 @@ increment, verified container image, and explicit Human acceptance.
 
 ```text
 Human Intent -> AI Spec <-> Human review and revision
+                        <-> Discovery questions / Human decisions (new profile)
              -> AI Plan <-> Human review and revision
              -> TDD Red review -> Implementation Green review
              -> Build -> Smoke verification -> Human acceptance
@@ -36,6 +42,14 @@ also create an engineering branch at handoff.
 The new workflow must be present and registered on the remote default
 branch before use; these documentation changes alone do not deploy it.
 
+**Discovery compatibility:** `specReadiness: "decisions-v1"` in the source
+configuration enrolls newly initialized Issue runs in version-2 document
+state. This remains the `issue-v1` Issue/PR transport, not a new PR lifecycle.
+Missing `specReadiness` or `"structural"` starts the original version-1
+structural review. Existing runs never change profile when configuration is
+updated. Unsupported profiles fail explicitly. Upgrade the complete trusted
+modules, prompt, and toolkit together; old code cannot read version-2 state.
+
 ## Lifecycle
 
 ```mermaid
@@ -53,6 +67,13 @@ sequenceDiagram
     Actions->>CLI: Generate Spec without repository write credentials
     CLI-->>Actions: Candidate Spec
     Actions->>Issue: Publish full Spec v1 and save revision in Git
+    opt decisions-v1 discovery questions
+        Reviewer->>Issue: Decide or explicitly defer a Q-n question at current Spec version
+        Actions->>Actions: Record Human receipt; clear Spec approval and Plan
+        Actions->>CLI: Revise Spec using recorded decisions
+        CLI-->>Actions: Revised Spec with decision-to-AC mapping
+        Actions->>Issue: Publish revision and remaining blockers
+    end
     loop Spec feedback and revision as needed
         Reviewer->>Issue: /sdlc revise spec plus feedback
         Actions->>CLI: Generate next Spec version
@@ -120,7 +141,9 @@ docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/
 - `plan.md` decomposes the work into stable task IDs, dependencies, affected
   surfaces, validation, and acceptance mappings, and links its approved Spec.
 - `document-review.json` records document versions, hashes, processed commands,
-  approval snapshots, and handoff state.
+  approval snapshots, and handoff state. Version 2 also records the pinned
+  readiness profile, question register, immutable Human decision receipts,
+  and approval-bound decision-context hashes.
 
 Every revision and approval is saved in Git. An approved snapshot records the
 document version/hash, the approving command comment's ID/body, and the Human's
@@ -195,6 +218,86 @@ execute AI nor approve a stage. Editing an old comment is not a new submission.
 Revision commands need feedback; use `/sdlc retry` with no feedback to recover
 document generation/handoff only. It is not an engineering CI, Advance, or
 Publish retry command.
+
+### Discovery and decision readiness
+
+For new `decisions-v1` runs, the Spec includes a `Discovery` JSON section:
+problem, evidence/unknowns, observable success, alternatives, stable Q-n
+questions/options, and a decision-to-AC mapping. The rendered review packet
+shows the brief, all question statuses, latest decision outcomes/deferred
+risks, and a link to the complete versioned Human decision record. Long text
+is explicitly excerpted; it remains complete in the bound artifacts.
+
+All listed questions initially block approval. A configured Spec reviewer
+with current repository write access submits a new, unedited comment:
+
+```text
+/sdlc decide spec v1 Q-1
+Outcome: A ticket may remain unassigned until triage.
+Rationale: New requests arrive before responsibility can be assigned.
+```
+
+Use the actual version and question shown in the hub, not these example IDs.
+Fields are case-sensitive, one non-empty line each, at most 4000 characters;
+do not include extra fields or wrap the submitted command in a code fence.
+Only configured Spec reviewers, including current configured team members,
+can decide. Being the Intent author or deferred follow-up owner does not
+grant that authority. Final approval still requires the configured quorum.
+
+If a question can safely wait, record the limitation explicitly:
+
+```text
+/sdlc defer spec v1 Q-1
+Rationale: This isolated rehearsal does not establish a production policy.
+Owner: YOUR-GITHUB-LOGIN
+Follow-up: Resolve in a linked Intent before production use.
+Risk: The proposed workflow has not been validated with customers.
+```
+
+`Owner` must be a GitHub login without `@`; this records responsibility, not
+an assignment notification or evidence that the owner agreed. The trusted
+Spec reviewer is explicitly accepting the stated risk. There are no automatic
+reminders or expiry gates; Humans must follow up. Deferments stay visible as
+risks and are never displayed as resolved questions.
+
+**After either command:**
+
+1. Automation records the original command, actor, time, source Spec
+   version/hash, policy hash, and decision-context hash.
+2. Existing Spec approvals and Plan are invalidated, and a Spec revision is
+   requested automatically. The decision is not stage approval.
+3. AI must retain every question and map the latest decision receipts to
+   valid AC IDs, or explicitly explain why no AC changes are needed.
+4. Review the new Spec and mapping. Answer remaining questions against its
+   new version, one command at a time, waiting for each revision.
+5. When all questions are resolved or explicitly deferred, submit the usual
+   `/sdlc approve spec vN`. Plan generation still waits for the full quorum.
+
+AI cannot remove or change a registered question/options to evade a blocker,
+mark its own assumption confirmed, or fabricate a decision mapping. For a
+mistaken question, explicitly dispose of the old question and request a new
+one. Before handoff, a newer decide/defer command for an already answered
+question supersedes its prior answer, retains history, and invalidates
+approvals again. Editing/deleting a processed command does not revoke it.
+
+Both Spec and Plan approvals bind the current decision context as well as
+their document hash. Handoff and engineering validation recheck the contract;
+the existing exact-blob rules preserve the full decision record. There are
+at most 20 questions and 100 decision receipts per run; narrow the Intent
+rather than silently dropping history. Generation/persistence/publication
+errors are explicit and retryable with `/sdlc retry`; duplicate processing
+cannot count the same command twice.
+While a replacement is pending, a deleted comment for the invalidated revision
+is not reconstructed using the newer decision context. Its Git history remains;
+retry continues generation and publishes the replacement for fresh review.
+
+This is a recorded-decision readiness gate, not a semantic oracle. AI might
+still fail to discover a missing question or misapply an answer despite valid
+mapping references. An empty question list is valid for an already-clear
+Intent. Humans must examine the behavior and acceptance criteria. Plan-only
+question automation, technical experiments, semantic diffs, and review-effort
+measurement are not part of this slice. Plan conflicts with the Spec still
+require an explicit `/sdlc revise spec` before proceeding.
 
 Only a current configured Human with repository write access, including a
 current member of a configured team, may approve. Bots cannot. Approvals must
@@ -629,8 +732,8 @@ body contains `Delivery Stage: tests` as prose.
 
 | Stage | Automated validation | Human gate |
 |---|---|---|
-| Spec (new Intent) | Specification structure, acceptance scenarios, document scope/state; no application build | Versioned Issue approval of the latest Spec |
-| Plan (new Intent) | Task/dependency structure, acceptance mappings, approved-Spec linkage, document scope/state; no application build | Versioned Issue approval of the latest Plan |
+| Spec (new Intent) | Specification structure, acceptance scenarios, document scope/state; decisions-v1 also requires Human dispositions and decision mapping; no application build | Versioned Issue approval of the latest Spec and its decision context |
+| Plan (new Intent) | Task/dependency structure, acceptance mappings, approved-Spec linkage, document scope/state; decisions-v1 also preserves Spec readiness/context; no application build | Versioned Issue approval of the latest Plan |
 | TDD Tests | Green baseline, compilable test changes, and exact controlled-Red evidence | Review and approve tests |
 | Implementation | Immutable contracts, Green tests, lint, build, and container smoke checks | Review and approve implementation |
 | Acceptance (all Issue-based runs) | Current published verification, digest/merge/run/attempt binding, and reviewer quorum | Exercise the exact image and accept with observed results |
@@ -739,6 +842,9 @@ In GitHub Web:
    Read scope, non-goals, edge cases, acceptance scenarios, and open questions.
 2. Discuss uncertainties in ordinary Issue comments as needed. Discussion
    alone neither calls AI nor changes the approval state.
+   For `decisions-v1`, resolve or explicitly defer each blocking Q-n question
+   using the [decision commands](#discovery-and-decision-readiness), waiting
+   for and reviewing each automatically generated Spec revision.
 3. To request an actual revision, submit a new top-level comment:
 
    ```text
@@ -748,7 +854,8 @@ In GitHub Web:
 
 4. Wait for Documents to publish the next version, read it in full, and repeat
    step 3 as needed. Application tests and builds do not run at this stage.
-5. When the current version is acceptable, submit its explicit approval:
+5. When the current version is acceptable and no unanswered discovery blockers
+   remain, submit its explicit approval:
 
    ```text
    /sdlc approve spec v2
@@ -765,7 +872,8 @@ generates a Plan linked to that approved Spec. No Spec PR or merge is involved.
 - Keep the same parent Intent and document branch for all review rounds.
 - Use the explicit `/sdlc` command contract, not an `@copilot` mention or
   incidental prose. Commands must be new top-level submitted Human comments.
-- There is no fixed round limit or timeout that grants approval.
+- No timeout or iteration count grants approval. Discovery questions, decision
+  receipts, document size, and context have explicit bounds.
 - A new version needs fresh approval; only the latest version can be approved.
   A Spec revision before handoff invalidates all Spec approvals and the
   draft/approved Plan, so a new Plan version and approvals are required.

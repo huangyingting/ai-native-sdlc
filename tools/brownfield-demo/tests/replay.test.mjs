@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { acceptanceEvidence, escapeHtml, replay, validateRunRecord } from "../replay.mjs";
 import { configPath, sha256 } from "../common.mjs";
 import { absent, artifacts, commit, config, encoded, image } from "./helpers.mjs";
+import { discoveryFixture } from "./discovery-fixture.mjs";
 
 const merge = "c".repeat(40);
 const recordCommit = "d".repeat(40);
@@ -61,7 +62,10 @@ test("scripted development approvals cannot qualify as genuine Human acceptance"
   assert.match(result.reasons.join("\n"), /Automated development tests/);
 });
 
-function mockGithub({ missingRecord = false, trusted = true, mutate = () => {} } = {}) {
+function mockGithub({
+  missingRecord = false, trusted = true, mutate = () => {},
+  documentReview = null, documentTrusted = true, reviewConfig = config,
+} = {}) {
   const data = evidence();
   mutate(data);
   const text = JSON.stringify(data.record);
@@ -70,6 +74,12 @@ function mockGithub({ missingRecord = false, trusted = true, mutate = () => {} }
     id: 20, node_id: "ledger-node", user: { id: 1, type: "Bot", login: "github-actions[bot]" },
     body: ledgerBody, created_at: at, updated_at: at,
   };
+  const documentPath = "docs/delivery-runs/brownfield-human-gated-delivery/42/document-review.json";
+  const documentBody = documentReview ? JSON.stringify(documentReview.state) : null;
+  const documentLedgerBody = `<!-- brownfield-human-gated-delivery-document-ledger -->\n${documentCommit} ${sha256(documentBody ?? "")}`;
+  const documentLedger = {
+    ...ledger, id: 21, node_id: "document-ledger-node", body: documentLedgerBody,
+  };
   const calls = [];
   const api = (method, endpoint, payload) => {
     calls.push({ method, endpoint, payload });
@@ -77,8 +87,10 @@ function mockGithub({ missingRecord = false, trusted = true, mutate = () => {} }
       assert.equal(method, "POST");
       assert.match(payload.query, /^\s*query/);
       assert.doesNotMatch(payload.query, /\bmutation\b/);
+      const isDocument = payload.variables.id === documentLedger.node_id;
       return { data: { node: {
-        body: ledgerBody, lastEditedAt: trusted ? null : at,
+        body: isDocument ? documentLedgerBody : ledgerBody,
+        lastEditedAt: (isDocument ? documentTrusted : trusted) ? null : at,
         author: { __typename: "Bot", login: "github-actions" },
         editor: { __typename: "User", login: "reviewer" },
       } } };
@@ -87,24 +99,37 @@ function mockGithub({ missingRecord = false, trusted = true, mutate = () => {} }
     const path = endpoint.replace("repos/example/demo", "");
     if (!path) return { full_name: "example/demo", default_branch: "main" };
     if (path === "/branches/main") return { commit: { sha: commit } };
-    if (path === `/contents/${configPath}?ref=${commit}`) return encoded(config);
+    if (path === `/contents/${configPath}?ref=${commit}`) return encoded(reviewConfig);
     if (path === "/issues/42") return {
       number: 42, title: '<img src=x onerror="alert(1)">',
       body: '</pre><script>alert("x")</script><a href="javascript:bad">bad</a>',
       state: "closed", user: { type: "User", login: "reviewer" },
     };
     if (path.startsWith("/issues/42/sub_issues?")) return [];
-    if (path.startsWith("/issues/42/comments?")) return [ledger, data.human];
+    if (path.startsWith("/issues/42/comments?")) return [ledger, data.human, ...(documentReview ? [
+      documentLedger, ...documentReview.comments.map((comment) => ({
+        ...comment, author_association: comment.authorAssociation, created_at: comment.createdAt, updated_at: comment.updatedAt,
+      })),
+    ] : [])];
     if (path.startsWith("/issues/42/timeline?")) return [{
       event: "cross-referenced", source: { issue: { number: 44, pull_request: {}, repository_url: "https://api.github.com/repos/example/demo" } },
     }];
     if (path === "/git/ref/heads/brownfield-runs/42") return missingRecord ? absent() : { object: { sha: recordCommit } };
     if (path === `/contents/docs/delivery-runs/brownfield-human-gated-delivery/42/run-state.json?ref=${recordCommit}`) return encoded(text);
     if (path === "/git/ref/heads/brownfield-documents/42") return { object: { sha: documentCommit } };
-    if (path === `/git/trees/${documentCommit}?recursive=1`) return { truncated: false, tree: [
+    if (path === `/git/trees/${documentCommit}?recursive=1`) return { truncated: false, tree: documentReview ? [
+      { type: "blob", path: documentPath },
+      ...Object.keys(documentReview.texts).map((stage) => ({ type: "blob", path: documentPath.replace("document-review.json", `${stage}.md`) })),
+    ] : [
       { type: "blob", path: "docs/delivery-runs/brownfield-human-gated-delivery/42/spec.md" },
       { type: "blob", path: "docs/delivery-runs/brownfield-human-gated-delivery/42/plan.md" },
     ] };
+    if (documentReview) {
+      if (path === `/contents/${documentPath}?ref=${documentCommit}`) return encoded(documentBody);
+      for (const [stage, text] of Object.entries(documentReview.texts)) {
+        if (path === `/contents/${documentPath.replace("document-review.json", `${stage}.md`)}?ref=${documentCommit}`) return encoded(text);
+      }
+    }
     if (path === "/pulls/44") return { ...data.pull, timeline: undefined };
     if (path.startsWith("/issues/44/timeline?")) return data.pull.timeline;
     if (path.startsWith("/pulls/44/reviews?")) return [{ user: { type: "User", login: "reviewer" }, state: "APPROVED" }];
@@ -254,4 +279,82 @@ test("API failures do not create a misleading partial replay", async (t) => {
     api: () => { throw new Error("permission denied"); },
   }), /permission denied/);
   assert.equal(existsSync(dest), false);
+});
+
+test("replay exports immutable bound discovery, all decisions, latest receipts and independent document trust", async (t) => {
+  const documentReview = discoveryFixture();
+  const mock = mockGithub({ documentReview, reviewConfig: documentReview.config });
+  const dest = join(artifacts(t), "discovery");
+  const { summary } = await replay({ repo: "example/demo", intent: "42", dest }, mock);
+  assert.equal(summary.documentReview.verified, true);
+  assert.equal(summary.documentReview.trusted, true);
+  assert.equal(summary.documentReview.reviewProfile, "decisions-v1");
+  assert.equal(summary.documentReview.discovery.questions[0].decision.commentId, 4003);
+  assert.equal(summary.documentReview.discovery.questions[1].decision.disposition, "deferred");
+  assert.equal(summary.documentReview.discovery.decisions.length, 3);
+  assert.equal(summary.documentReview.discovery.recordedReady, true);
+  assert.equal(summary.documentReview.discovery.decisionEvidenceVerified, true);
+  const exported = JSON.parse(readFileSync(join(dest, "evidence.json"), "utf8"));
+  assert.deepEqual(exported.documentSnapshot.state, documentReview.state);
+  assert.deepEqual(exported.documentSnapshot.texts, documentReview.texts);
+  assert.equal(exported.documentSnapshot.commit, documentCommit);
+  const documentReads = mock.calls.filter((call) => call.endpoint.includes("contents/docs/") && call.endpoint.endsWith(`?ref=${documentCommit}`));
+  assert.equal(documentReads.length, 3);
+  assert.ok(mock.calls.some((call) => call.endpoint === "graphql" && call.payload.variables.id === "document-ledger-node"));
+});
+
+test("replay keeps blockers, trust failures and missing decision comments distinct from accepted delivery", async (t) => {
+  const directory = artifacts(t);
+  const missingComment = discoveryFixture();
+  missingComment.comments = missingComment.comments.filter((comment) => comment.id !== 4001);
+  for (const [name, settings] of [
+    ["unanswered", { documentReview: discoveryFixture({ complete: false }) }],
+    ["untrusted", { documentReview: discoveryFixture(), documentTrusted: false }],
+    ["missing-comment", { documentReview: missingComment }],
+  ]) {
+    const result = await replay({ repo: "example/demo", intent: "42", dest: join(directory, name) }, mockGithub(settings));
+    assert.equal(result.summary.acceptance.complete, true);
+    assert.equal(result.summary.documentReview.verified, false);
+    assert.ok(result.summary.documentReview.reasons.length);
+    assert.match(result.summary.warnings.join("\n"), /handoff is not corroborated/);
+    assert.match(readFileSync(join(directory, name, "index.html"), "utf8"), /Document handoff corroborated: <strong>no<\/strong>/);
+    if (name === "unanswered") {
+      assert.equal(result.summary.documentReview.discovery.recordedReady, false);
+      assert.equal(result.summary.documentReview.discovery.questions[0].decision, null);
+      assert.match(result.summary.documentReview.discovery.reasons.join("\n"), /Q-1.*Q-2/);
+    } else assert.equal(result.summary.documentReview.discovery.decisionEvidenceVerified, false);
+  }
+});
+
+test("malformed config, profile and bound state fail replay explicitly before creating output", async (t) => {
+  const directory = artifacts(t);
+  const cases = [
+    (fixture) => { fixture.config.specReadiness = "decisions-v2"; },
+    (fixture) => { fixture.state.reviewProfile = "decisions-v2"; },
+    (fixture) => { fixture.state.version = 3; },
+    (fixture) => { fixture.state.discovery.questions = null; },
+    (fixture) => { fixture.state.documents.plan.contextHash = "0".repeat(64); },
+    (fixture) => { fixture.state.version = 1; },
+  ];
+  for (const [index, mutate] of cases.entries()) {
+    const documentReview = discoveryFixture();
+    mutate(documentReview);
+    const dest = join(directory, `invalid-${index}`);
+    await assert.rejects(replay({ repo: "example/demo", intent: "42", dest },
+      mockGithub({ documentReview, reviewConfig: documentReview.config })), /profile|discovery|questions/i);
+    assert.equal(existsSync(dest), false);
+  }
+});
+
+test("changed actual Spec mapping is not trusted solely because state and content hashes agree", async (t) => {
+  const documentReview = discoveryFixture();
+  documentReview.texts.spec = documentReview.texts.spec.replace('"commentId": 4003', '"commentId": 4001');
+  const doc = documentReview.state.documents.spec;
+  doc.hash = sha256(documentReview.texts.spec);
+  doc.approvals[0].hash = doc.hash;
+  documentReview.state.documents.plan.specHash = doc.hash;
+  const { summary } = await replay({ repo: "example/demo", intent: "42", dest: join(artifacts(t), "stale-mapping") },
+    mockGithub({ documentReview, reviewConfig: documentReview.config }));
+  assert.equal(summary.documentReview.verified, false);
+  assert.match(summary.documentReview.reasons.join("\n"), /mapping/i);
 });

@@ -50,6 +50,46 @@ No authentication, SLA, notification, external identity or other feature is
 implicitly included. The data manifest is **not** a Spec, implementation,
 approval, populated database, or completed-run claim.
 
+### Spec readiness profiles
+
+The optional delivery config field `specReadiness` accepts only `structural`
+or `decisions-v1`; omission means `structural`. The current source selects
+`decisions-v1` for **new** runs. Preparation preserves the selected profile
+when substituting reviewers. Unknown profiles fail explicitly. Existing
+version-1 document states remain structural; changing configuration does not
+migrate them or add discovery requirements retroactively.
+
+New version-2 document states bind Spec/Plan records and approvals to a
+`contextHash` covering the discovery questions and complete decision history.
+Every question blocks approval until a configured Spec reviewer records an
+answer or explicit deferment on the Intent, for example:
+
+```text
+/sdlc decide spec v1 Q-1
+Outcome: Use the fixed local owner list.
+Rationale: External identity is outside this change.
+```
+
+Or, for a question intentionally left to later work:
+
+```text
+/sdlc defer spec v2 Q-2
+Rationale: Notifications require separate discovery.
+Owner: YOUR_GITHUB_LOGIN
+Follow-up: Open a separate Intent after this delivery.
+Risk: Owners must inspect the queue until then.
+```
+
+Use the actual published version and question ID, not these example values.
+Each accepted decision automatically requests a new Spec revision; read that
+revision before issuing another command or approving. The latest receipt for
+each question is authoritative, while earlier receipts remain evidence.
+Deferment is an explicit owned risk, not proof that the question was resolved.
+The toolkit never posts these commands or makes decisions for the reviewer.
+Decision-driven revisions alone do **not** satisfy the
+`ownership-spec-revision` variant: that still needs actual `/sdlc revise spec`
+feedback and a recorded revision.
+
 ## 2. Prepare from a full immutable source commit
 
 Choose a reviewed commit containing the toolkit **and** current orchestration
@@ -288,7 +328,8 @@ The destination must not exist. Outputs:
 
 - `index.html`: escaped, script-free, static snapshot with a restrictive CSP.
 - `evidence.json`: actual Issue/sub-Issue comments, linked PR reviews/checks,
-  related workflow runs, runtime record, and summary.
+  related workflow runs, runtime record, immutable document state/text snapshot
+  when available, and summary.
 - `summary.json`: minimal machine-readable corroboration result and limitations.
 
 Replay does not download raw Actions logs or report artifacts. Follow the
@@ -313,6 +354,36 @@ The toolkit reads version-1 runtime records at
 pinning the ref to its exact commit. It verifies the GitHub Actions audit
 ledger author/editor and commit/state-hash receipt before trusting the record.
 It supports numeric or string run IDs and attempt-bound acceptance metadata.
+
+Replay also reads the available `document-review.json`, Spec and Plan at one
+pinned document commit and checks the separate document audit ledger. Its
+`documentReview` summary reports the enrolled profile, counters, pending/sealed
+state and corroborated approval, revision and decision comment IDs. For
+`decisions-v1`, it exposes every question with its latest decision and the full
+retained decision history, including deferment owner/follow-up/risk.
+`discovery.recordedReady` is the shared state validator's readiness result,
+**not** proof of trusted Human decisions; `decisionEvidenceVerified` separately
+requires the document attestation and matching actual decision comments.
+`documentReview.verified` additionally requires the sealed handoff, matching
+run/baseline, actual document contracts and configured Human approvals.
+An accepted delivery does not silently make incomplete document evidence valid.
+
+Version-2 validation reuses the orchestration's state and handoff validators,
+including the current Spec's decision-to-acceptance mapping and Spec/Plan
+context binding. Every retained decision must match an actual unedited Human
+comment, configured individual Spec authority/current policy, exact command,
+recorded timestamp and successful command receipt. Superseded decisions are
+not ignored. Malformed profiles or state fail collection explicitly;
+untrusted ledgers, missing comments and incomplete handoffs are reported as
+unverified. Legacy document links without a review record remain links only.
+
+Collection does not fetch every historical Spec text or reconstruct historical
+team membership. Historical document hashes in decision receipts rely on the
+attested state, not independently downloaded historical versions. Changing
+reviewer policy can make older decisions unverifiable under the current policy.
+Neither JSON validation nor an approved mapping proves that a decision is
+wise, that generated acceptance criteria implement it semantically, or that
+deferred work was later completed.
 
 Completion requires an accepted/unrejected/verified trusted record, the real
 matching implementation merge, the actual successful publish workflow, and
@@ -366,11 +437,17 @@ The gate does not accept scenario names or user-supplied success booleans:
 - Spec/Plan records must be sealed, share the run's baseline, and match their
   **separately verified document audit ledger**. Actual immutable document
   content hashes, current reviewer policy, approval versions and Human
-  approval comments must agree. Unsigned counters cannot count.
-- **Normal:** Spec and Plan counters are both 1, with no recorded failure.
+  approval comments must agree. For `decisions-v1`, all discovery questions
+  need answers/deferments, current context bindings and actual corroborated
+  decision receipts; the actual Spec/Plan must pass the shared handoff
+  validator. Unsigned counters cannot count.
+- **Normal:** Plan counter is 1, with no explicit Spec revision request or
+  recorded failure. Structural Spec counter is 1; a `decisions-v1` Spec can
+  additionally have exactly one published revision per corroborated decision.
 - **Revision:** Spec counter is greater than 1 and an actual unedited Human
-  revision request has a successful trusted receipt before the current
-  approval. A counter alone or rejected request cannot count.
+  `/sdlc revise spec` request has a successful trusted receipt before the
+  current approval. A counter alone, automatic decision revision or rejected
+  request cannot count.
 - **Recovery:** a trusted failure event identifies a real completed failed
   Actions run/attempt in that repository, followed by a trusted recovery
   event and the verified accepted delivery. Earlier attempts are fetched

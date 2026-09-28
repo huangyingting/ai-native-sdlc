@@ -65,6 +65,16 @@ const config = {
   ),
 };
 
+test("Spec readiness configuration accepts only supported enrollment profiles", () => {
+  assert.equal(validateConfig(config), config);
+  for (const specReadiness of ["structural", "decisions-v1"]) {
+    assert.equal(validateConfig({ ...config, specReadiness }).specReadiness, specReadiness);
+  }
+  for (const specReadiness of ["future", null, false]) {
+    assert.throws(() => validateConfig({ ...config, specReadiness }), /Unsupported Spec readiness/);
+  }
+});
+
 const specification = `# Specification
 
 ## Intent

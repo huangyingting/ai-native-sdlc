@@ -384,6 +384,10 @@ system while preserving its current behavior, not generate a replacement.
    | Constraints and non-goals | Preserve current data/workflows and keep scope small |
    | Open questions | Decisions that need discussion during Spec review |
 
+   Include the source of the problem observation, known success measures,
+   and smaller alternatives where possible. Explicitly say "unknown" instead
+   of inventing user research or performance/business metrics.
+
 5. Leave genuine uncertainties visible. For this example, the form asks whether
    tickets may be unassigned, how owners are selected, and whether filtering
    by owner is needed.
@@ -419,7 +423,8 @@ You should see:
 - a current hub on the parent Issue, linking the latest document versions and
   their review status;
 - a full rendered Markdown **Spec v1** revision comment after generation and
-  trusted publication succeed;
+  trusted publication succeed; new source-configured `decisions-v1` runs
+  also show a discovery brief and any blocking Q-n questions;
 - possibly four internal stage issues: Spec, Plan, TDD Tests, and
   Implementation, with no Spec/Plan Coding Agent assignment.
 
@@ -445,8 +450,53 @@ Each revision is saved under
 `docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/` on the
 document branch as `spec.md`, with review state in `document-review.json`.
 The full comment is the reading surface, and the Git revision is durable
-evidence. Only document structure/scope and approval validation apply here;
-there is no Spec PR or application test, build, or container job.
+evidence. New `decisions-v1` runs also enforce recorded-decision readiness.
+There is no Spec PR or application test, build, or container job.
+
+### Resolve discovery questions first
+
+The source configuration enables `specReadiness: "decisions-v1"` only when a
+new run is initialized. Its version-2 document state preserves that choice.
+Existing version-1 runs keep their original structural-only review; changing
+configuration does not upgrade them or disable readiness on version-2 runs.
+Confirm the profile in the hub before choosing the applicable commands.
+
+For a new discovery run:
+
+1. Read the brief: problem, evidence or unknowns, success measure, alternatives.
+   Check it against the actual Intent rather than treating AI's wording as fact.
+2. Inspect every Q-n item marked **BLOCKING**. As a configured Spec reviewer,
+   answer one question with the current version and actual question ID:
+
+   ```text
+   /sdlc decide spec v1 Q-1
+   Outcome: Tickets may remain unassigned until triage.
+   Rationale: New requests arrive before a responsible agent is known.
+   ```
+
+3. Wait for a new Spec revision. The decision itself does not approve anything.
+   Read the changed behavior and its decision-to-AC mapping.
+4. Answer the next question against that new version, or explicitly defer it
+   with the required rationale, owner, follow-up, and risk fields described in
+   the [decision command reference](./brownfield-human-gated-delivery.md#discovery-and-decision-readiness).
+5. Only after the hub has no unanswered blockers, review and approve the
+   actual current Spec version using the ordinary approval command below.
+   Deferred questions remain visible risks, not resolved facts.
+
+For the prefilled ownership Intent, useful decisions include optional versus
+mandatory ownership, fixed roster versus free text, and whether filtering is
+needed. Do not assume AI will assign these the same Q-n IDs in every run.
+If it missed an important question, request a Spec revision that adds it.
+Ordinary comments or `/sdlc revise spec` feedback cannot substitute for a
+recorded disposition of an already registered question.
+
+To demonstrate the gate, first attempt approval while a real blocker remains.
+Expected result: an explicit rejection, no Plan, and no engineering assignment.
+Then record an authorized decision and demonstrate the resulting revision and
+fresh approval. This is a rehearsal script, not a claim of completed live
+Human review. Never submit decisions on behalf of another reviewer.
+
+### Request ordinary document changes and approve
 
 For a deliberate first feedback round, submit the following as a **new
 top-level comment on the parent Intent**, with the command on its first line:
@@ -459,12 +509,14 @@ Preserve existing tickets and workflows. Make these decisions explicit in
 the specification for re-review.
 ```
 
-These are example Human decisions for this run, not requirements automatically
-imposed by the Intent form. Adapt them to the feature you actually want.
+This is example revision feedback, not requirements automatically imposed by
+the Intent form. In a discovery run, first record the corresponding question
+decisions using the steps above; feedback alone does not clear their blockers.
+Adapt the example to the feature and decisions you actually want.
 
 This is a custom repository Actions command, not a built-in `@copilot` command.
 Post the text itself, not a quoted example or fenced block. Wait for Documents
-to publish **Spec v2**, then:
+to publish the next Spec version (**v2** only if you started from v1), then:
 
 1. Read the full revised document and inspect the changes against your feedback.
 2. If further clarification is needed, submit another revision command:
@@ -476,7 +528,9 @@ to publish **Spec v2**, then:
    scenarios for re-review.
    ```
 
-3. Repeat until the Spec is acceptable and open decisions are resolved.
+3. Repeat until the Spec is acceptable and open decisions are resolved or
+   explicitly deferred. Discovery decisions can increase the version several
+   times; use the current hub, not this example's version numbers.
 4. If **v2 is still the latest version**, submit this new top-level comment:
 
    ```text
@@ -487,7 +541,8 @@ to publish **Spec v2**, then:
    a stale-version approval is rejected.
 
 **Expected result:** the approval is recorded in Git with the document
-version/hash, approving command comment ID/body, and Human ID/login/time, not a
+version/hash, decision-context hash for discovery runs, approving command
+comment ID/body, and Human ID/login/time, not a
 separate immutable rendered-revision comment snapshot. After the configured
 threshold is satisfied, Documents generates
 Plan v1 linked to the approved Spec. There is no Spec PR to merge.
@@ -501,7 +556,9 @@ Plan v1 linked to the approved Spec. There is no Spec PR to merge.
   write access. Team membership and `minimumApprovals` still apply; bots cannot
   approve. There is no native PR independent-review restriction here.
 - A comment saying "looks good," checklist changes, or successful generation is
-  not approval. There is no iteration limit or automatic approval timeout.
+  not approval. There is no automatic approval timeout. Discovery runs allow
+  at most 20 questions and 100 decision receipts; oversized context/history
+  fails explicitly rather than being truncated.
 - Editing or deleting a processed approval comment does **not** revoke its
   Git-recorded decision. Submit an explicit revision before handoff instead.
 - Revising Spec before handoff invalidates all Spec approvals and the draft or

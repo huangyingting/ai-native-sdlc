@@ -34,8 +34,11 @@ function requireString(value, name) {
 
 export function validateConfig(input) {
   const config = requireObject(input, "config");
-  requireExactKeys(config, ["version", "mergeMethod", "project", "stages"], "config");
+  requireExactKeys(config, ["version", "mergeMethod", "project", "stages", "specReadiness"], "config");
   if (config.version !== 1) throw new Error(`Unsupported config version: ${config.version}`);
+  if (config.specReadiness !== undefined && !["structural", "decisions-v1"].includes(config.specReadiness)) {
+    throw new Error(`Unsupported Spec readiness profile: ${config.specReadiness}`);
+  }
   if (!["merge", "squash", "rebase"].includes(config.mergeMethod)) {
     throw new Error(`Unsupported merge method: ${config.mergeMethod}`);
   }

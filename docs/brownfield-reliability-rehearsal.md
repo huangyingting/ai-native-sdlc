@@ -150,3 +150,67 @@ The executable command and CI paths now include readiness fault verification
 where readiness exists. Remaining gaps still include signed supply-chain
 admission, cross-version rollout, backups, load tests, production monitoring,
 on-call ownership, independent approvals and measured customer value.
+
+## 6. Published tooling, protected merge and remote repetition
+
+Source tooling was published at
+[`61b6b46d467d55f688dfb7cf3be81c65a3454e87`](https://github.com/huangyingting/ai-native-sdlc/commit/61b6b46d467d55f688dfb7cf3be81c65a3454e87).
+Its actual [repository CI](https://github.com/huangyingting/ai-native-sdlc/actions/runs/36387993023)
+and [application/container CI](https://github.com/huangyingting/ai-native-sdlc/actions/runs/36387993028)
+passed. The downloaded source container artifact explicitly recorded
+`profile: baseline` and readiness **not tested**, preserving the source's
+absent-feature contract.
+
+The completed demo received the shared tools and guides through
+[huangyingting/ai-native-sdlc-discovery-demo#26](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/26).
+Its [actual application/container CI](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388190642)
+passed using `profile: readiness`, including healthy 200 and invalid-path
+503 controls. The exact reviewed head was
+`8300f265c9f8b62ab2ed0546870882a9dc56f6a7`; its
+[operator review](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/26#pullrequestreview-5334899676)
+was explicitly scripted development-test review. Normal protected merge
+produced `6f243c0ab268ef3d6b49541403421b76f249fa6d` at
+2026-09-28T06:49:40Z. No admin merge or ruleset change was used.
+
+The new workflow then ran on that merged revision:
+[Brownfield Reliability Loops, attempt 1](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388446065/attempts/1).
+It actually qualified the committed tests, pulled the accepted digest, ran
+all runtime controls and uploaded the evidence. Downloaded artifact contents
+confirmed:
+
+| Observation | GitHub-hosted result |
+|---|---|
+| Original/restored readiness tests | 13 passed / 13 passed |
+| Declared mutants | All six detected; frozen test blobs unchanged |
+| Qualification-to-image application tree | Exact match despite different tooling/documentation commits |
+| Bad configuration before/after recovery | Rejected both times |
+| Incident | `incident-9673a51f8d3ecb9e6a2fc50f`, resolved |
+| Detection / recovery confirmation | 4204 ms / 720 ms |
+| Separate recovery window | Five healthy samples over 917 ms |
+| Full post-write dataset hash | Preserved, same hash as both local successful runs |
+| New containers/volume | Cleaned |
+
+Remote artifact `reliability-36388446065-attempt-1` has 14-day retention.
+The raw downloaded files were additionally retained in the local session
+evidence store; these identities and observations remain in Git and the
+maintenance Issue after Actions retention expires:
+
+- Qualification report SHA-256:
+  `b6d97b99d8ae3cedcdd9ba8f5596267161a4f3cb45f4bd0d391ad41622dad010`.
+- Runtime report SHA-256:
+  `c6d8f75c32d6200120d72a204c53586cbe6479ed689d14f294b0e2fbcfb8934e`.
+- Monitor evidence:
+  `957e69e1addaac72efc262f1adea4f50126bb0ed897f905913fe150c5981a395`.
+- Recovery-window evidence:
+  `f0c626faaeaa14f01762351159dd623dee982c219635f6ab506e7a0fd3a57991`.
+
+The ordinary [maintenance follow-up](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/25)
+records scope review, implementation and the post-merge verification before
+closure. Availability recovery and reviewed preventive follow-up are separate
+records; historical runtime JSON is not rewritten to claim approval.
+
+No new product image or historical accepted Publish run was required. The
+updated shared published-image verifier was exercised against the existing
+accepted digest in this new workflow, while old delivery receipts stayed
+unchanged. Disposable local dependency/cache directories were removed after
+qualification; reports and failure evidence were preserved.

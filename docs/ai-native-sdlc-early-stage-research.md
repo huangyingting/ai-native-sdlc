@@ -4,8 +4,12 @@ Assessment date: 2026-09-28.
 
 **Status:** the research below is a dated baseline assessment. The first
 discovery/decision slice is now implemented in source for newly initialized
-`decisions-v1` runs; the remaining roadmap is still proposed. This does not
-claim remote deployment, a live rehearsal, or improved review effectiveness.
+`decisions-v1` runs; the remaining roadmap is still proposed. A subsequent
+[discovery-to-maintenance rehearsal](./brownfield-discovery-maintenance-rehearsal.md)
+records actual remote execution in an isolated repository, including blocked
+premature approval, four decision-driven Spec revisions, accepted ownership
+delivery, and linked operational feedback. It is explicitly `development-test`,
+not independent Human review or measured review effectiveness.
 The current operator instructions remain the
 [walkthrough](./brownfield-human-gated-delivery-walkthrough.md) and
 [delivery reference](./brownfield-human-gated-delivery.md).
@@ -196,6 +200,12 @@ and [walkthrough](./brownfield-human-gated-delivery-walkthrough.md#resolve-disco
 The original coverage table describes the inspected pre-change baseline, not
 the current implementation.
 
+The [subsequent executed example](./brownfield-discovery-maintenance-rehearsal.md)
+now supplies live GitHub and runtime evidence for this slice. It also records
+a maintenance Plan that invented an existing HTTP test harness; direct source
+inspection caught that assumption before approval. This supports the need for
+grounded review, not a claim that semantic plan validation is now automated.
+
 This is deliberately narrower than the full design: questions currently
 belong to Spec; all are blocking until a Human disposition; there is no
 separate Plan question register, AI quality-review job, semantic impact diff,
@@ -204,8 +214,10 @@ Referenced decisions and AC mappings do not prove correct interpretation.
 New question discovery still depends on AI and Human review.
 
 The sections below remain the design and rollout goals. Parts of Increment 1
-and its minimal readiness packet are implemented as described above; later
-increments and live scenario results must not be inferred from that fact.
+and its minimal readiness packet are implemented as described above. Only the
+linked rehearsal's explicitly observed results are demonstrated; later
+increments, deferment follow-up, and independent Human scenario results must
+not be inferred.
 
 ```text
 Human Intent

@@ -6,6 +6,10 @@ This page is the setup, policy, and implementation reference.
 The [illustrated case study](./brownfield-human-gated-delivery-case-study.md)
 connects that design to a real development-test execution, including screenshots,
 review iterations, operational failures, and immutable evidence links.
+The [discovery-to-maintenance rehearsal](./brownfield-discovery-maintenance-rehearsal.md)
+adds actual decision-driven revisions and operational feedback from a second,
+preserved isolated repository. Both reports distinguish development-test
+execution from independent Human acceptance.
 For the limits of the current Intent/Spec/Plan experience and a proposed
 decision-centered evolution, see the
 [early-stage research and improvement design](./ai-native-sdlc-early-stage-research.md).

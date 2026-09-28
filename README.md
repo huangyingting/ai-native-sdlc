@@ -8,6 +8,7 @@ Issue-to-PR workflows.
 
 | What you want to do | Where to begin |
 |---|---|
+| Follow discovery decisions through delivery and operational feedback | [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md) |
 | Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
 | Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
 | Understand Intent/Spec/Plan gaps and improvements | [Early-stage research and implementation status](docs/ai-native-sdlc-early-stage-research.md) |
@@ -87,6 +88,9 @@ each decision triggers a new Spec, clears previous Spec approval and Plan, and
 must be incorporated before fresh approval. Existing runs keep their original
 profile. Follow the [decision loop instructions](docs/brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
 and the current Issue hub, not fixed version numbers from an old rehearsal.
+The [discovery rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md)
+records actual blocking, four decision-driven Spec revisions, ownership
+acceptance, and a linked maintenance iteration in a separate repository.
 
 The workflows, including `brownfield-human-gated-delivery-documents.yml`, must
 already be published on remote `main` and registered by GitHub. Setup cannot
@@ -119,6 +123,9 @@ acceptance or the three-live-run readiness gate.
 
 ## Documentation
 
+- [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md)
+  — actual discovery decisions, corrected tests and plans, immutable delivery,
+  runtime acceptance, and operational feedback, with development-test boundaries.
 - [Intent, Spec, and Plan research](docs/ai-native-sdlc-early-stage-research.md)
   — ten early-stage pain points, evidence-based demo coverage, the implemented
   discovery/decision slice, and the remaining proposed improvements.

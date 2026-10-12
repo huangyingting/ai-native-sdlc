@@ -72,7 +72,7 @@ sequenceDiagram
     Actions->>Issue: Publish full Spec v1 and save revision in Git
     opt decisions-v1 discovery questions
         Reviewer->>Issue: Decide or explicitly defer a Q-n question at current Spec version
-        Actions->>Actions: Record Human receipt; clear Spec approval and Plan
+        Actions->>Actions: Record Human receipt and clear Spec approval and Plan
         Actions->>CLI: Revise Spec using recorded decisions
         CLI-->>Actions: Revised Spec with decision-to-AC mapping
         Actions->>Issue: Publish revision and remaining blockers
@@ -103,10 +103,10 @@ sequenceDiagram
     Copilot->>Reviewer: Open final PR with Green tests
     Reviewer-->>Copilot: Request changes or Approve
     Actions->>GHCR: Merge, build, and publish digest
-    Actions->>Issue: Publish verification evidence; await Human acceptance
+    Actions->>Issue: Publish verification evidence and await Human acceptance
     Reviewer->>Issue: Accept exact digest with observed results
     Actions->>Actions: Validate current verification and reviewer quorum
-    Actions->>Issue: Close Intent; retain document and run evidence
+    Actions->>Issue: Close Intent and retain document and run evidence
 ```
 
 New document reviews use `brownfield-documents/<intent-number>`. Only when the

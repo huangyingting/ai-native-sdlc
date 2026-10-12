@@ -44,56 +44,56 @@ Intent 由人在 GitHub Issue 中撰写；流程没有 AI 代写 Intent 的阶�
 
 ```mermaid
 sequenceDiagram
-    actor User
-    participant Issue as Intent Issue
-    participant Actions
-    participant CLI as Read-only Copilot CLI
+    actor User as 用户
+    participant Issue as 需求意图 Issue
+    participant Actions as GitHub Actions
+    participant CLI as 只读 Copilot CLI
     participant Copilot as Copilot Coding Agent
-    actor Reviewer as Human Reviewer
+    actor Reviewer as 人工评审者
     participant GHCR
 
-    User->>Issue: Submit Intent form
-    Actions->>Issue: Create document branch, hub, and internal tracking
-    Actions->>CLI: Generate Spec without repository write credentials
-    CLI-->>Actions: Candidate Spec
-    Actions->>Issue: Publish full Spec v1 and save revision in Git
-    opt decisions-v1 discovery questions
-        Reviewer->>Issue: Decide or explicitly defer a Q-n question at current Spec version
-        Actions->>Actions: Record Human receipt; clear Spec approval and Plan
-        Actions->>CLI: Revise Spec using recorded decisions
-        CLI-->>Actions: Revised Spec with decision-to-AC mapping
-        Actions->>Issue: Publish revision and remaining blockers
+    User->>Issue: 提交需求意图表单
+    Actions->>Issue: 创建文档分支、汇总评论及内部跟踪
+    Actions->>CLI: 在没有仓库写凭据的情况下生成规格
+    CLI-->>Actions: 候选规格
+    Actions->>Issue: 发布完整规格 v1，并将修订保存到 Git
+    opt decisions-v1 探索问题
+        Reviewer->>Issue: 针对当前规格版本决定或明确暂缓一个 Q-n 问题
+        Actions->>Actions: 记录人工决策回执，并清除规格批准与计划
+        Actions->>CLI: 根据已记录决策修订规格
+        CLI-->>Actions: 修订后的规格及决策到验收标准的映射
+        Actions->>Issue: 发布修订及剩余阻碍
     end
-    loop Spec feedback and revision as needed
-        Reviewer->>Issue: /sdlc revise spec plus feedback
-        Actions->>CLI: Generate next Spec version
-        CLI-->>Actions: Candidate revision
-        Actions->>Issue: Publish full revision and update hub
+    loop 按需反馈并修订规格
+        Reviewer->>Issue: /sdlc revise spec 并附上反馈
+        Actions->>CLI: 生成下一版规格
+        CLI-->>Actions: 候选修订
+        Actions->>Issue: 发布完整修订并更新汇总评论
     end
     Reviewer->>Issue: /sdlc approve spec v2
-    Actions->>Actions: Record approval snapshot in Git
-    Actions->>CLI: Generate Plan linked to approved Spec
-    CLI-->>Actions: Candidate Plan
-    Actions->>Issue: Publish full Plan v1 and save revision in Git
-    loop Plan feedback and revision as needed
-        Reviewer->>Issue: /sdlc revise plan plus feedback
-        Actions->>CLI: Generate next Plan version
-        CLI-->>Actions: Candidate revision
-        Actions->>Issue: Publish full revision and update hub
+    Actions->>Actions: 将批准快照记录到 Git
+    Actions->>CLI: 生成关联已批准规格的实施计划
+    CLI-->>Actions: 候选计划
+    Actions->>Issue: 发布完整计划 v1，并将修订保存到 Git
+    loop 按需反馈并修订计划
+        Reviewer->>Issue: /sdlc revise plan 并附上反馈
+        Actions->>CLI: 生成下一版计划
+        CLI-->>Actions: 候选修订
+        Actions->>Issue: 发布完整修订并更新汇总评论
     end
-    Reviewer->>Issue: Approve latest Plan version
-    Actions->>Actions: Record approval, freeze documents, create delivery branch
-    Actions->>Copilot: Assign ONLY TDD Tests stage
-    Copilot->>Reviewer: Open Tests PR with controlled Red
-    Reviewer-->>Copilot: Request changes or Approve
-    Actions->>Copilot: Merge and assign Implementation stage
-    Copilot->>Reviewer: Open final PR with Green tests
-    Reviewer-->>Copilot: Request changes or Approve
-    Actions->>GHCR: Merge, build, and publish digest
-    Actions->>Issue: Publish verification evidence; await Human acceptance
-    Reviewer->>Issue: Accept exact digest with observed results
-    Actions->>Actions: Validate current verification and reviewer quorum
-    Actions->>Issue: Close Intent; retain document and run evidence
+    Reviewer->>Issue: 批准最新版本的计划
+    Actions->>Actions: 记录批准、冻结文档并创建交付分支
+    Actions->>Copilot: 仅指派 TDD 测试阶段
+    Copilot->>Reviewer: 创建具有受控失败测试的测试 PR
+    Reviewer-->>Copilot: 请求修改或批准
+    Actions->>Copilot: 合并并指派实现阶段
+    Copilot->>Reviewer: 创建测试全部通过的最终 PR
+    Reviewer-->>Copilot: 请求修改或批准
+    Actions->>GHCR: 合并、构建并发布镜像摘要
+    Actions->>Issue: 发布验证证据，并等待人工验收
+    Reviewer->>Issue: 根据实际观察结果接受精确镜像摘要
+    Actions->>Actions: 验证当前验证结果及评审者人数要求
+    Actions->>Issue: 关闭需求意图 Issue，并保留文档与运行证据
 ```
 
 新的文档评审使用 `brownfield-documents/<intent-number>`。

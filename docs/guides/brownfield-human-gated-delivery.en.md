@@ -263,7 +263,55 @@ Spec reviewer is explicitly accepting the stated risk. There are no automatic
 reminders or expiry gates; Humans must follow up. Deferments stay visible as
 risks and are never displayed as resolved questions.
 
-**After either command:**
+### Answer multiple questions in one batch
+
+To answer all current questions without generating a revision after every
+answer, submit one new comment with the current Spec version:
+
+````text
+/sdlc decide spec v1 batch
+```json
+[
+  {
+    "action": "decide",
+    "questionId": "Q-1",
+    "fields": {
+      "Outcome": "A ticket may remain unassigned until triage.",
+      "Rationale": "New requests arrive before responsibility is assigned."
+    }
+  },
+  {
+    "action": "defer",
+    "questionId": "Q-2",
+    "fields": {
+      "Rationale": "Notifications require separate discovery.",
+      "Owner": "YOUR-GITHUB-LOGIN",
+      "Follow-up": "Resolve in a linked Intent before production use.",
+      "Risk": "Owners must inspect the queue until then."
+    }
+  }
+]
+```
+````
+
+Copy the command and its JSON fence, not the outer four-backtick example
+fence. Replace the version, IDs, and values. A batch can contain any 1 to 20
+distinct registered questions, including all questions, and can mix `decide`
+and `defer`. The JSON objects have exactly `action`, `questionId`, and
+`fields`; the fields match the corresponding individual command. Each value
+is non-empty and at most 4000 characters; the entire command is at most 60 KB.
+The same configured-reviewer, write-access, unedited-comment, publication,
+and current-version checks apply.
+
+Validation is atomic: duplicate or unknown question IDs, invalid fields, an
+invalid owner, a stale version, or exceeded history limits reject the entire
+batch without recording any answers. Accepted answers share the original
+comment, source version/hash, actor, and context, but remain separate records
+and separate decision-to-AC mappings. They request **one** Spec revision,
+not one per question, and do not approve that unseen revision. Individual
+decision commands remain supported.
+
+**After an individual or batch command:**
 
 1. Automation records the original command, actor, time, source Spec
    version/hash, policy hash, and decision-context hash.
@@ -271,8 +319,9 @@ risks and are never displayed as resolved questions.
    requested automatically. The decision is not stage approval.
 3. AI must retain every question and map the latest decision receipts to
    valid AC IDs, or explicitly explain why no AC changes are needed.
-4. Review the new Spec and mapping. Answer remaining questions against its
-   new version, one command at a time, waiting for each revision.
+4. Review the new Spec and mapping. If questions remain, answer them against
+   its new version individually or in another batch; wait for that revision
+   before issuing another version-specific command.
 5. When all questions are resolved or explicitly deferred, submit the usual
    `/sdlc approve spec vN`. Plan generation still waits for the full quorum.
 
@@ -286,7 +335,8 @@ approvals again. Editing/deleting a processed command does not revoke it.
 Both Spec and Plan approvals bind the current decision context as well as
 their document hash. Handoff and engineering validation recheck the contract;
 the existing exact-blob rules preserve the full decision record. There are
-at most 20 questions and 100 decision receipts per run; narrow the Intent
+at most 20 questions and 100 answer records per run, counting each answer in
+a batch separately; narrow the Intent
 rather than silently dropping history. Generation/persistence/publication
 errors are explicit and retryable with `/sdlc retry`; duplicate processing
 cannot count the same command twice.
@@ -846,8 +896,9 @@ In GitHub Web:
 2. Discuss uncertainties in ordinary Issue comments as needed. Discussion
    alone neither calls AI nor changes the approval state.
    For `decisions-v1`, resolve or explicitly defer each blocking Q-n question
-   using the [decision commands](#discovery-and-decision-readiness), waiting
-   for and reviewing each automatically generated Spec revision.
+   using the [decision commands](#discovery-and-decision-readiness),
+   individually or together in one batch. Wait for and review the single
+   resulting Spec revision before approving it.
 3. To request an actual revision, submit a new top-level comment:
 
    ```text

@@ -3,6 +3,11 @@
 This guide covers the repository structure, local development, GitHub
 workflows, trace processing, publishing, and operational safeguards.
 
+For the end-to-end delivery method rather than repository administration, start
+with the [illustrated AI-native SDLC handbook (English / 中文)](ai-native-sdlc/README.md).
+It connects the actual demos, screenshots and evidence into six paired chapters
+and an ordered presentation/workshop.
+
 ## Repository structure
 
 The repository keeps runnable demonstrations separate from reusable tooling:

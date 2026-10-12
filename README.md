@@ -8,6 +8,7 @@ Issue-to-PR workflows.
 
 | What you want to do | Where to begin |
 |---|---|
+| Learn AI-native SDLC through real examples, screenshots and page tours | **[Illustrated handbook: English / 中文](docs/ai-native-sdlc/README.md)** |
 | Follow discovery decisions through delivery and operational feedback | [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md) |
 | Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
 | Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
@@ -131,6 +132,10 @@ acceptance or the three-live-run readiness gate.
 
 ## Documentation
 
+- [AI-native SDLC illustrated handbook — English / 中文](docs/ai-native-sdlc/README.md)
+  — six paired chapters covering the operating model, Intent/Spec/Plan,
+  Build/Verify, Deploy/Operate, engineering judgment, and a 60-minute workshop;
+  includes real screenshots, evidence links and explicit limits.
 - [Engineering judgment demos](docs/engineering-judgment-demos.md)
   — change impact with version-bound operator review, evidence-grounded CI
   diagnosis, and a measured direct-versus-diagnosis-first strategy pilot.

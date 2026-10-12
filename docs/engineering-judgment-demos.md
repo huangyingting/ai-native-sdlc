@@ -3,6 +3,9 @@
 These extend the [reliability loops](brownfield-reliability-loops.md) with
 change reasoning, CI diagnosis and measured strategy comparison. They use a
 small independent synthetic application, not the already accepted service desk.
+For the broader delivery method and a bilingual explanation of these experiments,
+see the [illustrated handbook](ai-native-sdlc/README.md) and its
+[engineering judgment chapter](ai-native-sdlc/en/05-engineering-judgment.md).
 For what actually happened, see the
 [rehearsal evidence](engineering-judgment-rehearsal.md).
 

@@ -7,6 +7,10 @@ toolkit can present it locally without creating a hosted deployment.
 
 ## Start here
 
+- **Learn the overall method first:** use the
+  [illustrated AI-native SDLC handbook (English / 中文)](ai-native-sdlc/README.md)
+  for concepts, actual examples, screenshots and a page-by-page workshop.
+  This walkthrough remains the detailed command/setup reference.
 - **Inspect the discovery and operational feedback loop:** start with the
   [discovery-to-maintenance rehearsal](./brownfield-discovery-maintenance-rehearsal.md).
   It links actual decisions, blocked approval, corrected plans, delivered

@@ -1,173 +1,69 @@
-# ai-native-sdlc
+# AI-native SDLC: guides and tooling
 
-Demonstrations and tooling for exploring AI-native software delivery with
-GitHub Copilot CLI, dynamic agent orchestration, OpenTelemetry traces, and
-Issue-to-PR workflows.
+Guides and reusable tools for AI-assisted software delivery: clarify requirements,
+review specifications and tests, verify implementation, accept an exact artifact,
+and learn from operational feedback.
 
-## Start here
+本仓库保存 **Guide 和可复用工具**。具体演示、案例记录及截图统一放在
+[`ai-native-sdlc-demo`](https://github.com/huangyingting/ai-native-sdlc-demo)，
+不在两个仓库中维护重复文档。
 
-| What you want to do | Where to begin |
+## Start here / 从这里开始
+
+| Goal / 目的 | Entry / 入口 |
 |---|---|
-| Learn AI-native SDLC through real examples, screenshots and page tours | **[Illustrated handbook: English / 中文](docs/ai-native-sdlc/README.md)** |
-| Follow discovery decisions through delivery and operational feedback | [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md) |
-| Understand or present the completed ownership demo | [Illustrated case study](docs/brownfield-human-gated-delivery-case-study.md), then its [presentation and reproduction steps](docs/brownfield-human-gated-delivery-case-study.md#7-how-to-present-or-reproduce-the-result) |
-| Run a new AI-native delivery cycle | **[Step-by-step walkthrough: start with preparation](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)** |
-| Understand Intent/Spec/Plan gaps and improvements | [Early-stage research and implementation status](docs/ai-native-sdlc-early-stage-research.md) |
-| Understand Build/Verify/Deploy/Operate gaps | [Delivery and operations research](docs/ai-native-sdlc-delivery-operations-research.md) |
-| Exercise trustworthy tests, safe local releases and operational feedback | [Three reliability loops: start here](docs/brownfield-reliability-loops.md) |
-| Run only the service-desk application | [Application quick start](demos/it-service-desk/README.md) |
-| Explore Copilot orchestration patterns | [Agent orchestration guide](docs/copilot-cli-agent-orchestration-patterns.md) |
-| Demonstrate change impact, CI diagnosis and Agent evaluation | [Engineering judgment demos: start here](docs/engineering-judgment-demos.md) |
+| Learn the method / 理解方法 | **[AI-native SDLC guide: English / 中文](docs/guides/ai-native-sdlc/README.md)** |
+| Find an operator reference / 查找操作说明 | **[Documentation index / 文档导航](docs/README.md)** |
+| Present the completed example / 讲解已完成的案例 | **[Demo documentation / 演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md)** |
+| Run a new delivery / 从头完成一次交付 | [Step-by-step walkthrough](docs/guides/brownfield-human-gated-delivery-walkthrough.md) |
+| Configure approvals or recover a failed stage / 配置审批、恢复失败阶段 | [Delivery reference](docs/guides/brownfield-human-gated-delivery.md) |
+| Develop the repository / 开发与扩展 | [Repository guide](docs/guides/repository-guide.md) |
 
-For a fresh ownership run, use the ownership-free **source** to prepare a
-**new isolated repository**. The existing
-[completed demo](https://github.com/huangyingting/ai-native-sdlc-demo) already
-has ownership; use it for inspection or replay, not as a fresh baseline.
-The walkthrough is the main path. The [toolkit README](tools/brownfield-demo/README.md)
-and [setup reference](docs/brownfield-human-gated-delivery.md) provide command
-details and troubleshooting when that path links to them.
+The source service desk is an **ownership-free baseline**. The demo repository
+already contains the accepted ownership feature. For a new run, export the
+source into a new isolated repository; do not reset the completed demo.
+
+源仓库中的服务台保留未实现工单负责人的起点。新演示仓库已经交付该功能，
+适合查看结果和过程；重新实践时，应从源仓库导出到另一个独立仓库。
 
 ## Projects
 
-- [`demos/it-service-desk/`](demos/it-service-desk/) — independent Next.js and
-  SQLite service-desk demonstration.
-- [`demos/engineering-lab/`](demos/engineering-lab/) — dependency-free synthetic
-  ticket application for isolated change-impact and CI-diagnosis experiments.
-- [`tools/engineering-demo/`](tools/engineering-demo/README.md) — bounded real
-  Copilot proposals, restricted execution and fixed-case strategy evaluation.
-- [`tools/trace-viewer/`](tools/trace-viewer/) — dependency-free trace model,
-  renderer, composite action, and GitHub Pages client.
-- [`tools/brownfield-demo/`](tools/brownfield-demo/README.md) — isolated demo
-  preparation, read-only preflight, digest-bound container presentation, and
-  replay from real delivery evidence.
-- [`.github/`](.github/) — issue forms, workflow automation, and publishing
-  adapters.
+- [demos/it-service-desk/](demos/it-service-desk/) — independent Next.js/SQLite application.
+- [demos/engineering-lab/](demos/engineering-lab/) — dependency-free engineering fixture.
+- [tools/brownfield-demo/](tools/brownfield-demo/README.md) — preparation, preflight, image presentation and read-only evidence replay.
+- [tools/engineering-demo/](tools/engineering-demo/README.md) — bounded impact analysis, diagnosis and strategy evaluation.
+- [tools/trace-viewer/](tools/trace-viewer/) — trace model, renderer and GitHub Pages client.
+- [.github/](.github/) — workflow automation and adapters.
+
+Each demo owns its dependencies and lockfile; these are not npm workspaces.
 
 ## Validate
 
-Use Node.js 24 and run:
+Use Node.js 24:
 
 ```sh
 npm test
 npm --prefix demos/engineering-lab test
 ```
 
-Each demo owns its dependencies and additional validation commands.
+The service desk has its own [test, lint and build commands](demos/it-service-desk/README.md).
+Offline checks do not run real Copilot experiments.
 
-## Set up the brownfield demo
+## Running a delivery
 
-For a first run, follow the walkthrough's
-[ordered operator setup](docs/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository):
-prepare, inspect, publish, configure, then preflight. Setup alone does not
-create a repository or publish its workflows.
+Follow the [ordered preparation steps](docs/guides/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository):
+prepare an ownership-free baseline, inspect it, publish the isolated repository,
+configure access, then run preflight. Preparation alone does not create a remote.
 
-After publishing your new repository, an explicitly single-owner preview is:
+AI proposes documents and code. Configured reviewers make product decisions and
+approve specific versions; Actions checks boundaries and preserves records.
+For Issue-based runs, image verification leaves the Intent open until explicit,
+digest-bound acceptance. A successful workflow is not itself an approval.
 
-```sh
-npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner
-```
+Review [setup permissions and single-owner mode](docs/guides/brownfield-human-gated-delivery.md#single-owner-demo-mode)
+before applying changes. Do not apply full demo setup to this source repository
+without agreement, put credentials in commands or chat, or bypass required checks.
 
-Replace `OWNER/NEW_DEMO_REPO` with that selected repository, not the source.
-This previews prerequisites without changing GitHub. **Full `--apply` creates
-missing managed rulesets, including protection for an unprotected `main`.**
-Do not assume the target is unprotected or replace its existing policy.
-The original source repository's `main` is intentionally unprotected; do not
-apply full setup there without explicit agreement. See the
-[setup guide](docs/brownfield-human-gated-delivery.md#run-the-setup-script)
-for secure token entry, existing-Intent recovery, and remaining manual checks.
-If you are the only Human reviewer, use the explicit
-[`--single-owner` demo mode](docs/brownfield-human-gated-delivery.md#single-owner-demo-mode)
-for the TDD Tests and Implementation PR gates without GitHub's native
-independent-review requirement. New Spec/Plan reviews take place on the parent
-Intent Issue and do not have that native PR restriction.
-
-For new Intents, **Brownfield Delivery · Documents** publishes full rendered
-Spec and Plan revisions on that Issue. Humans explicitly submit custom
-`/sdlc revise spec` or `/sdlc revise plan` commands with feedback, then approve
-the latest version with commands such as `/sdlc approve spec v2` and
-`/sdlc approve plan v1`. Ordinary discussion does not run AI or approve a stage.
-Revisions and approval snapshots are saved in Git before handoff to the
-existing Tests/Implementation PR flow. Legacy document-PR Intents remain in
-Spec/Plan PR mode; they are not automatically migrated.
-
-The source configuration enables `specReadiness: "decisions-v1"` for newly
-initialized runs. Spec review includes a discovery brief and blocking Q-n
-questions. A configured Spec reviewer records an answer or explicit deferment;
-each decision triggers a new Spec, clears previous Spec approval and Plan, and
-must be incorporated before fresh approval. Existing runs keep their original
-profile. Follow the [decision loop instructions](docs/brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
-and the current Issue hub, not fixed version numbers from an old rehearsal.
-The [discovery rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md)
-records actual blocking, four decision-driven Spec revisions, ownership
-acceptance, and a linked maintenance iteration in a separate repository.
-
-The workflows, including `brownfield-human-gated-delivery-documents.yml`, must
-already be published on remote `main` and registered by GitHub. Setup cannot
-register a missing workflow; it can enable an existing disabled workflow.
-Setup also requires the trusted `runs.mjs`, `run-core.mjs`, and `state-store.mjs`
-modules under `.github/brownfield-human-gated-delivery/scripts/` on remote `main`.
-Document generation uses read-only Copilot CLI in Actions and additionally
-requires `copilot-requests: write` and Copilot CLI entitlement; it never receives
-the existing write-enabled `COPILOT_ASSIGN_TOKEN`. See the setup guide before
-running this workflow; local documentation does not establish remote deployment.
-
-For all Issue-based (`issue-v1`) runs, including existing ones after upgrade,
-a verified image is **awaiting Human acceptance**, not
-complete. A configured Implementation reviewer tests the exact published digest
-and submits `/sdlc accept sha256:<64hex>` with observed results on subsequent
-lines; the configured quorum must accept the current verification attempt.
-Only that acceptance closes the Intent and removes its engineering branch.
-Document and trusted run-record branches remain for replay. Run controls and
-rejection are documented in the [command reference](docs/brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
-Only legacy document-PR runs keep their original automatic-close behavior.
-
-Start the presentation toolkit with `npm run demo:brownfield -- help`; use its
-[README](tools/brownfield-demo/README.md) for exact commands and safety boundaries.
-The [presenter runbook](docs/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
-requires three actual completed isolated rehearsals before claiming **Demo
-Ready**. An [illustrated case study](docs/brownfield-human-gated-delivery-case-study.md)
-records a completed, explicitly authorized `development-test` run, including
-its real image, failures, and recovery. It does not count toward genuine Human
-acceptance or the three-live-run readiness gate.
-
-## Documentation
-
-- [AI-native SDLC illustrated handbook — English / 中文](docs/ai-native-sdlc/README.md)
-  — six paired chapters covering the operating model, Intent/Spec/Plan,
-  Build/Verify, Deploy/Operate, engineering judgment, and a 60-minute workshop;
-  includes real screenshots, evidence links and explicit limits.
-- [Engineering judgment demos](docs/engineering-judgment-demos.md)
-  — change impact with version-bound operator review, evidence-grounded CI
-  diagnosis, and a measured direct-versus-diagnosis-first strategy pilot.
-  See [actual rehearsal evidence](docs/engineering-judgment-rehearsal.md) for
-  observed failures, corrections, measured results and limitations.
-
-- [Delivery and operations research](docs/ai-native-sdlc-delivery-operations-research.md)
-  — ten later-stage pain points, dated coverage, and three bounded improvements.
-- [Three reliability loops](docs/brownfield-reliability-loops.md)
-  — test qualification, immutable-image fault checks, read-only traffic
-  admission, compatible local recovery and an operational maintenance handoff.
-
-- [Discovery-to-maintenance rehearsal](docs/brownfield-discovery-maintenance-rehearsal.md)
-  — actual discovery decisions, corrected tests and plans, immutable delivery,
-  runtime acceptance, and operational feedback, with development-test boundaries.
-- [Intent, Spec, and Plan research](docs/ai-native-sdlc-early-stage-research.md)
-  — ten early-stage pain points, evidence-based demo coverage, the implemented
-  discovery/decision slice, and the remaining proposed improvements.
-- [Illustrated delivery case study](docs/brownfield-human-gated-delivery-case-study.md)
-  — the actual ownership rehearsal, architecture, screenshots, review decisions,
-  failures and fixes, and linked evidence with explicit limitations.
-- [Step-by-step brownfield demo](docs/brownfield-human-gated-delivery-walkthrough.md)
-  — run the human Intent, iterative Spec/Plan reviews, TDD, and verified delivery
-  demonstration through GitHub Web, then accept the verified result.
-- [Repository guide](docs/repository-guide.md) — structure, local development,
-  workflows, trace publishing, security, and operations.
-- [Brownfield Human-Gated Delivery demo](docs/brownfield-human-gated-delivery.md)
-  — safely evolve an existing application through Intent, Spec, Plan, TDD,
-  implementation, delivery, and Human Review gates.
-- [Agent orchestration patterns](docs/copilot-cli-agent-orchestration-patterns.md)
-  — pattern selection, execution diagrams, and trace evidence.
-- [Adding a demo](docs/repository-guide.md#adding-a-demo)
-- [IT service desk](demos/it-service-desk/README.md)
-- [Trace viewer](tools/trace-viewer/README.md)
-- [Agent instructions](AGENTS.md)
+The [readiness policy](docs/guides/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
+requires three distinct Human-led scenarios before a **Demo Ready** claim.
+The current completed case does not establish all three or production readiness.

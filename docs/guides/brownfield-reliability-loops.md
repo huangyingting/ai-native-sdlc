@@ -1,72 +1,66 @@
-# Three Small Reliability Loops
+<a id="three-small-reliability-loops"></a>
+# 三个小型可靠性闭环
 
-This is the starting point for the Build/Verify/Deploy/Operate follow-up.
-Read the [research and baseline coverage](../research/ai-native-sdlc-delivery-operations-research.md)
-for the problems being addressed, and the
-[preceding discovery-to-maintenance rehearsal](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-discovery-maintenance-rehearsal.md)
-for the accepted readiness implementation.
+[English](brownfield-reliability-loops.en.md)
 
-For measured results, failures and recovery, read the
-[actual reliability rehearsal](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-reliability-rehearsal.md).
+这里是构建、验证、部署、运维（Build/Verify/Deploy/Operate）后续工作的起点。
+要了解所解决的问题，请阅读[研究与基线覆盖情况](../research/ai-native-sdlc-delivery-operations-research.md)。
 
-These are **development-test exercises**, not production readiness, independent
-Human acceptance, or new approvals of old lifecycle artifacts. The source
-application deliberately remains ownership-free and readiness-free.
+这些都是**开发测试演练**，不代表生产就绪、独立人工验收，也不是对旧生命周期产物的重新批准。
+源应用刻意保持不含负责人功能、也不含就绪状态功能的状态。
 
-## 1. What the three loops demonstrate
+<a id="1-what-the-three-loops-demonstrate"></a>
+## 1. 三个闭环分别演示什么
 
-| Loop | Trigger | Measured decision | Closure |
+| 闭环 | 触发条件 | 用测量支持的决策 | 闭环完成条件 |
 |---|---|---|---|
-| Trustworthy verification | Deliberate behavioral defects in a scratch copy; an unusable database configuration in a fresh container | Existing tests must detect each selected defect through assertions; actual HTTP probes must distinguish readiness from liveness | Original and restored controls pass; every chosen mutant is caught; real image contracts pass |
-| Safe release and recovery | A bad configuration requests admission, then an admitted process is deliberately paused | Health, exact readiness and ticket reads gate promotion; repeated failures trigger a preauthorized fallback whose health is rechecked | Real gateway responses identify the fallback; complete schema/row hashes preserve controlled writes |
-| Operational feedback | Consecutive unhealthy samples at the traffic entry point | Open one incident rather than one per failed probe; require a sustained healthy window after action | Sanitized evidence and an owned maintenance draft, followed by explicit review and preventive verification |
+| 可信验证 | 在临时副本中故意引入行为缺陷；在全新容器中使用不可用的数据库配置 | 现有测试必须通过断言发现每一个选定缺陷；真实 HTTP 探测必须区分就绪状态与存活状态 | 原始与恢复后的对照均通过；所有选定变异均被发现；真实镜像契约检查通过 |
+| 安全发布与恢复 | 错误配置申请准入，随后故意暂停一个已准入进程 | 健康状态、精确的就绪状态和工单读取共同决定是否放行；连续失败触发预先授权的回退，并重新检查回退目标的健康状态 | 真实网关响应能识别回退目标；完整的数据库结构与数据行哈希证明受控写入得以保留 |
+| 运维反馈 | 流量入口连续出现不健康样本 | 只创建一个事件，而不是每次探测失败都创建一个；采取行动后必须持续保持一段健康窗口 | 形成脱敏证据和明确负责人的维护草案，再进行显式评审和预防性验证 |
 
-The release exercise uses **one immutable application image** and different
-configuration/process instances. It is not a cross-version code rollout.
-All normal instances share a newly created SQLite volume; only controlled
-fixture writes occur. The gateway rejects write methods and exposes only a
-small set of read routes on loopback. This does not demonstrate general
-multi-instance write safety, replication, schema rollback or backup restoration.
+发布演练使用**同一个不可变应用镜像**，配合不同配置或进程实例，而不是跨代码版本的滚动发布。
+所有正常实例共享一个新建的 SQLite 数据卷；只执行受控的夹具数据写入。
+网关拒绝写入方法，只在回环地址上暴露少量读取路由。
+这不证明通用的多实例写入安全、复制、数据库结构回滚或备份恢复能力。
 
-The operations monitor and fallback are deterministic, bounded automation.
-They do not call an LLM or fabricate a root cause. AI/operator analysis can use
-the evidence to propose a maintenance task, but publication and approval remain
-separate actions. Recovery of availability does not by itself complete
-preventive maintenance.
+运维监控与回退是确定性的、有边界的自动化。
+它们不会调用 LLM，也不会编造根因。AI 或操作员可以基于证据提出维护任务，
+但发布和批准仍是独立动作。可用性恢复本身不等于预防性维护完成。
 
-## 2. Prerequisites and safety
+<a id="2-prerequisites-and-safety"></a>
+## 2. 前置条件与安全约束
 
-- Node.js 24+, Git and working Docker.
-- For test qualification, a local checkout of the completed discovery demo
-  with its application dependencies installed, or permission to restore them
-  in the isolated experiment as described by the qualification command.
-- Read access to the selected GHCR digest. Authenticate with your usual
-  credential flow if it is private; never place a token in these commands.
-- New evidence directories whose parent already exists, outside the source.
-- The accepted image below has the known four-ticket fixture dataset and
-  readiness contract. An unrelated application image must fail these checks.
+- Node.js 24+、Git，以及可正常运行的 Docker。
+- 测试资格验证需要在本地检出已实现就绪状态契约的应用，并安装好应用依赖；
+  或按资格验证命令的说明，允许在隔离实验中还原依赖。
+- 对所选 GHCR 摘要拥有读取权限。如果镜像为私有，请使用日常凭据流程认证；
+  不要把令牌写入这些命令。
+- 使用源目录之外、父目录已存在的全新证据目录。
+- 使用的镜像必须包含已知的四张工单夹具数据，并满足就绪状态契约。
+  无关的应用镜像必须无法通过这些检查。
 
-The toolkit:
+工具包遵守以下规则：
 
-- Never resets a source checkout or edits frozen tests.
-- Never posts an Issue, creates an approval, commits, or pushes.
-- Creates uniquely labelled containers and a new labelled volume.
-- Gives the invalid-path instance **no data volume**.
-- Publishes container ports only on `127.0.0.1`, with allocated free ports.
-- Checks resource identity, labels, image and mounts before mutation/cleanup.
-- Removes only resources created for that run, including on failure.
-- Preserves a failed evidence report; cleanup errors are errors, not success.
-- Records probe contracts, statuses, timings and data hashes, not HTTP bodies,
-  application logs, ticket fields or exception messages.
+- 绝不重置源检出目录，也不修改冻结测试。
+- 绝不发布 Issue、创建批准、提交或推送。
+- 创建带唯一标签的容器和一个全新的带标签数据卷。
+- **不给错误路径实例挂载任何数据卷**。
+- 仅在 `127.0.0.1` 上发布容器端口，并分配空闲端口。
+- 在修改或清理之前核对资源身份、标签、镜像及挂载。
+- 只移除本次运行创建的资源，失败时也如此。
+- 保留失败的证据报告；清理错误必须算作错误，不能算成功。
+- 记录探测契约、状态、时间和数据哈希，不记录 HTTP 响应体、应用日志、
+  工单字段或异常消息。
 
-Existing instances on ports 43127, 43128 and 43129 and their volumes are outside
-the exercise. Do not stop or attach them to a fault drill.
+本次运行之外的现有实例及其数据卷不属于演练范围，
+包括可能占用端口 43127、43128、43129 的实例。
+不要停止它们，也不要把它们接入故障演练。
 
-## 3. Start here: qualify the tests
+<a id="3-start-here-qualify-the-tests"></a>
+## 3. 从这里开始：验证测试是否合格
 
-Run from the source repository. Adapt the checkout and evidence paths to your
-machine. The pinned commit is the delivered readiness implementation, not a
-mutable branch name.
+在源仓库中运行。按自己的机器调整检出目录和证据路径。
+使用包含已评审就绪状态实现的不可变提交，而不是可变的分支名。
 
 ```sh
 mkdir -p "$HOME/brownfield-reliability-evidence"
@@ -77,22 +71,20 @@ node tools/brownfield-demo/cli.mjs qualify \
   --dest "$HOME/brownfield-reliability-evidence/qualification-1"
 ```
 
-Read `qualification-report.json`. Raw test diagnostics are kept separately in
-the private scratch evidence and should not be published without review.
-A command failure is not a successful mutant kill.
-The original and restored suites must pass, no required tests may be skipped,
-and mutants must fail their named contract assertions without run/hook/import
-errors. One explicit exception is the frozen-error mutant: it must produce the
-precise expected application TypeError in both known test bodies. The report
-identifies those as expected application errors, not assertion failures.
-No approved test content may change. The mutations are a small, declared
-readiness set, **not a project-wide mutation score**.
+阅读 `qualification-report.json`。原始测试诊断信息单独保存在私有临时证据中，
+未经审阅不应发布。命令失败不等于成功捕获变异。
+原始与恢复后的测试套件都必须通过，不得跳过任何必需测试；
+变异必须在指定的契约断言上失败，不能因为运行、钩子或导入错误而失败。
+唯一明确的例外是冻结错误对象变异：它必须在两个已知测试体中都产生精确预期的应用 TypeError。
+报告会将其标识为预期应用错误，而不是断言失败。
+不得修改任何已批准测试的内容。这只是一个小规模、事先声明的就绪状态变异集合，
+**不是整个项目的变异测试分数**。
 
-Use a new destination for another attempt. Do not overwrite a failed attempt.
-The qualification report is an experiment, not a lifecycle Tests-stage or
-Implementation-stage approval.
+再次尝试时使用新的目标目录。不要覆盖失败尝试。
+资格验证报告是一项实验，不是生命周期“测试”阶段或“实现”阶段的批准。
 
-## 4. Run real image verification, admission, recovery and monitoring
+<a id="4-run-real-image-verification-admission-recovery-and-monitoring"></a>
+## 4. 运行真实镜像验证、准入、恢复与监控
 
 ```sh
 node tools/brownfield-demo/cli.mjs rehearse \
@@ -103,81 +95,76 @@ node tools/brownfield-demo/cli.mjs rehearse \
   --dest "$HOME/brownfield-reliability-evidence/runtime-1"
 ```
 
-This finite command performs actual Docker/HTTP/SQLite operations:
+这个有限次运行的命令会实际执行 Docker、HTTP 和 SQLite 操作：
 
-1. Pull and inspect the exact published digest. Require a passing qualification
-   report and match its application Git tree to the image's OCI source revision.
-   This is source-metadata consistency, not signed build-provenance attestation.
-2. Start a good instance on fresh data; verify health, readiness, a filtered
-   ticket queue and its detail page, plus the known seed dataset.
-3. Start an invalid-path instance without a volume. Require health 200 and
-   exact readiness 503/no-store/unavailable.
-4. Admit the stable instance through the local read-only gateway.
-5. Reject the bad instance and prove gateway traffic still reaches stable.
-6. Start and admit a correctly configured candidate using the same image and
-   isolated volume; prove actual responses identify the candidate.
-7. Write a controlled fixture change after promotion, and hash all rows/schema.
-8. Collect ten samples at 200 ms intervals between completed probes. Pause the
-   candidate before sample three. Two consecutive failures trigger fallback.
-9. Recheck the stable instance before switching. Require three consecutive
-   healthy observations and verify the complete data hash is unchanged.
-10. Unpause the disposable candidate; collect a separate five-sample healthy
-    recovery window; reject the bad configuration again.
-11. Write evidence and a maintenance draft, close the gateway and remove only
-    the fresh lab resources.
+1. 拉取并检查精确的已发布摘要。要求资格验证报告通过，并将其应用 Git 树
+   与镜像 OCI 来源修订进行匹配。这是来源元数据一致性检查，不是带签名的构建来源证明。
+2. 使用全新数据启动正常实例；验证健康状态、就绪状态、过滤后的工单队列及其详情页，
+   并核对已知种子数据集。
+3. 不挂载数据卷，启动错误路径实例。要求健康端点返回 200，
+   就绪端点精确满足 503/no-store/unavailable。
+4. 通过本地只读网关准入稳定实例。
+5. 拒绝错误实例，并证明网关流量仍到达稳定实例。
+6. 使用相同镜像和隔离数据卷启动配置正确的候选实例并准入；
+   证明真实响应能够识别候选实例。
+7. 提升候选实例后执行一次受控的夹具变更，并对所有数据行与数据库结构计算哈希。
+8. 采集十个样本，已完成的探测之间间隔 200 ms。在第三个样本前暂停候选实例。
+   连续两次失败触发回退。
+9. 切换前重新检查稳定实例。要求连续三次健康观测，并验证完整数据哈希未变。
+10. 恢复这个可丢弃候选实例的运行；另行采集一个五样本的健康恢复窗口；
+    再次拒绝错误配置。
+11. 写入证据与维护草案，关闭网关，只移除本次新建的实验资源。
 
-Probe execution time is additional to the interval, especially during timeouts.
-The measured short-window availability and recovery time are not SLO compliance,
-production MTTR, or a claim of zero-downtime recovery.
+探测执行时间另计，尤其是超时期间。
+测得的短窗口可用性与恢复时间不代表 SLO 达标、生产 MTTR，也不能用来宣称零停机恢复。
 
-The durable outputs are `evidence.json` and `maintenance-intent.md`.
-Success requires `status: "passed"` and successful cleanup. An open incident,
-failed recovery window, unexpected data change, admitted bad candidate or
-failed cleanup must not be described as a completed exercise.
+持久化输出为 `evidence.json` 和 `maintenance-intent.md`。
+成功要求 `status: "passed"` 且清理成功。
+事件仍未关闭、恢复窗口失败、数据意外变化、错误候选获准进入，或清理失败，
+都不能描述为演练完成。
 
-## 5. Review the operational maintenance handoff
+<a id="5-review-the-operational-maintenance-handoff"></a>
+## 5. 评审运维维护交接
 
-Inspect the generated draft and evidence together:
+将生成的草案和证据一起审阅：
 
-1. Separate observations from hypotheses. Pausing a process is the deliberately
-   injected cause here; do not generalize that diagnosis to a real incident.
-2. Confirm the digest, affected read journey, measured detection/recovery
-   window, owner and proposed preventive acceptance criteria.
-3. Review the actual evidence before publishing a normal maintenance Issue.
-   It must not impersonate a sealed delivery-stage Issue or contain automatic
-   lifecycle approval commands.
-4. Approve the specific preventive scope through your normal review process.
-   Link the implementation PR and its actual checks.
-5. Rerun the relevant negative admission and recovery checks against the
-   reviewed tooling revision. Record results before closing the maintenance
-   task. Keep unresolved causes or broader prevention explicitly open.
+1. 区分观测事实与假设。这里故意注入的原因是暂停进程；
+   不要把这个诊断直接套到真实事件上。
+2. 确认摘要、受影响的读取流程、测得的检测与恢复窗口、负责人，
+   以及拟议的预防性验收条件。
+3. 发布常规维护 Issue 前，先审阅真实证据。
+   它不得冒充已封存的交付阶段 Issue，也不得包含自动生命周期批准命令。
+4. 通过正常评审流程批准具体的预防性工作范围。
+   链接实现 PR 及其真实检查结果。
+5. 针对评审过的工具修订，重新运行相关负向准入与恢复检查。
+   关闭维护任务前记录结果。未解决的原因或更广泛的预防工作应明确保持待办状态。
 
-Publishing the draft alone does not complete this loop. Neither a template nor
-an AI summary is evidence that the preventive change was approved or effective.
+仅发布草案并不意味着这个闭环已完成。
+无论模板还是 AI 摘要，都不能证明预防性变更已获批准或确实有效。
 
-## 6. CI and published-image verification
+<a id="6-ci-and-published-image-verification"></a>
+## 6. CI 与已发布镜像验证
 
-After synchronizing these changes to a completed readiness demo, its
-**Brownfield Reliability Loops** workflow can execute both commands on demand.
-Select its main branch and provide the exact accepted image reference.
-It qualifies the checked-out application's committed tests before running any
-fault and uploads only the qualification summary, sanitized runtime evidence
-and unapproved maintenance draft. It has no Issue/contents write permission.
-The ownership-free source deliberately cannot pass readiness qualification.
+将这些变更同步到已完成就绪状态功能的演示仓库后，
+其中的 **Brownfield Reliability Loops** 工作流可以按需执行上述两个命令。
+选择其主分支，并提供精确的已验收镜像引用。
+它会在注入任何故障前，验证检出应用已提交测试的资格；
+只上传资格验证摘要、脱敏运行时证据和尚未批准的维护草案。
+它没有 Issue 或 contents 写权限。
+不含负责人功能的源仓库被刻意设计为无法通过就绪状态资格验证。
 
-Application container CI now resolves its built image to its immutable local
-image ID. Post-merge delivery verification uses the published GHCR digest.
-Both invoke the same verifier, preserve a sanitized attempt-specific artifact,
-and rely on the verifier's scoped cleanup.
+应用容器 CI 现在会将构建镜像解析为不可变的本地镜像 ID。
+合并后交付验证使用已发布的 GHCR 摘要。
+两者调用同一个验证器，保留每次尝试各自的脱敏产物，并依赖验证器按范围清理。
 
-The explicit profile is selected from the exact checked-out application:
+根据精确检出的应用显式选择配置：
 
-- `baseline`: the ownership-free source has no readiness route. Verify live
-  health and the ticket read journey, and record readiness as **not tested**.
-- `readiness`: require exact ready/no-store behavior and the isolated
-  invalid-path control. Never fall back to baseline because a request failed.
+- `baseline`：不含负责人功能的源应用没有就绪路由。
+  验证实时健康状态与工单读取流程，并将就绪状态记录为**未测试**。
+- `readiness`：要求精确的 ready/no-store 行为，以及隔离的错误路径对照。
+  绝不能因为请求失败而回退到 baseline。
 
-For a standalone digest check:
+单独检查摘要时：
 
 ```sh
 node tools/brownfield-demo/cli.mjs verify-image \
@@ -186,23 +173,22 @@ node tools/brownfield-demo/cli.mjs verify-image \
   --dest "$HOME/brownfield-reliability-evidence/image-1"
 ```
 
-Local CI may use `sha256:<64hex>` instead of a GHCR reference. Tags are rejected.
-That identity is explicitly labelled a local image ID, not a published digest.
-CI still builds again after merge; this is not build-once artifact promotion.
+本地 CI 可使用 `sha256:<64hex>` 代替 GHCR 引用。标签会被拒绝。
+该身份会被明确标注为本地镜像 ID，而不是已发布摘要。
+合并后 CI 仍会重新构建；这不是“一次构建、产物逐级提升”。
 
-## 7. Validation and remaining boundaries
+<a id="7-validation-and-remaining-boundaries"></a>
+## 7. 验证与仍然存在的边界
 
-Run the repository suite with Node.js 24:
+使用 Node.js 24 运行仓库测试套件：
 
 ```sh
 npm test
 ```
 
-The negative HTTP/gateway tests and resource-ownership tests must pass in
-addition to the real Docker exercise. Qualification executes the actual
-completed-demo readiness suites, not synthetic stand-ins.
+除真实 Docker 演练外，负向 HTTP/网关测试和资源归属测试也必须通过。
+资格验证执行的是已完成演示的真实就绪状态测试套件，而不是合成替代品。
 
-Still outside scope: production infrastructure, cross-version migration,
-canary comparisons, sustained write traffic, backup restoration, full
-security/supply-chain admission, load testing, paging/on-call systems,
-long-term SLOs, independent Human approval and customer business value.
+仍不在范围内的内容：生产基础设施、跨版本迁移、金丝雀对比、持续写流量、
+备份恢复、完整的安全或供应链准入、负载测试、呼叫告警与值班系统、
+长期 SLO、独立人工批准，以及客户业务价值。

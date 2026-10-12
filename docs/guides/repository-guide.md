@@ -1,85 +1,82 @@
-# Repository guide
+<a id="repository-guide"></a>
+# 仓库指南
 
-This guide covers the repository structure, local development, GitHub
-workflows, trace processing, publishing, and operational safeguards.
+[English](repository-guide.en.md)
 
-For the end-to-end delivery method rather than repository administration, start
-with the [illustrated AI-native SDLC handbook (English / 中文)](ai-native-sdlc/README.md).
-It explains the method in six paired chapters. Case narratives, screenshots
-and the presentation route live in the
-[demo documentation](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md).
+本指南介绍仓库结构、本地开发、GitHub 工作流、追踪处理、发布与运维防护。
 
-## Repository structure
+如果你想了解端到端交付方法，而不是仓库管理，请从
+[AI 原生 SDLC 图解手册（中文 / English）](ai-native-sdlc/README.md)开始。
+手册通过六组中英对应章节解释方法。
+案例叙述、截图和演示路线放在
+[演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md)中。
 
-The repository keeps runnable demonstrations separate from reusable tooling:
+<a id="repository-structure"></a>
+## 仓库结构
 
-- [`.github/`](../../.github) contains issue forms, workflows, MCP configuration,
-  and small Node.js adapters for request preparation, issue comments, and Pages
-  publishing.
-- [`demos/`](../../demos) contains independently installable applications. Each
-  demo owns its manifest, lockfile, runtime requirements, documentation, and
-  path-scoped CI.
-- [`tools/trace-viewer/`](../../tools/trace-viewer) contains the dependency-free
-  trace model, renderer, local composite action, and shared Pages client.
-- [`tools/brownfield-demo/`](../../tools/brownfield-demo/README.md) contains the
-  reusable preparation, preflight, container-presentation, and replay CLI.
-  Demo-owned scenario manifests live under
-  [`demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/`](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios).
-- [`docs/`](../README.md) contains the documentation index:
-  `guides/` owns reusable instructions, `research/` owns dated assessments,
-  and `assets/traces/` holds guide-specific images. Demo cases and their assets
-  belong in `ai-native-sdlc-demo/docs/`, not in a second local copy.
-- [`AGENTS.md`](../../AGENTS.md) defines repository-wide agent guidance. Nested
-  instruction files add project-specific rules.
+仓库将可运行演示与可复用工具分开：
 
-Demo projects are intentionally not npm workspaces. This allows future
-TypeScript and JavaScript demonstrations to use different frameworks,
-dependency versions, and runtimes without coupling their dependency graphs.
-The root package remains dependency-free and exposes repository checks and the
-brownfield setup and presentation commands.
+- [`.github/`](../../.github) 包含 Issue 表单、工作流、MCP 配置，
+  以及用于请求准备、Issue 评论和 Pages 发布的小型 Node.js 适配器。
+- [`demos/`](../../demos) 包含可独立安装的应用。
+  每个演示拥有自己的清单、锁文件、运行时要求、文档和按路径限定的 CI。
+- [`tools/trace-viewer/`](../../tools/trace-viewer) 包含无依赖的追踪模型、
+  渲染器、本地复合 Action 和共享 Pages 客户端。
+- [`tools/brownfield-demo/`](../../tools/brownfield-demo/README.md) 包含
+  可复用的准备、预检、容器展示和回放 CLI。
+  演示专属场景清单位于
+  [`demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios/`](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios)。
+- [`docs/`](../README.md) 包含文档索引：
+  `guides/` 存放可复用操作说明，`research/` 存放带日期的评估，
+  `assets/traces/` 存放指南专用图片。
+  演示案例及其资源应放在 `ai-native-sdlc-demo/docs/`，而不是在本地再留一份副本。
+- [`AGENTS.md`](../../AGENTS.md) 定义全仓库智能体指导；嵌套指令文件补充项目专属规则。
 
-## Naming conventions
+演示项目刻意不采用 npm workspaces。
+这样，未来的 TypeScript 和 JavaScript 演示可以使用不同框架、依赖版本与运行时，
+不必把依赖图绑定在一起。
+根包保持无依赖，只提供仓库检查以及存量项目设置和展示命令。
 
-- Use lowercase kebab-case for project folders, scripts, workflows, issue
-  forms, and documentation files.
-- Name scripts for the artifact or action they produce, such as
-  `build-demo-result-comment.mjs`, `render-trace-report.mjs`, and
-  `publish-trace-site.mjs`.
-- Include `copilot-cli` in filenames for workflows and forms that specifically
-  invoke Copilot CLI.
-- Use singular names for domain modules, such as `ticket.ts`, and role-based
-  suffixes for implementations such as `ticket-store.ts`.
-- Keep framework-required names such as `page.tsx`, `layout.tsx`, `actions.ts`,
-  `action.yml`, and `index.html`.
-- Use **Copilot CLI Trace Viewer** for the interactive product, **trace report**
-  for one rendered run, **trace site** for the published report collection,
-  and **dependency graph** for the agent/model/tool visualization.
+<a id="naming-conventions"></a>
+## 命名约定
 
-## Adding a demo
+- 项目目录、脚本、工作流、Issue 表单和文档文件使用小写 kebab-case。
+- 按脚本产物或动作命名，例如 `build-demo-result-comment.mjs`、
+  `render-trace-report.mjs` 和 `publish-trace-site.mjs`。
+- 专门调用 Copilot CLI 的工作流和表单，文件名包含 `copilot-cli`。
+- 领域模块使用单数名称，例如 `ticket.ts`；
+  实现文件采用基于职责的后缀，例如 `ticket-store.ts`。
+- 保留框架要求的名称，例如 `page.tsx`、`layout.tsx`、`actions.ts`、
+  `action.yml` 和 `index.html`。
+- 交互产品称为 **Copilot CLI Trace Viewer**，单次运行的渲染结果称为
+  **trace report**（追踪报告），已发布报告集合称为 **trace site**（追踪站点），
+  智能体/模型/工具可视化称为 **dependency graph**（依赖图）。
 
-Each demo is a self-contained project under `demos/<demo-name>/`. When adding
-one:
+<a id="adding-a-demo"></a>
+## 添加演示
 
-1. Include a project README, manifest, and package-manager lockfile.
-2. Document the required runtime.
-3. Define test, lint, and build scripts in the project manifest.
-4. Add a path-scoped workflow under `.github/workflows/`.
-5. Add the demo to the project list in the root README.
+每个演示都是 `demos/<demo-name>/` 下的自包含项目。添加时：
 
-Keep demo dependencies inside the demo project. Do not add them to the root
-package.
+1. 包含项目 README、清单和包管理器锁文件。
+2. 记录所需运行时。
+3. 在项目清单中定义测试、lint 和构建脚本。
+4. 在 `.github/workflows/` 下添加按路径限定的工作流。
+5. 将演示加入根 README 的项目列表。
 
-## Local development
+演示依赖必须留在演示项目中，不要加入根包。
 
-Node.js 24 is the recommended repository runtime.
+<a id="local-development"></a>
+## 本地开发
 
-Run repository automation and trace-viewer tests from the root:
+仓库推荐使用 Node.js 24。
+
+从根目录运行仓库自动化与追踪查看器测试：
 
 ```sh
 npm test
 ```
 
-Validate the IT service desk independently:
+单独验证 IT 服务台：
 
 ```sh
 cd demos/it-service-desk
@@ -89,253 +86,240 @@ npm run lint
 npm run build
 ```
 
-The service desk uses the built-in `node:sqlite` module. It creates and seeds
-`data/service-desk.db` automatically; delete that local file to reset the
-data.
+服务台使用内置 `node:sqlite` 模块，会自动创建并填充 `data/service-desk.db`。
+删除这个本地文件即可重置数据。
 
-## Brownfield Human-Gated Delivery demo
+<a id="brownfield-human-gated-delivery-demo"></a>
+## 存量项目人工门禁交付演示
 
-The IT service desk is the existing application in a brownfield, human-gated
-delivery loop. For new Intents, the parent Issue is the Spec/Plan review hub:
-full rendered Markdown revision comments, current document links, discussion,
-and explicit Human commands all stay there until engineering handoff.
-**Brownfield Delivery · Documents**
-(`brownfield-human-gated-delivery-documents.yml`) runs read-only Copilot CLI
-generation in Actions, with separate trusted publication and approval jobs.
-It does not build the application or introduce an external service, UI, or
-application dependency. The optional local presentation toolkit is separate
-from this Actions workflow.
+IT 服务台是存量项目人工门禁交付闭环中的现有应用。
+对于新 Intent，父 Issue 是 Spec/Plan 评审中心：
+完整渲染的 Markdown 修订评论、当前文档链接、讨论和显式人工命令，
+在工程交接前都留在这里。
+**Brownfield Delivery · Documents**（`brownfield-human-gated-delivery-documents.yml`）
+在 Actions 中运行只读 Copilot CLI 生成，并将可信发布与批准分设为独立作业。
+它不构建应用，也不引入外部服务、UI 或应用依赖。
+可选的本地展示工具包与这个 Actions 工作流彼此独立。
 
-The repository's custom Actions commands are `/sdlc revise spec` and
-`/sdlc revise plan` followed by feedback on subsequent lines, and versioned
-approvals such as `/sdlc approve spec v2` and `/sdlc approve plan v1`.
-Submit them as new top-level Human comments on the parent Intent. They are
-not built-in `@copilot` commands; ordinary discussion does not invoke AI or
-approve a document. `/sdlc retry` recovers document generation/handoff only,
-without supplying new feedback; failed engineering CI, Advance, or Publish
-requires rerunning the actual failed Action after its cause is fixed.
-Each run reconciles a durable command queue, so a rerun or manual
-Documents dispatch with `issue_number` can recover without losing commands
-from superseded pending runs.
+仓库自定义 Actions 命令包括 `/sdlc revise spec`、`/sdlc revise plan`
+（反馈写在后续行），以及 `/sdlc approve spec v2`、`/sdlc approve plan v1`
+这类带版本批准。请由人工在父 Intent 下新建顶层评论提交。
+这些不是内置 `@copilot` 命令；普通讨论不会调用 AI，也不会批准文档。
+`/sdlc retry` 仅恢复文档生成或交接，不提供新反馈；
+工程 CI、Advance 或 Publish 失败时，须先修复原因，再重新运行实际失败的 Action。
+每次运行都会核对持久化命令队列，因此重跑或带 `issue_number` 的手动 Documents 触发
+可以恢复处理，不会丢失被后续运行取代的待运行任务中的命令。
 
-Each revision and approval is saved on `brownfield-documents/<intent>` under
-`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/` as `spec.md`,
-`plan.md`, and `document-review.json`. Recorded approvals bind the reviewed
-document version/hash to the approving command's ID/body and Human
-ID/login/time; they do not store a separate immutable rendered-revision comment
-ID/body snapshot. Editing or deleting a processed approval comment does not
-revoke it. Only current configured Humans with repository write access, including
-configured team members, can satisfy `minimumApprovals`; bots cannot. Issue
-approval has no native PR independent-review restriction.
+每次修订与批准都保存在 `brownfield-documents/<intent>` 分支的
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/` 下，
+文件为 `spec.md`、`plan.md` 和 `document-review.json`。
+批准记录把已审文档的版本/哈希与批准命令 ID/正文、人工 ID/登录名/时间绑定；
+它不另外保存不可变的已渲染修订评论 ID/正文快照。
+编辑或删除已处理的批准评论不会撤销批准。
+只有当前配置中具有仓库写权限的人（包括配置团队的成员）才能满足 `minimumApprovals`；
+机器人不能。Issue 批准没有 PR 原生的独立评审限制。
 
-A Spec revision before handoff invalidates Spec approvals and the existing
-Plan. Each Plan links its approved Spec. Once the Plan is fully approved,
-documents freeze and automation creates `brownfield-delivery/<intent>` at the
-approved document commit, closes internal Spec/Plan tracking issues, and assigns
-only TDD Tests to Coding Agent. Tests and Implementation PRs preserve all
-approved document and approval-state blobs. Controlled Red, Green, GHCR
-publishing, and temporary container verification still apply. For all
-Issue-based (`issue-v1`) runs, including existing ones after upgrade, smoke
-success leaves the Intent open for **Human acceptance**
-under the configured Implementation reviewer policy/quorum. Accept/reject
-commands include the exact `sha256:<64hex>` digest and actual observed results,
-and are bound to the current verified merge SHA, Actions run ID, and attempt.
-Only acceptance completes the run and removes the engineering branch;
-reverification invalidates earlier acceptance, and rejection blocks acceptance
-until another verification attempt.
+交接前修改 Spec 会使 Spec 批准和现有 Plan 失效。
+每份 Plan 都链接其已批准的 Spec。
+Plan 获得全部批准后，文档冻结，自动化从已批准文档提交创建
+`brownfield-delivery/<intent>`，关闭内部 Spec/Plan 跟踪 Issue，
+只把 TDD Tests 分配给 Coding Agent。
+Tests 和 Implementation PR 会保留全部已批准文档与批准状态 blob。
+受控 Red、Green、GHCR 发布和临时容器验证仍然适用。
+对所有基于 Issue 的 `issue-v1` 运行（包括升级后的现有运行），
+冒烟测试成功后 Intent 仍保持打开，等待按配置的 Implementation 评审人策略和人数要求进行
+**人工验收**。
+接受/拒绝命令包含精确的 `sha256:<64hex>` 摘要与实际观测结果，
+并绑定当前已验证的合并 SHA、Actions 运行 ID 和尝试次数。
+只有验收接受才完成运行并删除工程分支；
+重新验证会使先前验收失效，拒绝会阻止接受，直到出现新的验证尝试。
 
-The mutable operational record is separate from sealed `document-review.json`:
-`brownfield-runs/<intent>` stores
-`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/run-state.json`.
-Trusted workflow-bot ledger attestations protect this record's provenance.
-Missing required attested document/run branches fail explicitly; recovery must
-not reset approval history.
-Document and run branches remain for replay. Writers can submit new, unedited
-`/sdlc help`, `/sdlc status`, `/sdlc pause`, `/sdlc resume`, and `/sdlc cancel`
-comments on the Intent. Pause/cancel gate future work, keep policy pending, and
-disable auto-merge; they gate subsequent document publication, publish
-resolution, and stage advancement, not already-running work or prior merges.
-The Documents workflow routes these commands and reports run-control/cleanup
-failures separately from generation failures.
-Cancellation is terminal and retains Issues, PRs, and branches. Continue through
-a new Intent, also used for linked code/scope remediation after merge.
-Existing legacy document-PR Intents retain their original completion behavior,
-without retroactive migration. See the
-[command contract](brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
+可变运维记录与封存的 `document-review.json` 分开：
+`brownfield-runs/<intent>` 保存
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent>/run-state.json`。
+可信工作流机器人账本证明保护该记录的来源。
+缺少必需且带证明的文档/运行分支时会显式失败；恢复不得重置批准历史。
+文档与运行分支保留供回放使用。
+有写权限的人可以在 Intent 下提交全新、未编辑的
+`/sdlc help`、`/sdlc status`、`/sdlc pause`、`/sdlc resume` 和 `/sdlc cancel` 评论。
+暂停/取消限制后续工作，使策略检查保持待定，并禁用自动合并；
+它们约束后续文档发布、发布结果解析和阶段推进，不影响已在运行的工作或此前合并。
+Documents 工作流负责路由这些命令，并将运行控制/清理失败与生成失败分开报告。
+取消是终态，保留 Issue、PR 和分支。
+需要继续时创建新 Intent；合并后的关联代码或范围修复也使用新 Intent。
+已有旧版文档 PR Intent 保留原有完成行为，不追溯迁移。
+参见[命令契约](brownfield-human-gated-delivery.md#run-controls-and-human-acceptance)。
 
-Use the [step-by-step walkthrough](brownfield-human-gated-delivery-walkthrough.md)
-to run the demo in GitHub Web. See
-[Brownfield Human-Gated Delivery demo](brownfield-human-gated-delivery.md)
-for reviewer configuration, credentials, branch rules, stage artifacts, and
-failure behavior. This lifecycle combines read-only document generation with
-write-enabled Coding Agent engineering stages. It remains separate from the
-read-only Copilot CLI orchestration demonstrations below.
+在 GitHub Web 上运行演示，请使用[分步演练](brownfield-human-gated-delivery-walkthrough.md)。
+评审人配置、凭据、分支规则、阶段产物和失败行为，见
+[存量项目人工门禁交付演示](brownfield-human-gated-delivery.md)。
+这个生命周期把只读文档生成与可写的 Coding Agent 工程阶段结合起来，
+仍与下文的只读 Copilot CLI 编排演示分开。
 
-For repeatable prerequisite configuration, use
-[`npm run setup:brownfield`](brownfield-human-gated-delivery.md#run-the-setup-script).
-It previews changes unless explicitly passed `--apply`, preserves existing
-protections by default, and reports prerequisites that require manual
-configuration. The explicit
-[`--single-owner` mode](brownfield-human-gated-delivery.md#single-owner-demo-mode)
-changes native approval counts to zero while retaining the configured Human
-approval policy for PR stages. It is not needed for new Issue document approvals.
-Setup cannot register a missing Actions workflow. Publish reviewed workflow
-files to remote `main` and let GitHub register them first; setup can verify
-registration and enable an existing disabled workflow. Copilot CLI generation additionally needs
-`copilot-requests: write` and CLI entitlement, not the write-enabled assignment
-token. Managed rulesets cover only `main` and `brownfield-delivery/**`.
-Full setup also checks that the trusted `runs.mjs`, `run-core.mjs`, and
-`state-store.mjs` modules are published on `main`.
-Document and run-record branches need trusted automation writes, not a ruleset
-bypass. **Full `--apply` creates missing managed rulesets, including `main`
-protection.** This repository's `main` is intentionally unprotected; do not run
-full apply there without explicit agreement. Read-only previews do not write.
+需要可重复的前置配置时，使用
+[`npm run setup:brownfield`](brownfield-human-gated-delivery.md#run-the-setup-script)。
+除非显式传入 `--apply`，否则只预览变更；默认保留现有保护，
+并报告需要人工配置的前置条件。
+显式 [`--single-owner` 模式](brownfield-human-gated-delivery.md#single-owner-demo-mode)
+将原生批准数改为零，同时保留 PR 阶段已配置的人工批准策略。
+新的 Issue 文档批准不需要此模式。
+设置工具无法注册缺失的 Actions 工作流。
+请先把已评审工作流文件发布到远程 `main`，等待 GitHub 注册；
+设置工具可以验证注册情况，并启用已有但已禁用的工作流。
+Copilot CLI 生成另外需要 `copilot-requests: write` 和 CLI 使用资格，
+而不是用于可写分配的令牌。
+托管规则集只覆盖 `main` 和 `brownfield-delivery/**`。
+完整设置还会检查可信模块 `runs.mjs`、`run-core.mjs`、
+`state-store.mjs` 已发布到 `main`。
+文档与运行记录分支需要可信自动化写入，而不是规则集绕过。
+**完整 `--apply` 会创建缺失的托管规则集，包括 `main` 保护。**
+本仓库的 `main` 刻意不设保护；没有明确同意，不要在这里运行完整 apply。
+只读预览不写入。
 
-### Presentation and readiness
+<a id="presentation-and-readiness"></a>
+### 展示与就绪状态
 
-Start with `npm run demo:brownfield -- help` and follow the
-[toolkit README](../../tools/brownfield-demo/README.md) for exact options. Prepare
-a pinned source commit in a separate, nonexistent directory; never copy secrets
-or local databases, reset the source checkout, or implicitly create a remote.
-Reviewer configuration must be explicitly updated and published for the demo
-repository. Read-only preflight distinguishes configured settings from proven
-readiness and cannot prove token permissions, billing, or end-to-end behavior.
+从 `npm run demo:brownfield -- help` 开始，精确选项见
+[工具包 README](../../tools/brownfield-demo/README.md)。
+在一个独立、尚不存在的目录中准备固定源提交；
+绝不复制秘密或本地数据库、重置源检出，或隐式创建远程仓库。
+演示仓库的评审人配置必须显式更新并发布。
+只读预检区分“已配置的设置”和“已证明的就绪状态”，
+无法证明令牌权限、计费或端到端行为。
 
-Present the verified image by digest, clean up only toolkit-managed containers,
-and generate escaped, read-only HTML replay from actual run evidence. Neither
-the toolkit nor smoke verification automatically deploys a live hosted service.
-The [presenter runbook](brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
-requires three completed isolated runs: normal delivery, Spec change with Plan
-invalidation, and failure recovery. Record genuine Human approvals, test results,
-and evidence links; no completed live rehearsal is established by this update.
+按摘要展示已验证镜像，只清理工具包管理的容器，
+从真实运行证据生成已转义、只读的 HTML 回放。
+工具包和冒烟验证都不会自动部署在线托管服务。
+[演示者运行手册](brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
+要求完成三次隔离运行：正常交付、Spec 变化导致 Plan 失效、失败恢复。
+记录真实人工批准、测试结果和证据链接；
+此次更新本身不能证明已经完成任何现场演练。
 
-## Copilot CLI demonstration workflow
+<a id="copilot-cli-demonstration-workflow"></a>
+## Copilot CLI 演示工作流
 
-The **Copilot CLI Agent Demos** workflow can run through manual dispatch or an
-authorized issue carrying the `copilot-agent-demo` label. Each dedicated issue
-form represents one orchestration pattern, exposes an editable task, and uses
-an internal `copilot-pattern:*` label for routing.
+**Copilot CLI Agent Demos** 工作流可手动触发，
+也可由带 `copilot-agent-demo` 标签、已授权的 Issue 触发。
+每个专属 Issue 表单对应一种编排模式，提供可编辑任务，
+并通过内部 `copilot-pattern:*` 标签路由。
 
-The workflow:
+工作流会：
 
-1. Validates and prepares the selected task and orchestration contract.
-2. Runs Copilot CLI with the selected orchestrator and subagent models.
-3. Captures OpenTelemetry JSONL in the runner's temporary directory.
-4. Builds a Job Summary, canonical trace data, an offline HTML report, and a
-   dependency graph.
-5. Uploads the report artifact and posts the result and trace diagnostics back
-   to the originating issue.
-6. Publishes successful canonical trace data through the separate Pages
-   workflow.
+1. 验证并准备所选任务和编排契约。
+2. 使用所选编排模型和子智能体模型运行 Copilot CLI。
+3. 在运行器临时目录中捕获 OpenTelemetry JSONL。
+4. 构建 Job Summary、标准追踪数据、离线 HTML 报告和依赖图。
+5. 上传报告产物，把结果与追踪诊断回贴到来源 Issue。
+6. 通过独立 Pages 工作流发布成功的标准追踪数据。
 
-The available patterns are direct execution, parallel delegation,
-critic-reviser, and sequential pipeline. See
-[Copilot CLI agent orchestration patterns](copilot-cli-agent-orchestration-patterns.md)
-for their execution models, selection guidance, and validation evidence.
+可选模式包括直接执行、并行委派、质疑—修订和顺序流水线。
+执行模型、选择建议和验证证据，见
+[Copilot CLI 智能体编排模式](copilot-cli-agent-orchestration-patterns.md)。
 
-## Models and execution
+<a id="models-and-execution"></a>
+## 模型与执行
 
-Every run selects an **Orchestrator model** and a **Subagent model**. Both
-currently default to `gpt-6-luna`. The orchestrator plans delegation and
-synthesizes the final response; dynamically created subagents are instructed
-to use the selected subagent model.
+每次运行选择一个 **Orchestrator model**（编排模型）和一个
+**Subagent model**（子智能体模型），目前均默认为 `gpt-6-luna`。
+编排模型规划委派并综合最终答复；
+动态创建的子智能体会收到使用所选子智能体模型的指令。
 
-Parallel demonstrations use `--fleet`. Sequential demonstrations allow the
-orchestrator to create each subagent after the preceding stage returns.
-Validation uses observed OpenTelemetry evidence rather than predetermined
-agent names.
+并行演示使用 `--fleet`。
+顺序演示允许编排智能体在前一阶段返回后再创建下一个子智能体。
+验证依据实际观测到的 OpenTelemetry 证据，而不是预设智能体名称。
 
-The repository owner needs a Copilot entitlement and available usage.
-Organization repositories also need the Copilot CLI organization billing
-policy.
+仓库所有者需要 Copilot 使用资格和可用额度。
+组织仓库还需要启用 Copilot CLI 组织计费策略。
 
-## Tool and network access
+<a id="tool-and-network-access"></a>
+## 工具与网络访问
 
-The workflow authenticates Copilot with the run's short-lived `GITHUB_TOKEN`
-and grants only the permissions required by the workflow. The checked-in
-[`.github/mcp.json`](../../.github/mcp.json) exposes two read-only tools from the
-public Microsoft Learn MCP server.
+工作流使用本次运行的短期 `GITHUB_TOKEN` 认证 Copilot，
+仅授予工作流所需权限。
+仓库中的 [`.github/mcp.json`](../../.github/mcp.json)
+提供来自公开 Microsoft Learn MCP 服务器的两个只读工具。
 
-External URLs are not preapproved by the generic workflow. The default
-parallel AWS/Azure scenario can explicitly allow `docs.aws.amazon.com`; Azure
-research uses Microsoft Learn MCP. Select **Block all external URLs** when a
-task does not require AWS documentation.
+通用工作流不会预批准外部 URL。
+默认的并行 AWS/Azure 场景可以显式允许 `docs.aws.amazon.com`；
+Azure 研究使用 Microsoft Learn MCP。
+任务不需要 AWS 文档时，选择 **Block all external URLs**。
 
-## Trace viewer
+<a id="trace-viewer"></a>
+## 追踪查看器
 
-[`tools/trace-viewer/`](../../tools/trace-viewer) is both a local composite action
-and a standalone command-line implementation:
+[`tools/trace-viewer/`](../../tools/trace-viewer)
+既是本地复合 Action，也是一套独立命令行实现：
 
-- `trace-model.mjs` normalizes direct CLI JSONL and OTLP
-  `resourceSpans[].scopeSpans[].spans[]` envelopes.
-- `html-renderer.mjs` renders trace and dependency views.
-- `render-trace-report.mjs` generates summaries, HTML, and canonical trace data.
-- `capture-dependency-graph.mjs` captures the graph used in issue comments.
-- `web/` contains the shared GitHub Pages application.
+- `trace-model.mjs` 规范化直接 CLI JSONL 以及 OTLP
+  `resourceSpans[].scopeSpans[].spans[]` 封装。
+- `html-renderer.mjs` 渲染追踪与依赖视图。
+- `render-trace-report.mjs` 生成摘要、HTML 和标准追踪数据。
+- `capture-dependency-graph.mjs` 捕获 Issue 评论所用的图。
+- `web/` 包含共享 GitHub Pages 应用。
 
-The viewer supports correlated trace and dependency selection, filtering,
-model-aware cost, inspector rollups, and SVG/PNG graph export. Missing or
-malformed traces fail visibly, including when Copilot itself fails.
+查看器支持追踪与依赖的联动选择、过滤、按模型计价、
+检查面板汇总，以及 SVG/PNG 图导出。
+追踪缺失或格式错误会明确显示失败，包括 Copilot 本身失败的情况。
 
-OpenTelemetry status `UNSET` (`code: 0`) is treated as successful unless an
-error status or error attribute is present. Failed spans retain their failure
-reason even when message capture is disabled. A fast failed tool call can be
-an intentional permission-policy rejection rather than an infrastructure
-failure.
+OpenTelemetry 状态 `UNSET`（`code: 0`）在没有错误状态或错误属性时视为成功。
+即使禁用消息捕获，失败 span 仍保留失败原因。
+一次快速失败的工具调用可能是有意的权限策略拒绝，而非基础设施故障。
 
-## Message capture and redaction
+<a id="message-capture-and-redaction"></a>
+## 消息捕获与脱敏
 
-Detailed request and response capture is enabled by default for demonstration
-forms. Select **Metadata only** when payloads should not be included in the
-public report or artifact.
+演示表单默认启用详细请求与响应捕获。
+如果载荷不应出现在公开报告或产物中，请选择 **Metadata only**。
 
-Raw OpenTelemetry JSONL is never uploaded. The trace model can hydrate large
-Copilot tool results only from approved runner-temporary files, redacts the
-content, and embeds payloads up to a 1 MiB safety ceiling. Absolute runner
-paths are not published.
+原始 OpenTelemetry JSONL 绝不上传。
+追踪模型只会从获准的运行器临时文件中补全大型 Copilot 工具结果，
+对内容脱敏，并在 1 MiB 安全上限内嵌入载荷。
+绝对运行器路径不会发布。
 
-Redaction is best-effort. Treat GitHub Pages reports, workflow artifacts, and
-Job Summaries as public in this repository, and use metadata-only mode for
-private prompts, sensitive repositories, or sessions that may contain
-secrets.
+脱敏尽力而为，并非绝对保证。
+本仓库中应把 GitHub Pages 报告、工作流产物和 Job Summary 视为公开内容；
+私有提示词、敏感仓库或可能包含秘密的会话应使用仅元数据模式。
 
-## Cost calculation
+<a id="cost-calculation"></a>
+## 成本计算
 
-The viewer uses `gen_ai.usage.cost` when OpenTelemetry provides it. Otherwise,
-it normalizes the observed model name, reads
-[`model-pricing.json`](../../tools/trace-viewer/model-pricing.json), selects the
-default or long-context tier, and estimates cost from observed input, output,
-and cache token counts.
+OpenTelemetry 提供 `gen_ai.usage.cost` 时，查看器直接使用该值。
+否则会规范化实际观测到的模型名，读取
+[`model-pricing.json`](../../tools/trace-viewer/model-pricing.json)，
+选择默认或长上下文价格档，并根据观测到的输入、输出和缓存令牌数估算成本。
 
-Unknown models and calls without token usage display `—` and are excluded from
-the total instead of inheriting an unrelated model's rate. Workflows can pass
-`pricing-path` to replace the bundled catalog.
+未知模型或缺少令牌用量的调用显示 `—`，并从总额中排除，
+不会套用不相关模型的费率。
+工作流可以传入 `pricing-path` 替换随包提供的价格目录。
 
-## GitHub Pages publishing
+<a id="github-pages-publishing"></a>
+## GitHub Pages 发布
 
-Each successful demo run uploads a `copilot-trace-viewer` artifact containing
-the offline HTML report and canonical trace data. The Pages publisher:
+每次成功演示运行都会上传 `copilot-trace-viewer` 产物，
+其中包含离线 HTML 报告和标准追踪数据。
+Pages 发布器会：
 
-1. Downloads the artifact with its workflow token.
-2. Validates the canonical schema.
-3. Publishes only `trace-data.json` under `/traces/<run-id>.json`.
-4. Refreshes the shared `/viewer/` application from the newest successful run.
+1. 使用其工作流令牌下载产物。
+2. 验证标准数据结构。
+3. 只将 `trace-data.json` 发布到 `/traces/<run-id>.json`。
+4. 使用最新成功运行更新共享 `/viewer/` 应用。
 
-The browser never receives a GitHub token and does not fetch Actions artifacts
-directly. GitHub Pages deploys from the root of the `gh-pages` branch.
-Publishing is serialized so concurrent runs cannot overwrite one another, and
-each run keeps an immutable trace URL.
+浏览器从不接收 GitHub 令牌，也不直接抓取 Actions 产物。
+GitHub Pages 从 `gh-pages` 分支根目录部署。
+发布串行执行，避免并发运行相互覆盖；
+每次运行都保留一个不可变追踪 URL。
 
-Issue comments always include a Mermaid dependency graph. To additionally use
-a generated PNG, configure `AGENT_TRACE_MEDIA_TOKEN` with a user token that
-can access the repository. The short-lived Actions token is not accepted by
-the user-attachments endpoint, so the workflow falls back to Mermaid when the
-optional token or upload is unavailable.
+Issue 评论始终包含 Mermaid 依赖图。
+若还希望使用生成的 PNG，请给 `AGENT_TRACE_MEDIA_TOKEN`
+配置一个能访问仓库的用户令牌。
+user-attachments 端点不接受短期 Actions 令牌，
+因此可选令牌缺失或上传不可用时，工作流回退到 Mermaid。
 
-## References
+<a id="references"></a>
+## 参考资料
 
-- [Copilot CLI in GitHub Actions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions)
-- [Copilot CLI tool permissions](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
-- [Copilot CLI workspace MCP configuration](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers)
-- [Microsoft Learn MCP tools](https://learn.microsoft.com/en-us/training/support/mcp-developer-reference)
-- [Copilot Actions billing](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/copilot-cli-in-github-actions)
+- [在 GitHub Actions 中使用 Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli-in-actions)
+- [Copilot CLI 工具权限](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [Copilot CLI 工作区 MCP 配置](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers)
+- [Microsoft Learn MCP 工具](https://learn.microsoft.com/en-us/training/support/mcp-developer-reference)
+- [Copilot Actions 计费](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/copilot-cli-in-github-actions)

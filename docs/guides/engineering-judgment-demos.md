@@ -1,69 +1,64 @@
-# Three Engineering Judgment Demos
+<a id="three-engineering-judgment-demos"></a>
+# 三个工程判断演示
 
-These extend the [reliability loops](brownfield-reliability-loops.md) with
-change reasoning, CI diagnosis and measured strategy comparison. They use a
-small independent synthetic application, not the already accepted service desk.
-For the broader delivery method and a bilingual explanation of these experiments,
-see the [illustrated handbook](ai-native-sdlc/README.md) and its
-[engineering judgment chapter](ai-native-sdlc/en/05-engineering-judgment.md).
-For what actually happened, see the
-[rehearsal evidence](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/engineering-judgment-rehearsal.md).
+[English](engineering-judgment-demos.en.md)
 
-**Status:** executable development-test experiments. The commands actually use
-Copilot; offline unit tests do not. A successful experiment demonstrates only
-the stated fixtures and checks, not general Agent superiority.
+这些演示在[可靠性闭环](brownfield-reliability-loops.md)基础上，进一步展示变更推理、CI 诊断与基于测量的策略比较。
+它们使用一个小型、独立的合成应用，而不是已经验收的服务台。
+关于更完整的交付方法及这些实验的双语说明，请参阅[图解手册](ai-native-sdlc/README.md)
+及其[工程判断章节](ai-native-sdlc/zh/05-engineering-judgment.md)。
 
-## 1. What each demo proves
+**状态：**可执行的开发测试实验。这些命令确实调用 Copilot；离线单元测试不会。
+实验成功只能证明声明的夹具与检查得到满足，不能说明智能体普遍更优。
 
-| Demo | Plausible wrong choice | Measurable closure |
+<a id="1-what-each-demo-proves"></a>
+## 1. 每个演示证明什么
+
+| 演示 | 看似合理但错误的选择 | 可测量的闭环完成条件 |
 |---|---|---|
-| Change impact | Add a proxy field without updating filters, old storage or API consumers | Every known affected surface is cited, an operator approves a version-bound proposal, and an isolated candidate passes unchanged legacy tests plus independent migration/behavior checks |
-| CI diagnosis | Treat every failed check as a product bug or accept a successful retry as a fix | Real controlled failures, source-grounded citations, correct fault class, minimal scoped correction and independent regression checks |
-| Strategy evaluation | Assume more planning or more agents always improves results | Identical three-case inputs, recorded calls/time/usage, independent verification, preserved failures and no statistical claim from one sample per cell |
+| 变更影响 | 增加代理人字段，却不更新过滤逻辑、旧存储或 API 消费方 | 引用每个已知受影响层面；操作员批准与版本绑定的提案；隔离候选通过未修改的旧测试，以及独立的迁移与行为检查 |
+| CI 诊断 | 把每次检查失败都当成产品缺陷，或把重试成功当成修复 | 真实的受控失败、基于源码的引用、正确的故障分类、最小范围修正和独立回归检查 |
+| 策略评估 | 假定更多规划或更多智能体总能改善结果 | 使用相同的三个案例输入，记录调用、耗时与用量，独立验证并保留失败；每个单元只有一次样本，不作统计性结论 |
 
-The **diagnosis-first strategy is two fresh CLI requests with an explicit
-diagnostic handoff**, not a claim that two independent humans or different
-models reviewed the code. Direct execution combines diagnosis and patch in one
-response. Both have the same maximum call/time allowance; actual usage differs
-and is part of the comparison.
+**“先诊断”策略是两次全新的 CLI 请求，通过显式诊断交接衔接**，
+不代表有两位独立的人或不同模型评审过代码。
+直接执行在一次答复中结合诊断与补丁。两者的最大调用与时间额度相同；
+实际用量不同，也是比较内容的一部分。
 
-## 2. Prerequisites
+<a id="2-prerequisites"></a>
+## 2. 前置条件
 
-- Node.js 24+, Git, Docker and an authenticated installed Copilot CLI.
-- A reviewed source commit containing the fixture and toolkit.
-- A new output directory outside the repository, with an existing parent.
-- A reviewed immutable Node 24 runtime image available locally. Tags are not
-  accepted by the verification adapter.
+- Node.js 24+、Git、Docker，以及已安装并完成认证的 Copilot CLI。
+- 一个经过评审、包含夹具与工具包的源提交。
+- 仓库之外的新输出目录，其父目录已经存在。
+- 本地可用、经过审阅的不可变 Node 24 运行时镜像。验证适配器不接受标签。
 
-For the initial rehearsal, the runtime was resolved to:
+下方命令示例使用以下不可变运行时镜像：
 
 ```text
 node@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 ```
 
-Pull the exact digest, inspect its source and architecture for your environment,
-and use the same image for every cell. The commands do not provision a cloud
-environment. Existing accepted containers and volumes are not used.
+拉取这个精确摘要，按自己的环境检查其来源和架构，并在每个实验单元中使用同一镜像。
+命令不会创建云环境，也不会使用现有已验收的容器和数据卷。
 
-The default CLI model is not overridden. A model switch in the environment
-must be disclosed before interpreting comparisons. Missing telemetry is
-reported as unavailable rather than filled with estimates.
+工具不会覆盖 CLI 默认模型。解释比较结果之前，必须披露环境中是否切换了模型。
+缺失的遥测会报告为不可用，而不会用估算值补齐。
 
-The tested CLI is `1.0.89-3`. The adapter uses structured JSONL events rather
-than terminal-rendered text, explicitly excludes its verified builtin tool
-set, and requires observed zero-tool telemetry before accepting a response.
-An empty `--available-tools=` does not disable the tested CLI's tools. A future
-CLI that changes its tools or event schema must be requalified; missing evidence
-is not silently accepted as compatibility.
+测试过的 CLI 版本为 `1.0.89-3`。适配器使用结构化 JSONL 事件而非终端渲染文本，
+显式排除已验证的内置工具集，并要求观测到“零工具”遥测后才接受响应。
+空的 `--available-tools=` 不会禁用该已测试 CLI 的工具。
+未来 CLI 如果改变工具或事件结构，必须重新验证资格；
+不能把缺失证据静默当成兼容。
 
-## 3. Change-impact and consistency loop
+<a id="3-change-impact-and-consistency-loop"></a>
+## 3. 变更影响与一致性闭环
 
-The change request adds a temporary proxy while preserving the accountable
-owner. It affects domain filtering, persisted state, API serialization and the
-documented contract. The request names objective APIs and migration behavior;
-it does not contain a reference implementation.
+变更请求是在保留最终负责人的同时，增加临时代理人。
+它影响领域过滤、持久化状态、API 序列化和文档契约。
+请求列出客观的 API 与迁移行为要求，但不提供参考实现。
 
-From the source root:
+在源仓库根目录运行：
 
 ```sh
 mkdir -p "$HOME/engineering-demo-evidence"
@@ -75,14 +70,12 @@ node tools/engineering-demo/cli.mjs impact-propose \
   --dest "$HOME/engineering-demo-evidence/impact-1"
 ```
 
-Read the complete proposal, not just the status:
+阅读完整提案，不要只看状态：
 
-1. Confirm every affected domain/storage/API/documentation surface and its
-   exact source quotation.
-2. Review proposed decisions, including accountability, nullable proxy,
-   effective-owner filtering, invalid input and legacy migration.
-3. Check the Spec and Plan against objective acceptance criteria.
-4. Only then approve the exact `proposalHash` printed in the report:
+1. 确认每个受影响的领域、存储、API、文档层面，以及对应的精确源码引用。
+2. 评审拟议决策，包括责任归属、可空代理人、实际负责人过滤、非法输入及旧数据迁移。
+3. 依据客观验收条件检查 Spec 和 Plan。
+4. 完成以上步骤后，再批准报告中输出的精确 `proposalHash`：
 
 ```sh
 node tools/engineering-demo/cli.mjs impact-approve \
@@ -94,18 +87,17 @@ node tools/engineering-demo/cli.mjs impact-implement \
   --run "$HOME/engineering-demo-evidence/impact-1"
 ```
 
-An approval cannot be reused after the proposal or source fixture changes.
-The receipt records a local development-test operator decision, not verified
-GitHub identity or independent Human approval. If a proposal is unacceptable,
-keep that attempt and start a new bounded experiment; do not rewrite evidence
-to make old approval appear current.
+提案或源夹具发生变化后，批准不可复用。
+回执记录的是本地开发测试操作员的决定，不是经过验证的 GitHub 身份或独立人工批准。
+提案不可接受时，应保留此次尝试并开始新的有界实验；
+不要改写证据，让旧批准看起来仍然有效。
 
-The second real Copilot response supplies complete contents for allowed
-implementation/documentation files. The adapter preserves all tests and runs
-legacy and independent acceptance checks inside Docker. Only those observed
-checks establish a passing candidate, not the model's `claimedFixed` value.
+第二次真实 Copilot 响应提供允许修改的实现与文档文件的完整内容。
+适配器保留所有测试，在 Docker 内执行旧测试与独立验收检查。
+只有实际观测到的检查才能证明候选通过，模型的 `claimedFixed` 值不能。
 
-## 4. CI diagnosis and strategy comparison
+<a id="4-ci-diagnosis-and-strategy-comparison"></a>
+## 4. CI 诊断与策略比较
 
 ```sh
 node tools/engineering-demo/cli.mjs benchmark \
@@ -115,71 +107,67 @@ node tools/engineering-demo/cli.mjs benchmark \
   --dest "$HOME/engineering-demo-evidence/benchmark-1"
 ```
 
-Three fixed cases are injected into fresh copies:
+向全新副本注入三个固定案例：
 
-- A product filtering regression.
-- A test expectation that contradicts the unchanged product contract.
-- An invalid database configuration.
+- 产品过滤功能回归。
+- 与未改变的产品契约相矛盾的测试预期。
+- 无效的数据库配置。
 
-The model receives neutral case requests, actual failing test output and the
-same relevant files, not the expected fault label or oracle implementation.
-Every case is exercised by both strategies. Their order is alternated across
-cases to reduce, not eliminate, order effects.
+模型收到的是中性的案例请求、真实失败测试输出和相同的相关文件，
+而不是预期故障标签或判定器实现。
+每个案例都分别采用两种策略。不同案例交替执行策略顺序，以减少而非消除顺序效应。
 
-For each cell the runner:
+对于每个实验单元，运行器会：
 
-1. Produces a real controlled Red with the expected executed test count.
-2. Calls Copilot once directly or twice through diagnosis then implementation.
-3. Checks cited evidence against supplied source/output.
-4. Applies only existing allowlisted files; grades the actual change scope.
-5. Requires unchanged legacy assertions, except restoring the deliberately
-   corrupted harness assertion to its original contract.
-6. Executes the whole visible suite and independent oracle in restricted Docker.
-7. Records classification, correctness, false completion, elapsed time and
-   actual CLI usage; retains failed cells without automatic retries.
+1. 产生真实、受控的 Red，并核对执行的测试数量符合预期。
+2. 直接调用 Copilot 一次，或通过“诊断后实现”调用两次。
+3. 将所引用证据与提供的源码或输出核对。
+4. 只应用允许列表中已有的文件，并对实际变更范围评分。
+5. 要求旧断言不变；唯一例外是把故意破坏的测试工具断言恢复到原始契约。
+6. 在受限 Docker 中执行全部可见测试套件与独立判定器。
+7. 记录分类、正确性、虚假完成声明、耗时和真实 CLI 用量；
+   保留失败单元，不自动重试。
 
-Report dimensions are deliberately separate: a repair can pass all behavioral
-checks while its evidence is rejected. `unacceptedCompletionClaims` records
-claims that fail the overall gate; `falseCompletionClaims` is reserved for
-claimed repairs that actually fail independent behavioral verification.
+报告维度刻意分开：一次修复可能通过所有行为检查，但证据仍被拒绝。
+`unacceptedCompletionClaims` 记录未通过总体门禁的完成声明；
+`falseCompletionClaims` 专指声称已修复、但实际未通过独立行为验证的情况。
 
-Budget: nine CLI calls for the six cells, two calls for the separate impact
-loop, maximum 120 seconds per call and 300 seconds per benchmark cell. These
-are execution bounds, **not a dollar-spend guarantee or equal token allocation**.
-The CLI's own startup/usage observations are separate from this experiment.
-Sandbox setup shares the execution deadline. Bounded ownership-checked cleanup
-has a separate allowance and is included in observed wall time; a result is
-never successful while cleanup is unresolved.
+预算：六个实验单元共九次 CLI 调用，另一个影响分析闭环两次调用；
+每次调用最多 120 秒，每个基准单元最多 300 秒。
+这是执行边界，**不是美元支出保证，也不是相同的令牌配额**。
+CLI 自身的启动与用量观测独立于本实验。
+沙箱设置与执行共用截止时间；有边界、会核对资源归属的清理另有额度，
+并计入实测墙钟时间。清理未完成时，结果绝不能标为成功。
 
-The raw reports are private. A `completed-with-failures` report and exit 2 mean
-the benchmark completed but one or more candidates failed. Exit 1 is an
-infrastructure/contract error; neither should be described as all repairs
-succeeding. Generated source never runs on the host.
+原始报告属于私有资料。报告为 `completed-with-failures` 且退出码为 2，
+表示基准已完成，但至少一个候选失败。
+退出码 1 表示基础设施或契约错误；两者都不能描述为全部修复成功。
+生成的源码绝不在宿主机上运行。
 
-## 5. Interpreting results
+<a id="5-interpreting-results"></a>
+## 5. 如何解读结果
 
-Report task correctness first, then regressions, unsupported completion claims,
-wall time, actual calls and available token/usage units. Do not sum cached
-tokens again when they are already included in total input. Do not call
-premium-request units or nano-AIU values dollars.
+先报告任务正确性，再报告回归、无依据的完成声明、墙钟时间、实际调用次数，
+以及可获得的令牌或用量单位。
+如果缓存令牌已经包含在总输入中，不要再次相加。
+不要把 premium-request 单位或 nano-AIU 值称为美元。
 
-One trial per three fixtures cannot establish a statistically significant
-ranking or predict real-team productivity. There is no automatic winner,
-no claim of model-independent reviewers, and no human-gated strategy in the
-benchmark. The separate impact loop demonstrates the review mechanism.
+三个夹具各运行一次，既无法建立统计显著的排名，也无法预测真实团队生产力。
+这里没有自动胜者，不宣称使用了彼此独立的模型评审者，
+基准中也没有人工门禁策略。独立的影响分析闭环才用于演示评审机制。
 
-These are bounded text-proposal agents rather than unrestricted autonomous
-coding agents. The constraints make evidence and execution reproducible but
-limit generalization to agents with broad tool access.
+这些是能力有边界、通过文本提出方案的智能体，而非不受限制的自主编码智能体。
+这些约束让证据与执行可复现，但也限制了结论对拥有广泛工具访问权限的智能体的适用性。
 
-## 6. Validation
+<a id="6-validation"></a>
+## 6. 验证
 
 ```sh
 npm test
 npm --prefix demos/engineering-lab test
 ```
 
-Root tests validate tooling contracts, guards and deterministic fixture faults.
-The independent app owns its manifest and lockfile; no app dependencies are
-added to the root. Offline CI must not spend Copilot usage. Real experiments
-remain explicit operator commands with preserved output directories.
+根目录测试验证工具契约、防护和确定性的夹具故障。
+独立应用拥有自己的清单和锁文件；不向根目录增加应用依赖。
+离线 CI 不得消耗 Copilot 用量。
+真实实验仍须由操作员显式运行命令，并保留输出目录。

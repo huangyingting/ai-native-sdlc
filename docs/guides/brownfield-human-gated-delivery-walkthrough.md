@@ -1,40 +1,36 @@
-# AI-native SDLC brownfield demo: step-by-step walkthrough
+<a id="ai-native-sdlc-brownfield-demo-step-by-step-walkthrough"></a>
+# AI 原生 SDLC 既有系统演示：分步演练指南
 
-Use this guide to demonstrate a complete, human-gated feature delivery cycle
-against the existing IT service desk. All lifecycle decisions happen in GitHub
-Web. A Human must exercise the verified image before final acceptance; the
-toolkit can present it locally without creating a hosted deployment.
+[English](brownfield-human-gated-delivery-walkthrough.en.md)
 
-## Start here
+本指南用于在现有 IT 服务台上，演示一轮完整、由人工逐关把关的功能交付。
+所有生命周期决策都在 GitHub 网页中完成。
+最终验收前，必须由人实际操作经过验证的镜像；
+工具包可以在本地展示该镜像，无需创建托管部署。
 
-- **Learn the overall method first:** use the
-  [illustrated AI-native SDLC handbook (English / 中文)](ai-native-sdlc/README.md)
-  for concepts, actual examples, screenshots and a page-by-page workshop.
-  This walkthrough remains the detailed command/setup reference.
-- **Inspect or present the existing result:** use the
-  [current ticket-ownership case](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.en.md)
-  and [presentation route](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md).
-  It records user-confirmed decisions, assistant-run browser checks and acceptance
-  of the actual published image on October 12, 2026.
-- **Run the ownership scenario from scratch:** an operator completes
-  [Step 1](#1-prepare-the-repository) below, in order. Then the requester and
-  configured Human reviewers follow [Steps 2 through 9](#2-show-the-existing-application).
-- **Continue a configured, ownership-free run:** verify the
-  [preflight checklist](#15-preflight-and-handoff), then continue at the relevant
-  stage. For an interrupted run, use [run controls](#run-controls-during-presentation)
-  and [troubleshooting](#troubleshooting-during-the-demo), not a new setup.
+<a id="start-here"></a>
+## 从这里开始
 
-Do not reset the completed `ai-native-sdlc-demo` or `ai-native-sdlc-discovery-demo`
-repositories or submit the same
-ownership request against its already-implemented application. Prepare a new
-isolated repository from the ownership-free source instead.
+- **先了解整体方法：**阅读 [AI 原生 SDLC 图解手册](ai-native-sdlc/README.md)，
+  其中包含概念、真实示例、截图及逐页工作坊。本演练指南仍作为详细的命令与配置参考。
+- **查看或展示已有成果：**阅读
+  [当前工单负责人案例](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+  和[演示路线](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md)。
+  案例记录了 2026 年 10 月 12 日由用户确认的决策、助手执行的浏览器检查，以及对实际已发布镜像的验收。
+- **从零运行负责人场景：**操作人员按顺序完成下方[第 1 步](#1-prepare-the-repository)，
+  然后由请求人和已配置的人工评审者执行[第 2 至第 9 步](#2-show-the-existing-application)。
+- **继续已配置但尚无负责人功能的运行：**核对[预检清单](#15-preflight-and-handoff)，
+  再从对应阶段继续。对于中断的运行，使用[运行控制](#run-controls-during-presentation)
+  与[故障排查](#troubleshooting-during-the-demo)，不要重新配置一套运行。
 
-The example starts with **unclear ticket ownership**. The Human writes the
-Intent, AI proposes the Spec and Plan, and the Human can request as many
-revisions as needed before approving the next stage.
-For new Intents, the Human stays on the parent Issue for full rendered
-Spec/Plan revision comments, discussion, and versioned approval commands.
-Only the engineering stages use PR reviews.
+不要重置已经完成的 `ai-native-sdlc-demo` 仓库，
+也不要对已实现该功能的应用再次提交相同负责人请求。
+应从尚未实现负责人功能的源版本准备一个新的隔离仓库。
+
+示例从**工单负责人不明确**这一问题开始。
+人撰写 Intent，AI 提出 Spec 和 Plan；在批准进入下一阶段之前，人可以按需要求任意多轮修订。
+新的 Intent 流程中，人始终在父 Issue 上阅读完整渲染的 Spec/Plan 修订评论、展开讨论，并提交带版本号的批准命令。
+只有工程阶段使用 PR 评审。
 
 ```text
 Human Intent
@@ -46,98 +42,90 @@ Human Intent
   -> Human exercises exact digest -> Human acceptance -> Close Intent
 ```
 
-This walkthrough describes the Issue document-review workflow. All Issue-based
-(`issue-v1`) runs use final Human acceptance, including runs started before the
-acceptance upgrade. Only runs using
-[legacy Spec/Plan PR mode](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)
-retain automatic closure after smoke verification; they are not migrated.
-Verify the new workflow is deployed on remote
-`main` before a live session; this guide does not establish that it is already
-deployed. Use the
-[setup and policy reference](brownfield-human-gated-delivery.md) for configuration
-details. Document generation uses read-only Copilot CLI in Actions, separate
-from the repository's orchestration-pattern demos and from Coding Agent's later
-PR work.
+本指南介绍 Issue 文档评审工作流。
+所有基于 Issue 的运行（`issue-v1`）都使用最终人工验收，包括验收机制升级前已经启动的运行。
+只有[旧版 Spec/Plan PR 模式](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)
+仍在冒烟验证后自动关闭，而且不会迁移。
+现场演示前，务必确认新工作流已经部署到远程 `main`；
+本指南本身不能证明部署已经完成。
+配置详情请参阅[配置与策略参考](brownfield-human-gated-delivery.md)。
+文档生成通过 Actions 中的只读 Copilot CLI 完成，与仓库中的编排模式演示、
+以及稍后的 Coding Agent PR 工作相互独立。
 
-## Presenter runbook and readiness
+<a id="presenter-runbook-and-readiness"></a>
+## 演示者操作手册与就绪标准
 
-**Current evidence boundary:** the [case study](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.en.md)
-records one completed live delivery with individually user-confirmed decisions
-and acceptance. It is not independent multi-person review or evidence for all
-three scenarios below. Do not announce **Demo Ready** until all required
-isolated scenarios have completed with genuine Human decisions.
+**当前证据边界：**[案例研究](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+记录了一次完整的真实交付，其中每项决策及验收都分别获得用户确认。
+它不是独立的多人评审，也不能证明下列三个场景全部完成。
+在所有必需的隔离场景都由人真实作出决策并完成之前，不得宣告 **Demo Ready（演示就绪）**。
 
-Use `npm run demo:brownfield -- help` from the root and the
-[toolkit README](../../tools/brownfield-demo/README.md) for exact commands.
-The demo-owned [scenario manifests](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios)
-define the rehearsal cases; do not invent CLI flags or Issue-form selectors.
+在根目录执行 `npm run demo:brownfield -- help`，并通过
+[工具包 README](../../tools/brownfield-demo/README.md)获取准确命令。
+演示项目自己的[场景清单](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios)
+定义了演练案例；不要杜撰 CLI 参数或 Issue 表单选择项。
 
-Before presenting:
+演示前：
 
-1. Pin a source commit where the scenario's capability is still missing.
-   Prepare it in a separate, **nonexistent** destination directory. Do not reset
-   this checkout, overwrite an existing destination, or copy credentials,
-   ignored files, or local SQLite databases.
-2. Use a separately agreed demo repository. Preparation does not create a
-   remote or publish workflows: the operator explicitly creates/selects the
-   repository, publishes the reviewed source, and verifies `main` registration.
-3. Explicitly update and publish configured reviewer identities for that
-   repository, including Implementation reviewers used for final acceptance.
-   Have those Humans present; the presenter or automation must not impersonate
-   them or submit approvals on their behalf.
-4. Run read-only preflight and review setup preview. Separate **configured**
-   (settings/files are visible) from **ready** (runtime access, model entitlement,
-   image publication, reviewer participation, and real runs have worked).
-   Unknown token capabilities, billing, or runtime prerequisites remain blockers.
-5. Keep the parent Intent, Actions, PR review, and digest-bound application
-   presentation available. Use only toolkit-managed container cleanup. For
-   offline presentation, use escaped, read-only HTML replay exported from a
-   real run, clearly labeled as replay rather than a new live execution.
+1. 固定一个尚未具备该场景能力的源提交。
+   在独立且**尚不存在**的目标目录中准备副本。
+   不要重置本检出目录、覆盖已有目标，也不要复制凭据、被忽略文件或本地 SQLite 数据库。
+2. 使用另行约定的演示仓库。
+   准备操作不会创建远程仓库或发布工作流：
+   操作人员必须明确创建或选择仓库、发布已检查的源代码，并确认工作流已在 `main` 注册。
+3. 明确更新并发布该仓库的评审者身份配置，包括最终验收所使用的 Implementation 评审者。
+   请确保这些人到场；演示者或自动化不得冒充他们，也不得代他们提交批准。
+4. 执行只读预检并审阅配置预览。
+   区分**已配置**（设置与文件可见）和**已就绪**（运行时访问、模型使用资格、镜像发布、评审者参与及真实运行均已验证可用）。
+   未确认的令牌能力、计费或运行前提仍属于阻碍。
+5. 随时可以打开父 Intent、Actions、PR 评审界面，以及绑定镜像摘要的应用演示。
+   只使用工具包管理的容器清理方式。
+   离线展示时，应使用从真实运行导出的、经过转义的只读 HTML 回放，并清楚标注这是回放，不是新的现场执行。
 
-| Phase | Responsible role and evidence to show | Next Human action |
+| 阶段 | 负责角色与应展示的证据 | 下一步人工操作 |
 |---|---|---|
-| Preparation | Operator: pinned baseline, explicit target repository, preflight findings | Resolve blockers and agree to any setup writes |
-| Intent | Requester: editable business problem and open questions | Submit the Intent; preserve its original title/body |
-| Spec | AI proposes; configured Spec reviewers read the full latest revision | Resolve questions, request revision, then approve the actual version |
-| Plan | AI proposes; configured Plan reviewers check the approved-Spec link | Revise as needed; approve only when ready to freeze the contract |
-| Tests | Coding Agent supplies controlled Red; configured Tests reviewers inspect assertions and evidence | Request correction or approve current-head Tests PR |
-| Implementation | Coding Agent supplies Green; configured Implementation reviewers inspect preserved contracts and code | Approve current head only after required checks pass |
-| Publish/verify | Trusted Actions: merged SHA, exact digest, run ID/attempt, smoke results | Wait for published verification; resolve failures without bypassing gates |
-| Acceptance | Configured Implementation reviewers: observed behavior of that exact digest | Each Human accepts or rejects with real results on the parent Intent |
-| Completion | Operator: accepted run, closed Intent, retained evidence and branch cleanup | Export real replay; clean up only managed presentation containers |
+| 准备 | 操作人员：固定基线、明确目标仓库、预检发现 | 解决阻碍，并同意将要执行的配置写入 |
+| Intent | 请求人：可编辑的业务问题与开放问题 | 提交 Intent；保留其原始标题和正文 |
+| Spec | AI 提出方案；已配置 Spec 评审者完整阅读最新修订 | 解决问题、请求修订，然后批准实际版本 |
+| Plan | AI 提出方案；已配置 Plan 评审者检查与已批准 Spec 的链接 | 按需修订；只有准备好冻结契约时才批准 |
+| Tests | Coding Agent 提供受控 Red；已配置 Tests 评审者检查断言与证据 | 请求修正，或批准当前 head 的 Tests PR |
+| Implementation | Coding Agent 提供 Green；已配置 Implementation 评审者检查契约保留情况与代码 | 必需检查通过后，才批准当前 head |
+| 发布/验证 | 受信任 Actions：已合并 SHA、精确摘要、运行 ID/尝试次数、冒烟结果 | 等待验证结果发布；在不绕过关卡的前提下修复失败 |
+| 验收 | 已配置 Implementation 评审者：观察该精确摘要对应镜像的行为 | 每个人在父 Intent 上以真实结果接受或拒绝 |
+| 完成 | 操作人员：已验收运行、已关闭 Intent、保留证据及分支清理 | 导出真实回放；仅清理受管理的演示容器 |
 
-The three rehearsal acceptance criteria are:
+三种演练的验收标准如下：
 
-| Isolated run | Additional evidence required before counting it complete |
+| 隔离运行 | 计为完成前，额外必需的证据 |
 |---|---|
-| Normal delivery | Full Intent → reviewed Spec/Plan → controlled Red → Green → verified digest → Human acceptance |
-| Spec change / Plan invalidation | After Spec approval and Plan publication, but **before full Plan approval**, request a Spec revision; show invalidated approvals/Plan, then approve new versions and finish delivery/acceptance |
-| Recoverable failure | Observe and record a real failed Action in the isolated run, fix its cause, use the documented recovery path, then finish delivery/acceptance; do not fabricate a failure or weaken checks |
+| 正常交付 | 完整 Intent → 评审后的 Spec/Plan → 受控 Red → Green → 已验证摘要 → 人工验收 |
+| Spec 变更 / Plan 失效 | Spec 已批准且 Plan 已发布，但在 **Plan 获得全部批准之前**请求修订 Spec；展示批准与 Plan 失效，再批准新版本并完成交付和验收 |
+| 可恢复故障 | 在隔离运行中观察并记录真实失败的 Action，修复原因，使用文档规定的恢复方式，再完成交付和验收；不得伪造故障或削弱检查 |
 
-For each run retain repository/Intent URL, pinned baseline SHA, Spec/Plan
-versions and hashes, Human approval commands, Tests/Implementation PRs and
-heads, Red/Green job links, merge SHA, image digest, verification run ID/attempt,
-acceptance observations/quorum, retained document/run branches, and replay
-location. For recovery, also retain the failed run and corrective action.
-Mark missing evidence **not verified**; local passing tests, screenshots of
-mock results, or an old replay cannot fill the gap. If the live session fails,
-pause and explain the blocker, or show a clearly identified real prior replay.
+每次运行都要保留：仓库及 Intent URL、固定基线 SHA、Spec/Plan 版本与哈希、
+人工批准命令、Tests/Implementation PR 及 head、Red/Green 作业链接、合并 SHA、
+镜像摘要、验证运行 ID 与尝试次数、验收观察结果及批准人数、
+保留的文档与运行分支，以及回放位置。
+故障恢复场景还须保留失败运行和修正操作。
+缺失证据应标为**未验证**；本地测试通过、模拟结果截图或旧回放都不能补足。
+现场运行失败时，应暂停并说明阻碍，或展示明确标识的真实历史回放。
 
-## 1. Prepare the repository
+<a id="1-prepare-the-repository"></a>
+## 1. 准备仓库
 
-This is the first-time operator path; complete it before submitting an Intent.
-Run each block separately and check its expected result before continuing.
-Do not run later steps after an unexpected error.
+这是操作人员首次运行时的准备流程，必须在提交 Intent 之前完成。
+每个命令块应分别执行，并在确认预期结果后再继续。
+出现意外错误时，不要继续执行后续步骤。
 
-### 1.1 Choose the source, target, and review mode
+<a id="11-choose-the-source-target-and-review-mode"></a>
+### 1.1 选择源版本、目标与评审模式
 
-You need Node.js 24+, Git, authenticated GitHub CLI (`gh`), Docker with a running
-daemon, and permission to create/administer the selected GitHub repository.
-Copilot Coding Agent access, Copilot CLI entitlement in Actions, and registry
-access are separate prerequisites; a successful `gh auth status` does not prove
-them.
+你需要 Node.js 24+、Git、已认证的 GitHub CLI（`gh`）、daemon 正在运行的 Docker，
+以及创建或管理选定 GitHub 仓库的权限。
+Copilot Coding Agent 访问、Actions 中的 Copilot CLI 使用资格及镜像仓库访问，是独立的前提；
+`gh auth status` 成功并不能证明这些条件满足。
 
-Check the local prerequisites before creating anything:
+创建任何内容之前，先检查本地前提：
 
 ```sh
 node --version
@@ -146,38 +134,39 @@ gh auth status --hostname github.com
 docker info
 ```
 
-If GitHub CLI is not authenticated, use `gh auth login --hostname github.com`.
-Resolve missing tools, daemon access, and Git authentication before continuing.
+如果 GitHub CLI 尚未认证，请使用 `gh auth login --hostname github.com`。
+先解决工具缺失、daemon 访问和 Git 身份验证问题，再继续。
 
-Throughout this guide, replace these placeholders consistently:
+整份指南中，请一致地替换这些占位符：
 
-| Placeholder | Meaning |
+| 占位符 | 含义 |
 |---|---|
-| `/absolute/path/to/source-checkout` | Local checkout of `huangyingting/ai-native-sdlc`, whose ownership capability is still missing |
-| `FULL_40_HEX_COMMIT` | Reviewed source commit, copied from `git rev-parse HEAD`; not the literal `HEAD` or a short SHA |
-| `/absolute/path/to/new-isolated-demo` | New directory outside the source; its parent must exist, but the destination must not |
-| `OWNER/NEW_DEMO_REPO` | New GitHub repository you explicitly agree to create, not the source or an existing completed demo |
-| `REVIEWER_LOGIN` | The Human who will review, with write access to the new repository |
+| `/absolute/path/to/source-checkout` | `huangyingting/ai-native-sdlc` 的本地检出目录，尚未实现负责人功能 |
+| `FULL_40_HEX_COMMIT` | 已审查的源提交，复制自 `git rev-parse HEAD`；不是字面量 `HEAD`，也不是短 SHA |
+| `/absolute/path/to/new-isolated-demo` | 源目录之外的新目录；父目录必须存在，但目标目录不得已存在 |
+| `OWNER/NEW_DEMO_REPO` | 你明确同意创建的新 GitHub 仓库，不是源仓库，也不是已经完成的演示仓库 |
+| `REVIEWER_LOGIN` | 将参与评审、并对新仓库具有写权限的人 |
 
-The examples use **explicit single-owner demo mode**, where one Human performs
-the reviews. Keep `--single-owner` on preparation, setup, and preflight.
-For independent-review mode, omit that flag consistently and configure eligible
-independent reviewers using the [reviewer reference](brownfield-human-gated-delivery.md#configure-human-reviewers).
-Neither mode authorizes an assistant to submit Human approvals.
+示例采用**明确选择的单人演示模式**，由一个人完成评审。
+准备、配置及预检命令都应保留 `--single-owner`。
+若使用独立评审模式，请一致地省略该参数，并根据
+[评审者参考](brownfield-human-gated-delivery.md#configure-human-reviewers)配置符合条件的独立评审者。
+两种模式都不授权助手代为提交人工批准。
 
-Use an existing source checkout, or clone into a new path:
+使用已有源检出目录，或克隆到一个新路径：
 
 ```sh
 git clone https://github.com/huangyingting/ai-native-sdlc.git /absolute/path/to/source-checkout
 git -C /absolute/path/to/source-checkout rev-parse HEAD
 ```
 
-**Expected result:** a source checkout and a full commit SHA. Do not clone over
-an existing directory or choose the completed demo's implementation commit.
+**预期结果：**得到源检出目录和完整提交 SHA。
+不要克隆覆盖现有目录，也不要选择已完成演示的实现提交。
 
-### 1.2 Prepare the isolated baseline
+<a id="12-prepare-the-isolated-baseline"></a>
+### 1.2 准备隔离基线
 
-Run from the source checkout root. No root dependency installation is needed:
+从源检出目录根部运行，无需安装根目录依赖：
 
 ```sh
 cd /absolute/path/to/source-checkout &&
@@ -190,25 +179,23 @@ node tools/brownfield-demo/cli.mjs prepare \
   --single-owner
 ```
 
-**Expected result:** a new ownership-free export with the current workflows,
-selected reviewers, and `brownfield-demo-provenance.json`. It is not yet a Git
-repository or a published demo. A baseline mismatch is a blocker; do not
-disable fingerprint checks or delete ownership code to make it pass.
-The [toolkit preparation reference](../../tools/brownfield-demo/README.md#2-prepare-from-a-full-immutable-source-commit)
-explains exclusions and alternate rehearsal scenarios.
+**预期结果：**生成一个尚无负责人功能的新导出副本，包含当前工作流、选定评审者和 `brownfield-demo-provenance.json`。
+此时它还不是 Git 仓库，也不是已发布的演示。
+基线不匹配是阻碍；不要禁用指纹检查，也不要删除负责人代码来勉强通过。
+[工具包准备参考](../../tools/brownfield-demo/README.md#2-prepare-from-a-full-immutable-source-commit)
+说明了排除项及其他可用演练场景。
 
-### 1.3 Inspect and publish the new repository
+<a id="13-inspect-and-publish-the-new-repository"></a>
+### 1.3 检查并发布新仓库
 
-Review the exported files, reviewer configuration, and provenance before
-publishing. Provenance includes your local source path; confirm it is safe to
-share. Check for secrets and local data even though preparation excludes common
-sensitive paths. All commands in this subsection target the **new export**,
-not the source checkout.
+发布前，请检查导出文件、评审者配置及来源记录。
+来源记录包含本地源路径，须确认可以安全分享。
+即使准备过程已排除常见敏感路径，也应检查是否包含机密和本地数据。
+本小节所有命令都针对**新导出副本**，不是源检出目录。
 
-Before creating the remote, confirm that the account/plan supports the required
-protections and Copilot features for the chosen visibility. The example uses
-private visibility; choose public only deliberately, after reviewing the data
-and organization policy. Do not weaken the gates to work around a plan limitation.
+创建远程仓库前，确认账户及套餐支持所选可见性下的保护规则和 Copilot 功能。
+示例使用私有可见性；只有审查数据及组织策略后，才应有意识地选择公开。
+不要为了绕过套餐限制而削弱关卡。
 
 ```sh
 git -C /absolute/path/to/new-isolated-demo init --initial-branch=main
@@ -216,7 +203,7 @@ git -C /absolute/path/to/new-isolated-demo add .
 git -C /absolute/path/to/new-isolated-demo diff --cached --stat
 ```
 
-After reviewing the staged contents:
+检查暂存内容后：
 
 ```sh
 git -C /absolute/path/to/new-isolated-demo commit -m "Initialize isolated brownfield demo"
@@ -224,114 +211,105 @@ gh repo create OWNER/NEW_DEMO_REPO --private \
   --source /absolute/path/to/new-isolated-demo --remote origin --push
 ```
 
-**This creates a private remote and pushes the reviewed export.**
-If the remote already exists, stop and inspect it; do not force-push or overwrite
-an existing run. Git author identity must be configured before committing.
+**这会创建私有远程仓库，并推送已检查的导出副本。**
+如果远程仓库已存在，应停止并检查；不要强制推送或覆盖现有运行。
+提交前必须配置好 Git 作者身份。
 
 ```sh
 gh repo view OWNER/NEW_DEMO_REPO --json defaultBranchRef --jq .defaultBranchRef.name
 gh workflow list --repo OWNER/NEW_DEMO_REPO --all
 ```
 
-**Expected result:** `main` is the default branch, and GitHub has registered the
-delivery workflows, including **Brownfield Delivery · Documents**. If necessary,
-set `main` as default in repository settings and wait for workflow registration.
-Invite any additional configured reviewers with write access.
-Publishing alone does not configure tokens, protections, or Copilot access.
+**预期结果：**`main` 是默认分支，GitHub 已注册包括 **Brownfield Delivery · Documents** 在内的交付工作流。
+必要时，在仓库设置中将 `main` 设为默认分支，并等待工作流注册。
+邀请其他已配置评审者，并赋予写权限。
+仅发布仓库不会配置令牌、保护规则或 Copilot 访问。
 
-### 1.4 Configure GitHub and review the setup preview
+<a id="14-configure-github-and-review-the-setup-preview"></a>
+### 1.4 配置 GitHub 并审阅配置预览
 
-With Node.js 24+ and GitHub CLI authenticated as a repository administrator,
-run from the **new isolated checkout root**, not the source checkout:
+使用 Node.js 24+，并让 GitHub CLI 以仓库管理员身份认证后，
+从**新的隔离检出目录根部**运行，而不是从源检出目录运行：
 
 ```sh
 cd /absolute/path/to/new-isolated-demo &&
 npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner
 ```
 
-The first preview may exit **2** with missing settings, credentials, or manual
-checks. Review every proposed change. **Full apply creates missing `main`
-protection**; it is not merely a token-setting operation. Existing targets may
-already be protected. Never infer policy from which repository contains this
-copy of the guide, or apply setup to the original source by mistake.
-Read-only preview does not write.
+第一次预览可能因设置、凭据缺失或仍有待人工确认事项而以 **2** 退出。
+请审阅每一项拟议变更。
+**完整 apply 会创建缺失的 `main` 保护**，并非只设置令牌。
+已有目标仓库可能已经受到保护。
+绝不能根据本指南位于哪个仓库来推断其策略，也不要误将 setup 应用于原始源仓库。
+只读预览不会写入。
 
-Create the limited automation credential using the
-[token instructions](brownfield-human-gated-delivery.md#configure-the-copilot-token).
-Only after agreeing to the complete preview, use an interactive terminal:
+按[令牌说明](brownfield-human-gated-delivery.md#configure-the-copilot-token)创建受限自动化凭据。
+只有同意完整预览后，才在交互式终端执行：
 
 ```sh
 npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner --apply --set-token
 ```
 
-Enter the token only at the secure prompt, never in arguments, files, or chat.
-If the correct secret already exists, omit `--set-token` to leave it unchanged.
-Setup does not dispatch kickoff or publish local changes. By default it preserves
-existing protections apart from the explicitly selected solo-mode change.
-See [setup script details](brownfield-human-gated-delivery.md#run-the-setup-script)
-for permissions, partial-failure recovery, and manual checks.
+只在安全提示中输入令牌，绝不放入参数、文件或聊天。
+如果正确机密已经存在，请省略 `--set-token`，保持其不变。
+setup 不会触发 kickoff，也不会发布本地修改。
+除明确选择的单人模式变更外，默认会保留已有保护。
+权限、部分失败恢复及人工检查详情，请参阅
+[配置脚本说明](brownfield-human-gated-delivery.md#run-the-setup-script)。
 
-The example's `--single-owner` flag concerns Tests and Implementation PRs. New Issue
-Spec/Plan approvals do not have GitHub's native PR independent-review
-restriction. Native PR review rules can exclude your approval when you
-collaborated with Copilot. [Single-owner demo mode](brownfield-human-gated-delivery.md#single-owner-demo-mode)
-uses zero native approvals while retaining your explicit current-revision
-approval through **Brownfield delivery policy**, required checks, and no
-bypasses. It is not independent two-person review. The option changes only
-native approval counts in existing managed rulesets; applying it may unblock
-already-approved auto-merge PRs. This mode does not exempt the rest of setup:
-full apply can create missing `main` protection. A ruleset-only edit is not
-enough to establish that the workflows are published and registered.
+示例中的 `--single-owner` 针对 Tests 和 Implementation PR。
+新的 Issue Spec/Plan 批准不受 GitHub 原生 PR 独立评审限制。
+如果你曾与 Copilot 协作，原生 PR 规则可能不计入你的批准。
+[单人演示模式](brownfield-human-gated-delivery.md#single-owner-demo-mode)
+将原生批准数设为零，同时通过 **Brownfield delivery policy** 保留你对当前修订的明确批准要求、
+必需检查，以及禁止绕过规则的约束。
+它不是独立的双人评审。
+该选项只修改现有受管理规则集中的原生批准数量；应用后可能解除已批准自动合并 PR 的阻碍。
+该模式并不会豁免 setup 的其余部分：完整 apply 仍可能创建缺失的 `main` 保护。
+仅编辑规则集不足以证明工作流已发布并注册。
 
-| Check | Where to verify in GitHub |
+| 检查项 | 在 GitHub 中的核对位置 |
 |---|---|
-| Current issue forms, prompts, workflows, and trusted modules are on the default branch | **Code**; `main` must include `runs.mjs`, `run-core.mjs`, and `state-store.mjs` under `.github/brownfield-human-gated-delivery/scripts/`; full setup checks them |
-| Documents is registered and enabled | Publish `brownfield-human-gated-delivery-documents.yml` to remote `main`; GitHub must register it. Setup can enable an existing disabled workflow, not register a missing one |
-| Copilot Coding Agent is available and allowed to work in this repository | Repository/organization Copilot settings |
-| Copilot CLI can generate documents in Actions | `copilot-requests: write`, CLI entitlement, and any organization CLI billing policy |
-| Issues, sub-issues, Actions, and Packages are available | Repository tabs and settings |
-| Pull-request auto-merge is enabled | **Settings > General > Pull Requests** |
-| `brownfield-human-gated-delivery:intent` exists | **Issues > Labels** |
-| `COPILOT_ASSIGN_TOKEN` is configured | **Settings > Secrets and variables > Actions** |
-| `it-service-desk-demo` exists | **Settings > Environments** |
-| Human reviewers are configured | [Delivery configuration](../../.github/brownfield-human-gated-delivery/config.json) on `main` |
-| Required checks and review rules are enforced | **Settings > Rules > Rulesets** |
-| Trusted automation can write `brownfield-documents/**` and `brownfield-runs/**` | No conflicting PR-required ruleset; no bypass is granted |
+| 当前 Issue 表单、提示词、工作流和受信任模块位于默认分支 | **Code**；`main` 必须包含 `.github/brownfield-human-gated-delivery/scripts/` 下的 `runs.mjs`、`run-core.mjs` 和 `state-store.mjs`；完整 setup 会检查它们 |
+| Documents 已注册且启用 | 将 `brownfield-human-gated-delivery-documents.yml` 发布到远程 `main`，并由 GitHub 注册。setup 可启用已有但被禁用的工作流，不能注册缺失工作流 |
+| Copilot Coding Agent 可用，且被允许在此仓库工作 | 仓库或组织的 Copilot 设置 |
+| Copilot CLI 能在 Actions 中生成文档 | `copilot-requests: write`、CLI 使用资格及组织的 CLI 计费策略 |
+| Issue、子 Issue、Actions 和 Packages 可用 | 仓库标签页与设置 |
+| PR 自动合并已启用 | **Settings > General > Pull Requests** |
+| `brownfield-human-gated-delivery:intent` 已存在 | **Issues > Labels** |
+| `COPILOT_ASSIGN_TOKEN` 已配置 | **Settings > Secrets and variables > Actions** |
+| `it-service-desk-demo` 已存在 | **Settings > Environments** |
+| 人工评审者已配置 | `main` 上的[交付配置](../../.github/brownfield-human-gated-delivery/config.json) |
+| 必需检查与评审规则已实施 | **Settings > Rules > Rulesets** |
+| 受信任自动化可写入 `brownfield-documents/**` 与 `brownfield-runs/**` | 没有冲突的 PR 必需规则集，也没有授予绕过权限 |
 
-Use the [token instructions](brownfield-human-gated-delivery.md#configure-the-copilot-token)
-for the automation credential. Generation never receives that credential or
-other repository write credentials; trusted publication and approval are
-separate steps. Human reviewers sign in to GitHub normally; they do not need
-to create a token to review documents or PRs.
+自动化凭据请按[令牌说明](brownfield-human-gated-delivery.md#configure-the-copilot-token)配置。
+生成环节绝不接收该凭据或其他仓库写凭据；受信任发布和批准是独立步骤。
+人工评审者正常登录 GitHub 即可，不必为评审文档或 PR 创建令牌。
 
-The source configuration assigns `huangyingting`; preparation replaces reviewer
-lists with the selected `REVIEWER_LOGIN`, while preserving approval thresholds.
-Inspect and publish the actual configuration for your run. Final acceptance
-uses the Implementation policy and quorum, not a separate configurable stage.
-Submitting the Intent does not automatically make its author a reviewer.
-For mandatory approval by one particular end user, configure that person as
-the sole Spec and Plan reviewer with a threshold of one. Issue approvers must
-be current configured Humans with repository write access, including current
-members of configured teams. Bots cannot approve. Do not lower
-`minimumApprovals` for single-owner mode.
+源配置指定 `huangyingting`；
+准备过程会在保留批准门槛的同时，将评审者列表替换为选定的 `REVIEWER_LOGIN`。
+请检查并发布本次运行的实际配置。
+最终验收使用 Implementation 策略和批准人数要求，不是独立的可配置阶段。
+提交 Intent 不会让作者自动成为评审者。
+如果必须由某位特定最终用户批准，请将其设为 Spec 和 Plan 的唯一评审者，门槛设为一人。
+Issue 批准人必须是当前已配置且具有仓库写权限的人，包括已配置团队的当前成员。
+机器人不能批准。不要为了单人模式降低 `minimumApprovals`。
 
-Check the [ruleset instructions](brownfield-human-gated-delivery.md#configure-branch-rulesets):
+检查[规则集说明](brownfield-human-gated-delivery.md#configure-branch-rulesets)：
 
-- Both `brownfield-delivery/**` and `main` require
-  `Brownfield delivery policy` and `stage-validation`.
-- `main` also requires `validate` and `container-smoke`.
-- Dismiss stale approvals, require conversation resolution, and do not allow
-  humans or automation to bypass the gates.
-- Exempt initial lifecycle-branch creation from status checks so the approved
-  document handoff can create it; keep subsequent updates protected and allow
-  cleanup only after Human acceptance for Issue-based runs.
-- Managed rulesets cover only `main` and `brownfield-delivery/**`, not
-  `brownfield-documents/**` or `brownfield-runs/**`. State branches need trusted
-  automation writes, not a ruleset bypass.
+- `brownfield-delivery/**` 和 `main` 都要求 `Brownfield delivery policy` 与 `stage-validation`。
+- `main` 还要求 `validate` 和 `container-smoke`。
+- 撤销过期批准、要求解决讨论，不允许人或自动化绕过关卡。
+- 生命周期分支首次创建时豁免状态检查，以便从已批准文档进行交接创建；
+  后续更新仍受保护，且基于 Issue 的运行只有人工验收后才允许清理。
+- 受管理规则集只覆盖 `main` 和 `brownfield-delivery/**`，不覆盖 `brownfield-documents/**` 或 `brownfield-runs/**`。
+  状态分支需要受信任自动化的写入能力，不需要绕过规则集的权限。
 
-### 1.5 Preflight and handoff
+<a id="15-preflight-and-handoff"></a>
+### 1.5 预检与交接
 
-From the new isolated checkout, after resolving setup findings:
+解决配置发现的问题后，从新的隔离检出目录运行：
 
 ```sh
 cd /absolute/path/to/new-isolated-demo &&
@@ -339,29 +317,27 @@ npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner &&
 node tools/brownfield-demo/cli.mjs preflight --repo OWNER/NEW_DEMO_REPO --single-owner
 ```
 
-**Expected result:** setup's automated checks pass and preflight reports
-`automatedReady: true`. Its `readyForLiveRun` remains `false` because the tool
-does not certify manual checks. Verify credential scope/expiry, entitlement,
-billing, Docker daemon and registry access, and reviewer participation yourself.
-Stop on unresolved blockers. Do not use fresh-baseline preflight to evaluate a
-completed ownership implementation; use replay for that.
+**预期结果：**setup 自动检查通过，preflight 报告 `automatedReady: true`。
+其 `readyForLiveRun` 仍为 `false`，因为工具不会认证人工检查。
+请自行验证凭据范围与有效期、使用资格、计费、Docker daemon 与镜像仓库访问，以及评审者参与情况。
+存在未解决阻碍时应停止。
+不要用新基线预检来评估已经完成的负责人实现；应使用回放。
 
-**Configured when:** the form is visible, intended reviewers are configured, and
-automation prerequisites and agreed branch protections are in place. This is
-not yet **Demo Ready**; complete the real rehearsals above. Hand off to the
-requester and reviewers at [Step 2](#2-show-the-existing-application), then create
-the Intent in **`OWNER/NEW_DEMO_REPO`**, not in the source or completed demo.
+**何时算已配置：**表单可见、预期评审者已配置、自动化前提及约定的分支保护都已到位。
+这还不等于 **Demo Ready**；必须完成上文的真实演练。
+在[第 2 步](#2-show-the-existing-application)交给请求人与评审者，
+然后在 **`OWNER/NEW_DEMO_REPO`** 创建 Intent，而不是在源仓库或已完成的演示仓库创建。
 
-## 2. Show the existing application
+<a id="2-show-the-existing-application"></a>
+## 2. 展示现有应用
 
-Explain the starting point using the
-[IT service desk overview](../../demos/it-service-desk/README.md):
+结合 [IT 服务台概览](../../demos/it-service-desk/README.md)说明起点：
 
-- tickets already support creation, search, status changes, and filtering;
-- data is persisted in SQLite;
-- ticket ownership is the missing capability for this example.
+- 工单已支持创建、搜索、状态变更及筛选；
+- 数据持久化到 SQLite；
+- 本示例尚缺少工单负责人功能。
 
-Optionally, from the repository root with Node.js 24 or newer:
+如有需要，可使用 Node.js 24 或更新版本，从仓库根目录执行：
 
 ```sh
 cd demos/it-service-desk
@@ -369,110 +345,103 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000>. Show an existing ticket and the queue before any
-feature work begins. Do not delete existing ticket data.
+打开 <http://localhost:3000>。
+在任何功能开发开始前，展示一个已有工单及工单队列。不要删除已有工单数据。
 
-**Explain:** this is brownfield development. The goal is to improve an existing
-system while preserving its current behavior, not generate a replacement.
+**讲解要点：**这是既有系统开发。
+目标是在保留现有行为的前提下改进系统，而不是重新生成一个替代品。
 
-## 3. Submit the human-authored Intent
+<a id="3-submit-the-human-authored-intent"></a>
+## 3. 提交人工撰写的 Intent
 
-1. Open **Issues > New issue**.
-2. Choose **Brownfield human-gated delivery: Submit an intent**.
-3. Review the prefilled title: **[Brownfield delivery] Clarify ticket ownership**.
-4. Review or edit all five fields:
+1. 打开 **Issues > New issue**。
+2. 选择 **Brownfield human-gated delivery: Submit an intent**。
+3. 检查预填标题：**[Brownfield delivery] Clarify ticket ownership**。
+4. 检查或编辑全部五个字段：
 
-   | Field | What the Human supplies |
+   | 字段 | 人需要提供的内容 |
    |---|---|
-   | Problem or opportunity | Why unclear ownership makes handoffs difficult |
-   | Proposed outcome | How agents and team leads should benefit |
-   | Affected users and systems | The people and existing application involved |
-   | Constraints and non-goals | Preserve current data/workflows and keep scope small |
-   | Open questions | Decisions that need discussion during Spec review |
+   | Problem or opportunity（问题或机会） | 负责人不明确为何造成交接困难 |
+   | Proposed outcome（预期结果） | 服务台人员与团队负责人应如何受益 |
+   | Affected users and systems（受影响用户与系统） | 涉及的人员和现有应用 |
+   | Constraints and non-goals（约束与非目标） | 保留当前数据和工作流程，控制范围 |
+   | Open questions（开放问题） | 需要在 Spec 评审中讨论的决策 |
 
-   Include the source of the problem observation, known success measures,
-   and smaller alternatives where possible. Explicitly say "unknown" instead
-   of inventing user research or performance/business metrics.
+   尽可能说明问题观察的来源、已知的成功衡量方式，以及更小范围的替代方案。
+   不知道的内容应明确写“未知”，不要编造用户研究、性能指标或业务指标。
 
-5. Leave genuine uncertainties visible. For this example, the form asks whether
-   tickets may be unassigned, how owners are selected, and whether filtering
-   by owner is needed.
-6. Click **Create** and record the new Intent Issue number.
+5. 保留真正的不确定性。
+   本例表单询问工单是否可以不分配负责人、如何选择负责人，以及是否需要按负责人筛选。
+6. 点击 **Create**，记录新 Intent Issue 编号。
 
-The submitting user must be an `OWNER`, `MEMBER`, or `COLLABORATOR`.
-Do not select a Copilot CLI demo form or manually assign all lifecycle stages.
+提交人必须是 `OWNER`、`MEMBER` 或 `COLLABORATOR`。
+不要选择 Copilot CLI 演示表单，也不要手动指派全部生命周期阶段。
 
-**Expected result:** one parent Intent Issue with the
-`brownfield-human-gated-delivery:intent` label. There is no AI-written Intent
-stage and no separate Intent approval gate.
-Check the Issue's **Labels** immediately. If the label is absent, confirm it was
-created in the repository, apply it to this Issue, and follow the manual kickoff
-recovery below. GitHub does not create labels from the form definition.
+**预期结果：**一个带有 `brownfield-human-gated-delivery:intent` 标签的父 Intent Issue。
+没有 AI 代写 Intent 的阶段，也没有额外的 Intent 批准关卡。
+立即检查 Issue 的 **Labels**。
+若标签缺失，确认仓库中已创建该标签，将其加到此 Issue，然后按下方手动 kickoff 恢复步骤操作。
+GitHub 不会根据表单定义自动创建标签。
 
-Once document review starts, the Intent's title and body are snapshotted.
-Do not edit them afterward: Documents rejects changes to that original request.
-Use explicit revision-command feedback to refine the documents, or create a
-new Intent for a changed original request.
+文档评审一旦启动，Intent 标题与正文就会被保存为快照。
+此后不要编辑它们：Documents 会拒绝对原始请求的修改。
+细化文档请使用明确的修订命令反馈；原始请求改变时，请新建 Intent。
 
-## 4. Verify automatic kickoff
+<a id="4-verify-automatic-kickoff"></a>
+## 4. 确认自动启动
 
-1. Open **Actions > Brownfield Delivery · Kickoff**.
-2. Open the run associated with the Intent and wait for it to complete.
-3. Confirm it routes the new Intent to **Brownfield Delivery · Documents**.
-4. Return to the Intent Issue and inspect its current review hub.
+1. 打开 **Actions > Brownfield Delivery · Kickoff**。
+2. 打开与该 Intent 关联的运行，等待完成。
+3. 确认新 Intent 被路由到 **Brownfield Delivery · Documents**。
+4. 回到 Intent Issue，检查当前评审汇总。
 
-You should see:
+你应看到：
 
-- a `brownfield-documents/<intent-number>` branch;
-- a separate `brownfield-runs/<intent-number>` branch for trusted operational
-  state, with workflow-bot ledger attestation;
-- a current hub on the parent Issue, linking the latest document versions and
-  their review status;
-- a full rendered Markdown **Spec v1** revision comment after generation and
-  trusted publication succeed; new source-configured `decisions-v1` runs
-  also show a discovery brief and any blocking Q-n questions;
-- possibly four internal stage issues: Spec, Plan, TDD Tests, and
-  Implementation, with no Spec/Plan Coding Agent assignment.
+- 一个 `brownfield-documents/<intent-number>` 分支；
+- 一个独立的 `brownfield-runs/<intent-number>` 分支，用于保存受信任运行状态，并带有工作流机器人账本证明；
+- 父 Issue 上当前的汇总评论，链接最新文档版本及评审状态；
+- 生成和受信任发布成功后，一条完整渲染的 Markdown **Spec v1** 修订评论；
+  按源配置新建的 `decisions-v1` 运行，还会展示探索简报及所有阻断性的 Q-n 问题；
+- 可能存在四个内部阶段 Issue：Spec、Plan、TDD Tests、Implementation，
+  但不会把 Spec/Plan 指派给 Coding Agent。
 
-Stay on the parent Intent. A completed kickoff run does not itself mean Spec
-generation and publication have finished; inspect the Documents run too.
-For a new Intent there should not yet be a `brownfield-delivery/<intent-number>`
-branch or a Spec PR.
+请留在父 Intent 上。
+kickoff 运行完成，不代表 Spec 生成与发布已经完成；也要检查 Documents 运行。
+新 Intent 此时还不应有 `brownfield-delivery/<intent-number>` 分支或 Spec PR。
 
-**Expected result:** read-only Copilot CLI generates the first Spec; trusted
-automation validates and saves the revision in Git, then publishes the full
-document for Human review on the Issue. No application build runs.
+**预期结果：**只读 Copilot CLI 生成首个 Spec；
+受信任自动化验证修订并保存到 Git，然后在 Issue 发布完整文档供人工评审。
+此时不运行应用构建。
 
-## 5. Review and iterate on the Spec
+<a id="5-review-and-iterate-on-the-spec"></a>
+## 5. 评审并迭代 Spec
 
-1. Wait for Documents to publish the first full Spec revision comment.
-2. Use the parent Intent's hub to locate the latest version and read it.
-3. Check that it describes the intended outcome, scope, non-goals, actors,
-   constraints, and stable Given/When/Then acceptance scenarios.
-4. Review open questions and proposed decisions. Ordinary Issue comments are
-   available for discussion; they do not execute AI or approve the document.
+1. 等待 Documents 发布首条完整 Spec 修订评论。
+2. 通过父 Intent 汇总定位并阅读最新版本。
+3. 检查它是否描述了预期结果、范围、非目标、参与角色、约束，以及稳定的 Given/When/Then 验收场景。
+4. 评审开放问题和拟议决策。可以用普通 Issue 评论讨论；它们不会执行 AI，也不会批准文档。
 
-Each revision is saved under
-`docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/` on the
-document branch as `spec.md`, with review state in `document-review.json`.
-The full comment is the reading surface, and the Git revision is durable
-evidence. New `decisions-v1` runs also enforce recorded-decision readiness.
-There is no Spec PR or application test, build, or container job.
+每次修订都以 `spec.md` 保存到文档分支的
+`docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/` 下，
+评审状态保存在 `document-review.json`。
+完整评论供人阅读，Git 修订提供持久证据。
+新的 `decisions-v1` 运行还要求以已记录决策证明就绪。
+这里没有 Spec PR，也不运行应用测试、构建或容器作业。
 
-### Resolve discovery questions first
+<a id="resolve-discovery-questions-first"></a>
+### 先解决探索问题
 
-The source configuration enables `specReadiness: "decisions-v1"` only when a
-new run is initialized. Its version-2 document state preserves that choice.
-Existing version-1 runs keep their original structural-only review; changing
-configuration does not upgrade them or disable readiness on version-2 runs.
-Confirm the profile in the hub before choosing the applicable commands.
+源配置只在新运行初始化时启用 `specReadiness: "decisions-v1"`。
+第 2 版文档状态会保留这一选择。
+已有第 1 版运行保留原有的仅结构性评审；更改配置既不会升级它们，也不会关闭第 2 版运行的就绪检查。
+选择命令前，先在汇总评论中确认当前模式。
 
-For a new discovery run:
+对于新的探索模式运行：
 
-1. Read the brief: problem, evidence or unknowns, success measure, alternatives.
-   Check it against the actual Intent rather than treating AI's wording as fact.
-2. Inspect every Q-n item marked **BLOCKING**. As a configured Spec reviewer,
-   answer one question with the current version and actual question ID:
+1. 阅读简报：问题、证据或未知信息、成功衡量标准、备选方案。
+   将其与真实 Intent 核对，不要把 AI 的表述直接当成事实。
+2. 检查每个标为 **BLOCKING** 的 Q-n 条目。
+   以已配置 Spec 评审者身份，使用当前版本和实际问题 ID 回答一个问题：
 
    ```text
    /sdlc decide spec v1 Q-1
@@ -480,32 +449,28 @@ For a new discovery run:
    Rationale: New requests arrive before a responsible agent is known.
    ```
 
-3. Wait for a new Spec revision. The decision itself does not approve anything.
-   Read the changed behavior and its decision-to-AC mapping.
-4. Answer the next question against that new version, or explicitly defer it
-   with the required rationale, owner, follow-up, and risk fields described in
-   the [decision command reference](brownfield-human-gated-delivery.md#discovery-and-decision-readiness).
-5. Only after the hub has no unanswered blockers, review and approve the
-   actual current Spec version using the ordinary approval command below.
-   Deferred questions remain visible risks, not resolved facts.
+3. 等待新的 Spec 修订。决策本身不会批准任何内容。
+   阅读变更后的行为及其决策到 AC 的映射。
+4. 针对这个新版本回答下一个问题，或按
+   [决策命令参考](brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
+   的要求，填写理由、负责人、后续行动和风险字段，明确暂缓。
+5. 只有汇总中没有未回答的阻碍后，才按下文普通批准命令评审并批准实际的当前 Spec 版本。
+   暂缓的问题仍是可见风险，不是已经解决的事实。
 
-For the prefilled ownership Intent, useful decisions include optional versus
-mandatory ownership, fixed roster versus free text, and whether filtering is
-needed. Do not assume AI will assign these the same Q-n IDs in every run.
-If it missed an important question, request a Spec revision that adds it.
-Ordinary comments or `/sdlc revise spec` feedback cannot substitute for a
-recorded disposition of an already registered question.
+对于预填的负责人 Intent，有价值的决策包括：负责人是可选还是必填、固定名单还是自由文本、是否需要筛选。
+不要假定 AI 每次都会给它们相同的 Q-n ID。
+如果漏掉重要问题，应请求修订 Spec 并将其补入。
+普通评论或 `/sdlc revise spec` 反馈，不能替代对已经登记问题的正式处理记录。
 
-To demonstrate the gate, first attempt approval while a real blocker remains.
-Expected result: an explicit rejection, no Plan, and no engineering assignment.
-Then record an authorized decision and demonstrate the resulting revision and
-fresh approval. This is a rehearsal script, not a claim of completed live
-Human review. Never submit decisions on behalf of another reviewer.
+要演示关卡，可先在仍有真实阻碍时尝试批准。
+预期结果是明确拒绝、不生成 Plan，也不分配工程任务。
+然后由有权限的人记录决策，展示由此触发的修订及重新批准。
+这是演练脚本，不是在宣称现场人工评审已经完成。绝不要代其他评审者提交决策。
 
-### Request ordinary document changes and approve
+<a id="request-ordinary-document-changes-and-approve"></a>
+### 请求一般文档修订并批准
 
-For a deliberate first feedback round, submit the following as a **new
-top-level comment on the parent Intent**, with the command on its first line:
+为了安排第一轮明确反馈，可将以下内容作为**父 Intent 上一条新的顶层评论**提交，命令放在第一行：
 
 ```text
 /sdlc revise spec
@@ -515,17 +480,16 @@ Preserve existing tickets and workflows. Make these decisions explicit in
 the specification for re-review.
 ```
 
-This is example revision feedback, not requirements automatically imposed by
-the Intent form. In a discovery run, first record the corresponding question
-decisions using the steps above; feedback alone does not clear their blockers.
-Adapt the example to the feature and decisions you actually want.
+这是修订反馈示例，不是 Intent 表单自动强加的需求。
+在探索模式运行中，应先按上文步骤记录对应问题的决策；只有反馈并不能解除问题阻碍。
+请根据你实际想要的功能和决策调整示例。
 
-This is a custom repository Actions command, not a built-in `@copilot` command.
-Post the text itself, not a quoted example or fenced block. Wait for Documents
-to publish the next Spec version (**v2** only if you started from v1), then:
+这是仓库自定义的 Actions 命令，不是内置 `@copilot` 命令。
+提交文本本身，不要作为引用示例或放进代码围栏。
+等待 Documents 发布下一个 Spec 版本（只有从 v1 开始时才是 **v2**），然后：
 
-1. Read the full revised document and inspect the changes against your feedback.
-2. If further clarification is needed, submit another revision command:
+1. 完整阅读修订文档，对照反馈检查变更。
+2. 仍需澄清时，再提交修订命令：
 
    ```text
    /sdlc revise spec
@@ -534,66 +498,61 @@ to publish the next Spec version (**v2** only if you started from v1), then:
    scenarios for re-review.
    ```
 
-3. Repeat until the Spec is acceptable and open decisions are resolved or
-   explicitly deferred. Discovery decisions can increase the version several
-   times; use the current hub, not this example's version numbers.
-4. If **v2 is still the latest version**, submit this new top-level comment:
+3. 重复这一过程，直到 Spec 可接受，所有开放决策均已解决或明确暂缓。
+   探索决策可能让版本号增加多次；请以当前汇总为准，不要照抄示例版本号。
+4. 如果 **v2 仍是最新版本**，新建顶层评论提交：
 
    ```text
    /sdlc approve spec v2
    ```
 
-   If you requested another revision, use its actual latest version instead;
-   a stale-version approval is rejected.
+   如果之后又请求了修订，应使用实际最新版本；旧版本批准会被拒绝。
 
-**Expected result:** the approval is recorded in Git with the document
-version/hash, decision-context hash for discovery runs, approving command
-comment ID/body, and Human ID/login/time, not a
-separate immutable rendered-revision comment snapshot. After the configured
-threshold is satisfied, Documents generates
-Plan v1 linked to the approved Spec. There is no Spec PR to merge.
+**预期结果：**批准保存到 Git，内容包括文档版本与哈希、
+探索运行的决策上下文哈希、批准命令评论 ID 与正文，以及批准人的 ID、登录名和时间，
+而不是另存一份不可变的已渲染修订评论快照。
+达到配置门槛后，Documents 生成链接到已批准 Spec 的 Plan v1。
+没有需要合并的 Spec PR。
 
-### The rule for every review round
+<a id="the-rule-for-every-review-round"></a>
+### 每轮评审的规则
 
-- Keep the same parent Intent and document branch throughout document review.
-- Submit new top-level `/sdlc` comments explicitly; ordinary discussion,
-  `@copilot` mentions, and edits to existing comments do not trigger this flow.
-- Only the latest version is approvable, by current configured Humans with
-  write access. Team membership and `minimumApprovals` still apply; bots cannot
-  approve. There is no native PR independent-review restriction here.
-- A comment saying "looks good," checklist changes, or successful generation is
-  not approval. There is no automatic approval timeout. Discovery runs allow
-  at most 20 questions and 100 decision receipts; oversized context/history
-  fails explicitly rather than being truncated.
-- Editing or deleting a processed approval comment does **not** revoke its
-  Git-recorded decision. Submit an explicit revision before handoff instead.
-- Revising Spec before handoff invalidates all Spec approvals and the draft or
-  approved Plan, including its approvals. A new Spec review and new Plan
-  version are required.
-- Full Plan approval freezes the documents. Do not approve it while a Spec
-  change is still needed.
-- Commands are durably queued and reconciled on each run. If a pending run is
-  superseded or execution fails, resume Documents; do not assume comments were
-  lost or create a replacement Intent.
+- 整个文档评审过程中，始终保留同一个父 Intent 和文档分支。
+- 明确新建顶层 `/sdlc` 评论；普通讨论、`@copilot` 提及及编辑已有评论不会触发这套流程。
+- 只有最新版本可被批准，且批准人必须是当前已配置、具有写权限的人。
+  团队成员资格与 `minimumApprovals` 仍适用；机器人不能批准。
+  这里没有原生 PR 的独立评审限制。
+- “looks good”评论、修改检查清单或生成成功都不是批准。
+  没有超时自动批准。
+  探索运行最多允许 20 个问题和 100 份决策回执；
+  上下文或历史过大时会明确失败，而不是截断。
+- 编辑或删除已经处理的批准评论，**不会**撤销 Git 中保存的决定。
+  应改为在交接前明确提交修订。
+- 交接前修订 Spec，会使全部 Spec 批准及草稿或已批准的 Plan（包括其批准）失效。
+  必须重新评审 Spec，并生成新 Plan 版本。
+- Plan 获得全部批准后，文档冻结。
+  若仍需修改 Spec，不要批准 Plan。
+- 命令持久排队，每次运行都会核对。
+  如果等待运行被替换或执行失败，请恢复 Documents；
+  不要认为评论已丢失，也不要创建替代 Intent。
 
-## 6. Review and iterate on the Plan
+<a id="6-review-and-iterate-on-the-plan"></a>
+## 6. 评审并迭代 Plan
 
-1. Follow the latest full **Plan v1** revision comment from the parent hub.
-2. Confirm its linked Spec is the version you approved.
-3. Review its open questions and proposed approach.
-4. Check that:
-   - every approved acceptance scenario maps to at least one task;
-   - task IDs and dependencies are clear and acyclic;
-   - affected code surfaces and validation are specified;
-   - existing-data compatibility, migration risks, and scope are addressed.
-5. Confirm this stage has not changed the approved Spec or written application
-   code or tests.
+1. 从父 Issue 汇总进入最新的完整 **Plan v1** 修订评论。
+2. 确认其链接的 Spec 正是你已批准的版本。
+3. 评审其开放问题与拟议方案。
+4. 检查：
+   - 每个已批准验收场景至少映射到一个任务；
+   - 任务 ID 与依赖关系清晰，且不存在循环；
+   - 明确列出受影响的代码部分与验证方法；
+   - 已处理现有数据兼容性、迁移风险及范围问题。
+5. 确认此阶段未修改已批准 Spec，也未编写应用代码或测试。
 
-As with Spec, Plan runs document/scope and approval validation, not application
-builds or container checks. It is saved as `plan.md` with review state on
-`brownfield-documents/<intent-number>`.
+与 Spec 一样，Plan 执行文档、范围及批准验证，而不是应用构建或容器检查。
+它以 `plan.md` 连同评审状态保存到 `brownfield-documents/<intent-number>`。
 
-If improvement is needed, submit a new top-level parent-Issue comment:
+需要改进时，在父 Issue 新建顶层评论：
 
 ```text
 /sdlc revise plan
@@ -603,251 +562,243 @@ required by the approved Spec. Map each task to acceptance scenarios and explain
 its validation. Preserve the approved specification.
 ```
 
-Repeat review and revision until satisfied. If no Plan revision was needed and
-**v1 remains latest**, submit:
+反复评审与修订，直到满意。
+如果无需修订 Plan，且 **v1 仍是最新版本**，提交：
 
 ```text
 /sdlc approve plan v1
 ```
 
-If you used the revision command above, wait for the new Plan and approve that
-version instead (for example `/sdlc approve plan v2`). Do not approve an older
-version merely to follow this example.
+如果执行了上面的修订命令，就应等待新 Plan 并批准新版本，例如 `/sdlc approve plan v2`。
+不要仅为了照着示例操作而批准旧版本。
 
-If planning exposes a problem with the approved Spec, use `/sdlc revise spec`
-with feedback **before fully approving the Plan**. This invalidates Spec
-approvals and the existing Plan. Review and approve the new Spec, then the new
-Plan version. The Plan must not silently rewrite approved requirements.
+如果规划暴露出已批准 Spec 的问题，应在 **Plan 获得全部批准之前**，
+提交 `/sdlc revise spec` 并附反馈。
+这会使 Spec 批准及现有 Plan 失效。
+先评审并批准新 Spec，再评审并批准新 Plan 版本。
+Plan 不得悄悄改写已批准的需求。
 
-**Expected result:** after the latest Plan has all configured Human approvals,
-automation freezes `spec.md`, `plan.md`, and `document-review.json`, creates
-`brownfield-delivery/<intent-number>` from the approved document commit, closes
-the internal Spec/Plan stage issues, and assigns **only TDD Tests** to Coding
-Agent. The next review surface is a Tests PR. After this handoff, contract
-changes need a new Intent rather than editing approved artifacts.
+**预期结果：**最新 Plan 获得配置要求的全部人工批准后，自动化冻结
+`spec.md`、`plan.md` 与 `document-review.json`，
+从已批准的文档提交创建 `brownfield-delivery/<intent-number>`，
+关闭内部 Spec/Plan 阶段 Issue，并且**只将 TDD Tests** 分配给 Coding Agent。
+下一评审界面是 Tests PR。
+交接后若需修改契约，应创建新 Intent，而不是编辑已批准产物。
 
-## 7. Review the TDD Red evidence
+<a id="7-review-the-tdd-red-evidence"></a>
+## 7. 评审 TDD Red 证据
 
-1. Open the TDD Tests PR. Its base should still be the lifecycle branch.
-2. Inspect the new tests and
-   `docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/expected-failures.json`.
-3. Confirm test names map to approved acceptance scenarios and the assertions
-   describe real behavior rather than unconditional failures.
-4. Confirm production code and approved `spec.md`, `plan.md`, and
-   `document-review.json` blobs are unchanged.
-5. Open the **Brownfield Delivery · Stage CI** run and inspect the `tdd-red`
-   job and its summary.
+1. 打开 TDD Tests PR；其目标仍应是生命周期分支。
+2. 检查新测试及
+   `docs/delivery-runs/brownfield-human-gated-delivery/<intent-number>/expected-failures.json`。
+3. 确认测试名称映射到已批准验收场景，断言描述真实行为，而不是无条件失败。
+4. 确认生产代码，以及已批准的 `spec.md`、`plan.md` 与 `document-review.json` blob 均未改变。
+5. 打开 **Brownfield Delivery · Stage CI** 运行，查看 `tdd-red` 作业及其摘要。
 
-The evidence must show:
+证据必须显示：
 
-- existing baseline tests pass;
-- the new feature tests run and fail exactly as declared;
-- lint and build pass;
-- no unrelated collection, setup/teardown, or runtime errors are accepted as Red.
+- 现有基线测试通过；
+- 新功能测试实际运行，且失败与声明完全一致；
+- lint 和构建通过；
+- 无关的测试收集、setup/teardown 或运行时错误，都不能被接受为 Red。
 
-**Important:** the feature tests are intentionally Red, but the
-`stage-validation` check must pass. Its success means the workflow verified
-the expected failures. Do not approve a broken validation job.
+**重要：**功能测试有意处于 Red，但 `stage-validation` 检查必须通过。
+它成功表示工作流已验证这些预期失败；不要批准一个验证作业本身已损坏的 PR。
 
-Request corrections in the same PR if needed. When the tests and evidence are
-sound, explicitly approve the latest revision.
+需要时，在同一个 PR 中要求修正。
+只有测试与证据都可靠后，才明确批准最新修订。
 
-**Expected result:** approved tests merge into the lifecycle branch, not
-`main`. The workflow then assigns Implementation. The approved test files
-become an immutable contract for that implementation.
+**预期结果：**已批准测试合并到生命周期分支，而不是 `main`。
+随后工作流指派 Implementation。
+已批准测试文件成为实现阶段不可更改的契约。
 
-## 8. Review the implementation and Green checks
+<a id="8-review-the-implementation-and-green-checks"></a>
+## 8. 评审实现与 Green 检查
 
-1. Open the Implementation PR after Copilot finishes its initial work.
-2. Confirm the coordinator has retargeted it to `main`. It contains the complete
-   increment: Spec, Plan, document approval state, tests, and implementation.
-3. Review the code against the approved artifacts.
-4. Confirm approved tests and lifecycle artifacts have not been weakened,
-   edited, deleted, or renamed. Additional tests may be added in new files.
-5. Inspect the required results:
+1. Copilot 完成初步工作后，打开 Implementation PR。
+2. 确认协调器已将其目标改为 `main`。
+   PR 包含完整增量：Spec、Plan、文档批准状态、测试和实现。
+3. 对照已批准产物评审代码。
+4. 确认已批准测试和生命周期产物没有被削弱、编辑、删除或重命名。
+   可以在新文件中添加测试。
+5. 检查必需结果：
 
-   | Required status/check | Evidence |
+   | 必需状态/检查 | 证据 |
    |---|---|
-   | `stage-validation` | Approved contracts preserved; expected Red tests now Green |
-   | `validate` | Application tests, lint, and production build pass |
-   | `container-smoke` | The production container starts and passes smoke checks |
-   | `Brownfield delivery policy` | Configured Humans approved the current revision |
+   | `stage-validation` | 已批准契约保持不变；原预期 Red 测试现为 Green |
+   | `validate` | 应用测试、lint 和生产构建通过 |
+   | `container-smoke` | 生产容器启动并通过冒烟检查 |
+   | `Brownfield delivery policy` | 已配置的人工评审者批准了当前修订 |
 
-6. Request revisions with `@copilot` if the implementation is not acceptable.
-   New commits require another Human review.
-7. Approve the latest revision only when behavior and code meet the agreed Spec.
+6. 实现不可接受时，通过 `@copilot` 请求修订。
+   新提交需要再次人工评审。
+7. 只有行为和代码均符合约定 Spec 时，才批准最新修订。
 
-For a visual demonstration, validate the behavior selected during Spec review,
-including existing-ticket compatibility. A generic dashboard smoke test does
-not prove every feature acceptance scenario; inspect the feature tests too.
+可视化演示时，应验证 Spec 评审中选定的行为，包括已有工单的兼容性。
+通用仪表板冒烟测试不能证明每个功能验收场景成立；也要检查功能测试。
 
-**Expected result:** the approved, passing PR auto-merges into `main`. The
-parent Intent remains open pending delivery verification.
+**预期结果：**已批准且检查通过的 PR 自动合并到 `main`。
+父 Intent 仍保持打开，等待交付验证。
 
-## 9. Verify delivery and accept the result
+<a id="9-verify-delivery-and-accept-the-result"></a>
+## 9. 验证交付并验收结果
 
-1. Open **Actions > Brownfield Delivery · Publish** for the merged PR.
-2. Inspect the `publish` job for the image build and GHCR publication.
-3. Inspect the `verify` job for:
-   - pulling and running the published image by its immutable digest;
-   - a successful `/api/health` response;
-   - the dashboard smoke check;
-   - stopping the temporary container after verification.
-4. Return to the parent Intent Issue and read the current verification evidence:
-   digest, merge SHA, Actions run ID, and attempt. Smoke success leaves this
-   new Intent **open, awaiting Human acceptance**.
-5. Use the [toolkit](../../tools/brownfield-demo/README.md) to present that exact
-   digest. Each configured Implementation reviewer exercises the approved
-   scenarios, including existing-ticket compatibility. A dashboard smoke test
-   alone does not prove ownership behavior or other feature requirements.
-6. Each eligible reviewer submits a new, unedited, top-level Intent comment
-   after publication, replacing the digest and observations below:
+1. 打开已合并 PR 对应的 **Actions > Brownfield Delivery · Publish**。
+2. 查看 `publish` 作业中的镜像构建与 GHCR 发布结果。
+3. 查看 `verify` 作业是否：
+   - 按不可变摘要拉取并运行已发布镜像；
+   - 获得成功的 `/api/health` 响应；
+   - 通过仪表板冒烟检查；
+   - 在验证后停止临时容器。
+4. 回到父 Intent Issue，阅读当前验证证据：镜像摘要、合并 SHA、Actions 运行 ID 和尝试次数。
+   冒烟成功后，这个新 Intent 仍**保持打开，等待人工验收**。
+5. 使用[工具包](../../tools/brownfield-demo/README.md)展示该精确摘要对应的镜像。
+   每位已配置 Implementation 评审者都应实际操作已批准场景，包括已有工单的兼容性。
+   仅有仪表板冒烟测试不能证明负责人行为或其他功能要求。
+6. 发布后，每位符合资格的评审者应在 Intent 新建一条未经编辑的顶层评论，
+   将下方摘要和观察结果替换为实际内容：
 
    ```text
    /sdlc accept sha256:<64hex>
    <Scenarios actually exercised, observed outcomes, and any limitations.>
    ```
 
-   Do not paste placeholders or claim a UI test not performed. To reject, use
-   `/sdlc reject sha256:<64hex>` with actual failure observations instead.
-7. Confirm the configured Implementation quorum has accepted the **current**
-   verification. Only then should the Intent close and the engineering
-   `brownfield-delivery/<intent-number>` branch be removed. Retain
-   `brownfield-documents/<intent-number>` and `brownfield-runs/<intent-number>`
-   for replay.
+   不得粘贴占位符，也不得声称做过实际未执行的界面测试。
+   要拒绝验收，则使用 `/sdlc reject sha256:<64hex>`，并填写真实失败观察结果。
+7. 确认配置要求的 Implementation 评审人数均已接受**当前**验证。
+   只有此时才应关闭 Intent，并移除工程分支 `brownfield-delivery/<intent-number>`。
+   保留 `brownfield-documents/<intent-number>` 和 `brownfield-runs/<intent-number>` 供回放。
 
-**Expected result:** a traceable chain from the human-authored Intent through
-approved artifacts and tests to a published, verified image digest and recorded
-Human acceptance bound to its merge SHA, run ID, and attempt.
+**预期结果：**形成一条可追溯链路：
+从人工撰写的 Intent，经已批准产物及测试，到已发布、已验证的镜像摘要，
+以及与合并 SHA、运行 ID 和尝试次数绑定的人工验收记录。
 
-Before completion, reverification invalidates collected acceptance even if the digest stays the same;
-each reviewer must inspect the new published evidence and decide again.
-Rejection blocks acceptance until another verification attempt. For a code or
-scope defect after merge, create a linked remediation Intent; never edit the
-sealed Spec/Plan or approved tests to erase the disagreement. Do not declare a
-rejected run complete. Legacy document-PR runs alone keep smoke-success closure.
-An already accepted run is terminal; another delivery requires a new Intent.
+完成前重新验证，会使已收集验收失效，即使摘要不变；
+每位评审者都必须检查新发布的证据，再次作决定。
+拒绝验收会阻止后续验收，直到另一次验证尝试。
+合并后发现代码或范围缺陷，应创建关联的修复 Intent；
+绝不能通过编辑已封存 Spec/Plan 或已批准测试来抹去分歧。
+不要宣称被拒绝的运行已经完成。
+只有旧版文档 PR 运行保留冒烟成功即关闭的行为。
+已验收运行处于终态；再次交付必须新建 Intent。
 
-The `it-service-desk-demo` Environment records temporary container verification.
-It does **not** create a permanently hosted application or public demo URL.
-An application already running on your machine is not automatically upgraded.
-Use the exact verified digest for acceptance and the after-demo UI tour.
-Cleanup must target only toolkit-managed presentation containers, not unrelated
-local workloads.
+`it-service-desk-demo` Environment 记录临时容器验证。
+它**不会**创建永久托管应用或公开演示 URL。
+你机器上已经运行的应用也不会自动升级。
+验收及演示后的界面导览，都应使用经过验证的精确镜像摘要。
+清理只能针对工具包管理的演示容器，不能影响无关本地工作负载。
 
-## Completion checklist
+<a id="completion-checklist"></a>
+## 完成检查清单
 
-- [ ] Human submitted the Intent.
-- [ ] Full Spec revisions, discussion, and explicit commands are visible on the parent Intent.
-- [ ] Humans approved the latest Spec version before Plan started.
-- [ ] Full Plan revisions on that same Issue link the approved Spec.
-- [ ] Humans approved the latest Plan before TDD started; approvals and document hashes are saved in Git.
-- [ ] Documents froze and the delivery branch was created from the approved document commit.
-- [ ] Only TDD Tests was assigned at engineering handoff.
-- [ ] Controlled Red evidence was validated and approved.
-- [ ] Implementation passed Green tests, build, and container checks.
-- [ ] Human approved the implementation before it merged.
-- [ ] Published image digest and smoke-verification run are recorded on the Intent.
-- [ ] Configured Implementation reviewers exercised the exact digest and submitted actual observed results after the current verification.
-- [ ] Current acceptance meets quorum and binds digest, merge SHA, run ID, and attempt.
-- [ ] Intent closed only after Human acceptance; engineering branch removed, document/run branches retained.
-- [ ] Real evidence and replay were retained; only managed presentation containers were cleaned up.
+- [ ] 由人提交了 Intent。
+- [ ] 父 Intent 上可见完整 Spec 修订、讨论及明确命令。
+- [ ] Plan 开始前，人工已批准最新 Spec 版本。
+- [ ] 同一个 Issue 上的完整 Plan 修订链接到已批准 Spec。
+- [ ] TDD 开始前，人工已批准最新 Plan；批准及文档哈希已保存到 Git。
+- [ ] 文档已冻结，交付分支从已批准文档提交创建。
+- [ ] 工程交接时只指派了 TDD Tests。
+- [ ] 受控 Red 证据已验证并批准。
+- [ ] Implementation 已通过 Green 测试、构建及容器检查。
+- [ ] 实现合并前已获得人工批准。
+- [ ] 已发布镜像摘要及冒烟验证运行已记录在 Intent 上。
+- [ ] 已配置 Implementation 评审者已操作精确摘要对应的镜像，并在当前验证之后提交真实观察结果。
+- [ ] 当前验收满足批准人数要求，并绑定摘要、合并 SHA、运行 ID 和尝试次数。
+- [ ] Intent 仅在人工验收后关闭；工程分支已移除，文档与运行分支保留。
+- [ ] 真实证据及回放已保留；只清理了受管理的演示容器。
 
-## Run controls during presentation
+<a id="run-controls-during-presentation"></a>
+## 演示过程中的运行控制
 
-The Documents workflow routes run controls. Writers submit `/sdlc help`,
-`/sdlc status`, `/sdlc pause`, `/sdlc resume`, or
-`/sdlc cancel` as new, unedited, top-level Human comments on the Intent.
-Pause/cancel gate future work, leave PR policy pending, and disable auto-merge.
-This includes future document publication, publish resolution, and stage
-advancement.
-They **do not terminate agents/workflows already running or undo merges**.
-Cancellation is terminal and retains Issues, PRs, and branches; continuing
-requires a new Intent. Resume releases a pause, not a failed-job retry.
-See the [command reference](brownfield-human-gated-delivery.md#run-controls-and-human-acceptance).
+Documents 工作流负责路由运行控制。
+具有写权限的人应在 Intent 新建未经编辑的顶层评论，提交 `/sdlc help`、
+`/sdlc status`、`/sdlc pause`、`/sdlc resume` 或 `/sdlc cancel`。
+暂停或取消会阻止后续工作，让 PR 策略保持 pending，并禁用自动合并，
+包括后续文档发布、发布结果处理及阶段推进。
+它们**不会终止已经运行的代理或工作流，也不会撤销合并**。
+取消是终态，会保留 Issue、PR 和分支；继续工作需新建 Intent。
+恢复只解除暂停，不会重试失败作业。
+详见[命令参考](brownfield-human-gated-delivery.md#run-controls-and-human-acceptance)。
 
-## Troubleshooting during the demo
+<a id="troubleshooting-during-the-demo"></a>
+## 演示中的故障排查
 
-Follow this failure decision tree before retrying:
+重试前，先按以下故障判断流程处理：
 
-1. **No kickoff or workflow?** Check published `main`, GitHub registration,
-   labels, and authorization. Resolve prerequisites; setup cannot publish or
-   register a missing workflow.
-2. **Document generation/publication/handoff failed?** Fix the cause, then
-   `/sdlc retry` or dispatch Documents for the same Intent. Keep sealed state
-   intact if full Plan approval already happened.
-3. **Engineering CI failed?** For a real defect, request a same-PR correction
-   and re-review. For infrastructure failure, fix it and rerun that failed CI
-   Action. Do not treat an unrelated failure as controlled Red.
-4. **Advance or Publish failed?** Inspect that exact failed Action, fix its
-   cause, and rerun its failed jobs (or whole run if needed). `/sdlc retry`
-   cannot recover these; there is no automatic infinite rerun loop.
-5. **Verification passed but completion is blocked?** Inspect pause/cancel,
-   rejection, current digest/run/attempt, decision timing, reviewer eligibility,
-   and quorum. Obtain genuine fresh Human acceptance, never a synthetic one.
-6. **Code/scope defect after merge, or cancelled run?** Preserve evidence and
-   create a linked new Intent. Do not reset branches or rewrite sealed artifacts.
+1. **没有 kickoff 或工作流？**
+   检查已发布的 `main`、GitHub 注册、标签和授权。
+   解决前提条件；setup 无法发布或注册缺失工作流。
+2. **文档生成、发布或交接失败？**
+   修复原因，再执行 `/sdlc retry`，或为同一个 Intent 触发 Documents。
+   如果 Plan 已经获得全部批准，必须保持封存状态完整。
+3. **工程 CI 失败？**
+   真实缺陷应在同一个 PR 中要求修正并重新评审。
+   基础设施故障则先修复，再重跑失败的 CI Action。
+   不要把无关失败当作受控 Red。
+4. **Advance 或 Publish 失败？**
+   查看那个实际失败的 Action，修复原因，重跑其失败作业，必要时重跑整个运行。
+   `/sdlc retry` 不能恢复这些流程，也不存在无限自动重跑循环。
+5. **验证已通过，但无法完成？**
+   检查暂停或取消、拒绝记录、当前摘要/运行/尝试次数、决定时间、评审者资格及人数。
+   必须获得真实、最新的人工验收，不得伪造。
+6. **合并后发现代码或范围缺陷，或运行已取消？**
+   保留证据并创建关联的新 Intent。
+   不要重置分支或改写已封存产物。
 
-| Symptom | What to check or do |
+| 现象 | 检查与处理 |
 |---|---|
-| Form is missing or has old content | Confirm the template is on the default branch; open a fresh **New issue** form |
-| Documents is missing from Actions | Publish the reviewed workflow to remote `main` and wait for GitHub registration. Setup cannot register a missing workflow; it can enable one already registered but disabled |
-| Kickoff did not start | Check the Intent label and author association. Adding a label later is not a kickoff trigger; use **Actions > Brownfield Delivery · Kickoff > Run workflow** with the existing Intent number |
-| Kickoff failed partway through | Fix the reported prerequisite, then dispatch Kickoff with the same Intent number; do not create duplicate Intents just to retry |
-| Documents rejects a changed Intent title/body | The original request is snapshotted at startup. Keep it unchanged; use revision-command feedback for refinements or a new Intent for a changed original request |
-| An ordinary comment or `@copilot` mention did not revise the document | Expected: submit a new top-level `/sdlc revise spec` or `/sdlc revise plan` with feedback on the parent Issue; discussion and edited comments do not run the command interface |
-| Document generation failed | Check the Documents run, `copilot-requests: write`, CLI entitlement/billing, and Actions policy. Fix the cause, then submit `/sdlc retry` or manually dispatch Documents with `issue_number` |
-| A pending run was replaced, or publication/approval/handoff failed | Resume Documents for the same parent Issue; its durable queue reconciles submitted commands on every run. Do not repost commands just because their original run was superseded |
-| Issue approval did not advance | Check the exact latest version, current configured Human login/team membership, repository write access, and `minimumApprovals`; bots cannot approve |
-| Deleting or editing an approval comment did not revoke it | Expected for a processed approval snapshot. Request an explicit revision before full Plan approval; after handoff, use a new Intent |
-| A Spec revision invalidated the Plan | Expected: reapprove the new Spec, then review and approve a new Plan version; old Spec/Plan approvals cannot be reused |
-| Trusted automation cannot write its state branch | Inspect rules matching `brownfield-documents/**` and `brownfield-runs/**`. Allow trusted writes without granting a bypass; managed rulesets cover only `main` and `brownfield-delivery/**` |
-| Required attested document/run branch is missing | Stop and inspect original ledger/history; missing state fails explicitly and must not be recreated to reset approvals |
-| Documents reports run-control or cleanup failure | Read that phase's failure, fix the cause, and rerun the failed Documents Action; it is not necessarily a document-generation error |
-| Acceptance is recorded but Issues remain open after a merge-evidence error | Inspect the actual PR `merged` timeline event and its `commit_id`; REST API `2026-03-10` omits `merge_commit_sha` from PR responses. Preserve the recorded decision and sealed documents. After deploying a fix, dispatch Documents on updated `main` with the same `issue_number` to reconcile cleanup; do not duplicate approvals or substitute the current main tip |
-| An existing Intent still uses Spec/Plan PRs | This is [legacy mode](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode), not a failed migration. Keep its PR workflow |
-| Copilot did not revise a Tests, Implementation, or legacy document PR | Submit the review, then post a direct `@copilot` request in that PR and inspect the agent session |
-| Copilot finished but its PR is still a draft | Check the **Copilot cloud agent** run and final response, not just draft state. Review its scope, request corrections as needed, then mark it ready for review. This is not approval; the exact current head still needs the configured review and required checks |
-| Copilot says its progress tool cannot edit mandatory PR metadata | An authorized operator can restore the four `Delivery Demo`, `Delivery Intent`, `Delivery Stage`, and `Delivery Stage Issue` lines from the assigned stage Issue and remove closing keywords. Verify the actual Intent, stage, and base branch first; never invent metadata to reclassify unrelated work. Recheck Stage CI and policy afterward |
-| Copilot PR workflows or Review Signal end with `action_required` | Review the code and workflows before authorizing execution. Use GitHub's approval UI, or have an authorized operator rerun the specific run with `gh run rerun RUN_ID --repo OWNER/REPO` and verify its new attempt executes. The REST approval endpoint for fork PRs can return 403 for Copilot-created runs. Do not disable required workflow approval, treat `action_required` as success, or replace the independent PR review with workflow authorization |
-| PR approval did not unblock policy | Check configured reviewer identity, current-head approval, outstanding change requests, and draft state. Review Signal and PR Coordinator run asynchronously; inspect their latest runs |
-| PR policy passed, but GitHub rejects approval from a Copilot collaborator | Native PR rules need an independent person with write access. For a one-Human demo, use [single-owner mode](brownfield-human-gated-delivery.md#single-owner-demo-mode); do not remove the policy or stage checks. This restriction does not apply to Issue approvals |
-| Required PR policy/check never appears | Confirm the Review Signal, PR Coordinator, and Stage CI workflows are installed and enabled, and that rulesets use the exact required names. New Issue documents do not wait for these PR checks |
-| Stage check failed | Read the failing job and request a correction in the same PR; do not weaken the validator or approve an unrelated failure |
-| Classification rejects a generated `Fixes` suffix | The updated coordinator repairs only Copilot's recognized closing reference to the current stage Issue, then body-edited CI reruns. Ensure the compatibility fix is on the default branch; unrelated closing references still need correction |
-| Approved PR has not advanced | Check run pause/cancel state, required checks, conversations, branch freshness, auto-merge, and whether the PR actually merged. Inspect **Advance**; fix the cause and rerun that failed Action, not `/sdlc retry` |
-| Publish or smoke verification failed | Read the actual Publish run. Fix infrastructure failures before **Re-run failed jobs**; report code defects through a linked new Intent. A new verification invalidates previous acceptance |
-| Smoke passed but Intent remains open | Expected for every Issue-based run, including existing runs after upgrade: exercise the exact verified digest and obtain configured Human acceptance quorum |
-| Accepted digest was rejected or reverified | Another verification is required after rejection, and fresh acceptance is required after reverification; old comments cannot accept a future attempt |
+| 表单缺失或内容陈旧 | 确认模板位于默认分支；重新打开一个 **New issue** 表单 |
+| Actions 中没有 Documents | 将审查后的工作流发布到远程 `main` 并等待 GitHub 注册。setup 无法注册缺失工作流，但可以启用已注册且被禁用的工作流 |
+| Kickoff 没有启动 | 检查 Intent 标签与作者关联身份。事后添加标签不会触发 kickoff；请通过 **Actions > Brownfield Delivery · Kickoff > Run workflow** 输入现有 Intent 编号运行 |
+| Kickoff 中途失败 | 修复报告的前提问题，再用同一个 Intent 编号触发 Kickoff；不要为了重试而重复创建 Intent |
+| Documents 拒绝更改后的 Intent 标题或正文 | 启动时已保存原始请求快照。保持不变；细化内容使用修订命令反馈，改变原始请求则新建 Intent |
+| 普通评论或 `@copilot` 提及没有修订文档 | 这是预期行为：在父 Issue 新建顶层 `/sdlc revise spec` 或 `/sdlc revise plan` 评论并附反馈；普通讨论和编辑评论不运行命令接口 |
+| 文档生成失败 | 检查 Documents 运行、`copilot-requests: write`、CLI 使用资格与计费，以及 Actions 策略。修复原因后提交 `/sdlc retry`，或带 `issue_number` 手动触发 Documents |
+| 等待执行的运行被替换，或发布、批准记录、交接失败 | 为同一个父 Issue 恢复 Documents；其持久队列每次运行都会核对已提交命令。不要仅因为原运行被替换就重新发命令 |
+| Issue 批准没有推进 | 检查精确的最新版本、当前已配置人工登录名或团队成员资格、仓库写权限及 `minimumApprovals`；机器人不能批准 |
+| 删除或编辑批准评论没有撤销它 | 对已处理的批准快照，这是预期行为。请在 Plan 获得全部批准前明确请求修订；交接后使用新 Intent |
+| 修订 Spec 使 Plan 失效 | 这是预期行为：重新批准新 Spec，再评审并批准新 Plan 版本；旧 Spec/Plan 批准不能复用 |
+| 受信任自动化无法写入状态分支 | 检查匹配 `brownfield-documents/**` 与 `brownfield-runs/**` 的规则。在不授予绕过权限的前提下允许受信任写入；受管理规则集只覆盖 `main` 和 `brownfield-delivery/**` |
+| 缺少必需且经过证明的文档或运行分支 | 停止并检查原始账本与历史；缺少状态会明确失败，不得通过重建状态重置批准 |
+| Documents 报告运行控制或清理失败 | 阅读该阶段的失败信息，修复原因并重跑失败的 Documents Action；这不一定是文档生成错误 |
+| 验收已记录，但合并证据错误后 Issue 仍打开 | 检查实际 PR 的 `merged` 时间线事件及其 `commit_id`；REST API `2026-03-10` 已从 PR 响应中省略 `merge_commit_sha`。保留已记录决定及封存文档。部署修复后，在更新的 `main` 上使用相同 `issue_number` 触发 Documents，重新核对清理；不要重复批准，也不要拿当前 main 顶端提交替代 |
+| 现有 Intent 仍使用 Spec/Plan PR | 这是[旧版模式](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)，不是迁移失败。保留其 PR 工作流 |
+| Copilot 没有修订 Tests、Implementation 或旧版文档 PR | 先提交评审，再在该 PR 中直接向 `@copilot` 发出请求，并检查代理会话 |
+| Copilot 已完成，但 PR 仍是草稿 | 检查 **Copilot cloud agent** 运行及最终回复，不要只看草稿状态。审查范围，必要时要求修正，然后标记为可评审。这不是批准；精确的当前 head 仍需配置要求的评审及必需检查 |
+| Copilot 表示进度工具无法编辑必需 PR 元数据 | 有权限的操作人员可以依据已指派阶段 Issue，恢复 `Delivery Demo`、`Delivery Intent`、`Delivery Stage`、`Delivery Stage Issue` 这四行，并移除关闭关键词。先核对实际 Intent、阶段及目标分支；绝不能编造元数据来重新分类无关工作。之后重新检查 Stage CI 和策略 |
+| Copilot PR 工作流或 Review Signal 以 `action_required` 结束 | 授权执行前先审查代码与工作流。使用 GitHub 批准界面，或由有权限的操作人员通过 `gh run rerun RUN_ID --repo OWNER/REPO` 重跑特定运行，并确认新尝试实际执行。用于 fork PR 的 REST 批准端点，对 Copilot 创建的运行可能返回 403。不要禁用必需的工作流批准，不要把 `action_required` 当成成功，也不要用工作流授权替代独立 PR 评审 |
+| PR 批准未解除策略阻碍 | 检查已配置评审者身份、当前 head 批准、未解决变更请求及草稿状态。Review Signal 与 PR Coordinator 异步运行；查看其最新运行 |
+| PR 策略已通过，但 GitHub 不接受 Copilot 协作者的批准 | 原生 PR 规则需要另一位具有写权限的独立评审者。单人演示可使用[单人模式](brownfield-human-gated-delivery.md#single-owner-demo-mode)；不要移除策略或阶段检查。该限制不适用于 Issue 批准 |
+| 必需 PR 策略或检查始终不出现 | 确认 Review Signal、PR Coordinator 和 Stage CI 工作流已安装且启用，并且规则集使用精确的必需名称。新的 Issue 文档不等待这些 PR 检查 |
+| 阶段检查失败 | 阅读失败作业，并要求在同一个 PR 中修正；不要削弱验证器，也不要批准无关失败 |
+| 分类拒绝生成的 `Fixes` 后缀 | 更新后的协调器只修复 Copilot 可识别的、指向当前阶段 Issue 的关闭引用，然后重新运行正文编辑 CI。确认兼容性修复已在默认分支；无关关闭引用仍需另行修正 |
+| 已批准 PR 没有推进 | 检查运行暂停或取消状态、必需检查、讨论、分支是否最新、自动合并，以及 PR 是否真正合并。查看 **Advance**，修复原因并重跑该失败 Action，而不是使用 `/sdlc retry` |
+| Publish 或冒烟验证失败 | 阅读实际 Publish 运行。基础设施故障修复后再使用 **Re-run failed jobs**；代码缺陷通过关联的新 Intent 报告。新的验证会使此前验收失效 |
+| 冒烟通过但 Intent 仍打开 | 对每个基于 Issue 的运行，这是预期行为，包括升级后的既有运行：操作精确的已验证摘要对应镜像，并取得配置人数要求的人工验收 |
+| 已接受摘要遭拒绝或被重新验证 | 拒绝后必须重新验证；重新验证后必须重新验收。旧评论不能接受未来尝试 |
 
-To recover document generation/handoff only, without new feedback, post this as a new top-level comment
-on the existing parent Intent:
+如果只需恢复文档生成或交接，不提供新反馈，请在现有父 Intent 新建顶层评论：
 
 ```text
 /sdlc retry
 ```
 
-Alternatively, open **Actions > Brownfield Delivery · Documents > Run workflow**,
-select `main`, and supply that parent Issue's number in the manual
-`workflow_dispatch` input `issue_number`. The equivalent command, replacing the
-repository and example number as needed, is:
+也可以打开 **Actions > Brownfield Delivery · Documents > Run workflow**，
+选择 `main`，在手动 `workflow_dispatch` 输入 `issue_number` 中填写父 Issue 编号。
+等价命令如下，请按实际情况替换仓库和示例编号：
 
 ```sh
 gh workflow run brownfield-human-gated-delivery-documents.yml \
   --repo OWNER/NEW_DEMO_REPO --ref main -f issue_number=7
 ```
 
-Inspect the latest hub and run result after recovery. A full Plan approval
-keeps documents frozen even if branch creation or the Tests assignment must be
-retried.
+恢复后检查最新汇总及运行结果。
+即使创建分支或指派 Tests 需要重试，Plan 获得全部批准后，文档仍保持冻结。
 
-If the delivery Environment has an additional approval rule, its reviewer must
-also release the pending verification job. Keep the original Intent open while
-delivery is failing; do not close it merely because implementation merged.
+如果交付 Environment 另有批准规则，其评审者还必须放行等待中的验证作业。
+交付失败期间，保持原始 Intent 打开；不要仅因为实现已经合并就关闭它。
 
-For another run, choose a feature still missing from the current baseline.
-After ownership has been delivered, submitting the same ownership Intent again
-is not a meaningful brownfield demonstration. Use a separately prepared demo
-repository from the pinned baseline for repeatable rehearsals instead of
-deleting application data or undoing unrelated work. See the
-[readiness criteria](#presenter-runbook-and-readiness) before reporting Demo Ready.
+下一次运行应选择当前基线仍缺失的功能。
+负责人功能交付后，再次提交相同 Intent 已不是有意义的既有系统演示。
+为了可重复演练，应从固定基线另行准备演示仓库，而不是删除应用数据或撤销无关工作。
+宣告 Demo Ready 前，请核对[就绪标准](#presenter-runbook-and-readiness)。

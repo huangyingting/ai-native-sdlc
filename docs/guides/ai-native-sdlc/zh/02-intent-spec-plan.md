@@ -138,9 +138,6 @@ Plan 说明如何落实已批准的 Spec。审查时，要核对任务依赖、�
 上表用于说明任务结构，并非原 Plan 的任务清单。实际计划应将每个验收条件
 对应到具体任务和检查。
 
-单独的历史就绪检查案例中，Plan 曾假定仓库已有可复用的 HTTP 测试工具。
-检查后发现，现有 Vitest 测试直接测试模块和组件，审查者因此
-[要求修正](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/8#issuecomment-5863070163)。
 计划中涉及仓库能力的判断，都应能找到对应代码或工具作为依据。
 
 发现遗漏或错误假设时，用 `/sdlc revise plan` 提出修改意见。

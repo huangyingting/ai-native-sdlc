@@ -1,6 +1,6 @@
 # 2. Intent, Spec and Plan: resolve uncertainty before coding
 
-[Guide index](../README.md) · [中文](../zh/02-intent-spec-plan.md) ·
+[Guide index](../README.en.md) · [中文](../zh/02-intent-spec-plan.md) ·
 [Previous](01-operating-model.md) · [Next: Build and Verify](03-build-verify.md)
 
 This chapter follows **the current ticket ownership case**: explain the need,
@@ -56,7 +56,7 @@ Each decision revised the Spec. This exercise approved **Spec v5**, then
 **Plan v1**. Version numbers reflect the revisions needed; the process does
 not require reaching v5.
 
-The [decision and revision register](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/README.md)
+The [decision and revision register](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/README.en.md)
 links each answer to its revision. Check that decisions changed the acceptance
 criteria; do not mistake AI suggestions for confirmed product policy.
 
@@ -79,7 +79,7 @@ to this repository, not to GitHub or Copilot's built-in command interface.
 4. Wait for publication of the new version. Read how the answer changed the
    acceptance criteria before answering the next question.
 5. If a question must be deferred, record a rationale, owner, follow-up and risk
-   using the [documented defer command](../../../../tools/brownfield-demo/README.md#spec-readiness-profiles).
+   using the [documented defer command](../../../../tools/brownfield-demo/README.en.md#spec-readiness-profiles).
    “Deferred” means owned uncertainty, not a resolved fact.
 6. If the Spec is incomplete, request a revision with concrete feedback.
 7. Approve only the actual current version after its blockers are handled:
@@ -146,10 +146,8 @@ Review dependencies, scope and validation, not just a plausible task list.
 This table teaches task structure; it is not the actual task-ID ledger.
 In the real Plan, every acceptance criterion must map to named tasks and checks.
 
-In the separate historical readiness case, the Plan assumed an existing public HTTP test harness.
-Inspection found direct-module/component Vitest tests instead. The reviewer
-[requested a correction](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/8#issuecomment-5863070163).
-This is why “AI sounds familiar with the repository” is not sufficient evidence.
+Every assumption about repository capabilities must be grounded in actual code
+or tooling. “AI sounds familiar with the repository” is not sufficient evidence.
 
 Use `/sdlc revise plan` with specific missing mappings or unsupported assumptions.
 When ready, approve the latest actual version, for example:
@@ -180,6 +178,6 @@ rehearsal requirement.
 - [ ] Reviewers understand what will freeze after Plan approval.
 
 Further detail: [current illustrated case](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.en.md)
-and the [operator walkthrough](../../brownfield-human-gated-delivery-walkthrough.md#5-review-and-iterate-on-the-spec).
+and the [operator walkthrough](../../brownfield-human-gated-delivery-walkthrough.en.md#5-review-and-iterate-on-the-spec).
 
 [Next: review executable contracts and implementation](03-build-verify.md).

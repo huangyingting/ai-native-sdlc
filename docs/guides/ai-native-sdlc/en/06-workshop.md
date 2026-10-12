@@ -1,7 +1,7 @@
 # 6. Workshop and adoption playbook
 
-[Guide index](../README.md) · [中文](../zh/06-workshop.md) ·
-[Previous](05-engineering-judgment.md) · [Evidence register](../evidence.md)
+[Guide index](../README.en.md) · [中文](../zh/06-workshop.md) ·
+[Previous](05-engineering-judgment.md) · [Evidence register](../evidence.en.md)
 
 Presentation routes live in the demo repository. This chapter explains three
 hands-on routes: local practice without model calls, a delivery from scratch,
@@ -19,19 +19,19 @@ No website setup is needed for a presentation. The
 [public Trace Viewer](https://huangyingting.github.io/ai-native-sdlc/) provides
 interactive inspection of the execution. To demonstrate the application live,
 start your own isolated instance; localhost URLs in the reports are not public
-demo addresses. See the [evidence register](../evidence.md) for source notes.
+demo addresses. See the [evidence register](../evidence.en.md) for source notes.
 
 ## 6.2 Use the demo repository's presentation route
 
-The [30-minute route](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md)
+The [30-minute route](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.en.md)
 covers handoffs, four product decisions, Spec/Plan approval, two test revision
 rounds, 38 passing tests, package-access recovery and exact-image acceptance.
 It uses the current repository's records and 14 screenshots, not another case's
 roster or test counts.
 
 Open the pages in advance. Read-only presentation needs no comments, approvals
-or workflow reruns. For an hour, add chapter 5's engineering topic and explicitly
-identify it as a separate historical experiment. For a half-day workshop, add
+or workflow reruns. For an hour, add chapter 5's engineering methods without
+presenting experiment designs as completed deliveries. For a half-day workshop, add
 the exercises below. Do not promise a complete cloud delivery in a fixed slot:
 queues, review, permissions and builds are external dependencies.
 
@@ -79,7 +79,7 @@ Exercises without model calls:
 
 ## 6.4 Route B: a delivery from scratch
 
-Use the existing [ordered operator walkthrough](../../brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)
+Use the existing [ordered operator walkthrough](../../brownfield-human-gated-delivery-walkthrough.en.md#1-prepare-the-repository)
 for complete setup. The sequence matters:
 
 1. Choose a reviewed **full 40-hex source commit**, still ownership-free and
@@ -121,7 +121,7 @@ digest or failed cleanup. Do not bypass a gate to finish a presentation.
 ### Change impact and strategy evaluation
 
 Prerequisites: Node.js 24, Docker, Git, authenticated Copilot CLI and explicitly
-accepted usage costs. Review the [qualified CLI version and transport](../../engineering-judgment-demos.md#2-prerequisites);
+accepted usage costs. Review the [qualified CLI version and transport](../../engineering-judgment-demos.en.md#2-prerequisites);
 an upgraded CLI is not automatically qualified.
 
 The published experiment used fixture commit
@@ -129,7 +129,7 @@ The published experiment used fixture commit
 are recorded separately. Use dedicated output directories and the same immutable
 runtime across comparison cells.
 
-Follow the exact [impact commands](../../engineering-judgment-demos.md#3-change-impact-and-consistency-loop):
+Follow the exact [impact commands](../../engineering-judgment-demos.en.md#3-change-impact-and-consistency-loop):
 
 1. `impact-propose`: real model call; read the complete candidate.
 2. `impact-approve`: local operator receipt for the exact `proposalHash`;
@@ -146,8 +146,8 @@ completed with failed candidates; exit 1 means error.
 ### Reliability without model calls
 
 With access to source that implements readiness and its image, follow
-[qualification](../../brownfield-reliability-loops.md#3-start-here-qualify-the-tests),
-then [runtime rehearsal](../../brownfield-reliability-loops.md#4-run-real-image-verification-admission-recovery-and-monitoring).
+[qualification](../../brownfield-reliability-loops.en.md#3-start-here-qualify-the-tests),
+then [runtime rehearsal](../../brownfield-reliability-loops.en.md#4-run-real-image-verification-admission-recovery-and-monitoring).
 These execute real tests/Docker/HTTP/SQLite, not Copilot calls. Image/dependency
 downloads and compute may still incur costs.
 
@@ -202,11 +202,11 @@ The repository does not supply measured customer ROI.
 Before claiming **Demo Ready** under this repository's existing policy, complete
 three genuine isolated Human-led scenarios: normal delivery, explicit Spec
 revision/Plan invalidation, and recoverable failure. The current accepted case
-does not establish all three; historical scripted development-test runs do not
+does not establish all three; scripted development-test runs do not
 substitute for those requirements.
 
 The best takeaway is not “AI removes every gate.” It is:
 **make useful proposals cheap, make unsupported transitions difficult, and
 make every outcome inspectable.**
 
-[Back to the guide](../README.md) · [Open the evidence and screenshot register](../evidence.md).
+[Back to the guide](../README.en.md) · [Open the evidence and screenshot register](../evidence.en.md).

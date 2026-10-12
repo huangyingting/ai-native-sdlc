@@ -1,219 +1,198 @@
-# Intent, Spec, and Plan: Research and Demo Improvement Design
+<a id="intent-spec-and-plan-research-and-demo-improvement-design"></a>
+# 意图、规格与计划：研究及演示改进设计
 
-Assessment date: 2026-09-28.
+[English](ai-native-sdlc-early-stage-research.en.md)
 
-For the later lifecycle, see the companion
-[Build/Verify/Deploy/Operate analysis](ai-native-sdlc-delivery-operations-research.md)
-and [three reliability loops](../guides/brownfield-reliability-loops.md).
+评估日期：2026-09-28。
 
-**Status:** the research below is a dated baseline assessment. The first
-discovery/decision slice is now implemented in source for newly initialized
-`decisions-v1` runs; the remaining roadmap is still proposed. A subsequent
-[discovery-to-maintenance rehearsal](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-discovery-maintenance-rehearsal.md)
-records actual remote execution in an isolated repository, including blocked
-premature approval, four decision-driven Spec revisions, accepted ownership
-delivery, and linked operational feedback. It is explicitly `development-test`,
-not independent Human review or measured review effectiveness.
-The current operator instructions remain the
-[walkthrough](../guides/brownfield-human-gated-delivery-walkthrough.md) and
-[delivery reference](../guides/brownfield-human-gated-delivery.md).
+生命周期后续阶段，见配套的
+[构建/验证/部署/运维分析](ai-native-sdlc-delivery-operations-research.md)
+和[三个可靠性闭环](../guides/brownfield-reliability-loops.md)。
 
-## Executive summary
+**状态：**下文研究是一份带日期的基线评估。
+针对新初始化的 `decisions-v1` 运行，第一个发现与决策切片已在源仓库实现；
+路线图中的其他部分仍是提案。
+当前操作说明仍以[演练指南](../guides/brownfield-human-gated-delivery-walkthrough.md)
+和[交付参考](../guides/brownfield-human-gated-delivery.md)为准。
 
-The largest early-stage AI-native SDLC risk is not slow document production.
-It is the rapid conversion of an unverified goal, assumption, or constraint
-into a convincing specification and implementation plan.
+<a id="executive-summary"></a>
+## 执行摘要
 
-Our demo is stronger at controlling **how approved decisions advance** than
-at discovering **whether those decisions are correct, complete, and worth
-implementing**. Version-bound approvals, change invalidation, and artifact
-preservation are valuable foundations, but they do not establish business
-value, semantic completeness, or technical feasibility.
+AI 原生 SDLC 早期阶段最大的风险不是文档生产太慢，
+而是未经验证的目标、假设或约束，被迅速转化成有说服力的规格与实现计划。
 
-The recommended evolution is decision-centered, not document-centered:
+我们的演示更擅长控制**已批准决策如何推进**，
+而不擅长发现**这些决策是否正确、完整、值得实现**。
+绑定版本的批准、变更失效机制和产物保留都是有价值的基础，
+但不能证明业务价值、语义完整性或技术可行性。
 
-1. Clarify the problem and success criteria without requiring users to write
-   a specification.
-2. Make questions, assumptions, and Human decisions explicit and traceable.
-3. Present a short change-and-decision packet before the complete documents.
-4. Ground plans in source evidence and bounded feasibility checks.
+建议以决策为中心演进，而不是以文档为中心：
 
-Keep GitHub as the collaboration and audit system. Do not start by building a
-new portal, introducing more approval stages, or adding autonomous agents.
+1. 澄清问题与成功标准，而不要求用户先写一份规格。
+2. 让问题、假设和人工决策显式可见、可追溯。
+3. 在完整文档之前，先呈现简短的变更与决策包。
+4. 用源码证据和有界可行性检查支撑计划。
 
-## 1. Research method and evidence boundaries
+继续把 GitHub 作为协作与审计系统。
+不要一开始就开发新门户、增加更多批准阶段，或添加自主智能体。
 
-There is no established empirical ranking of the ten largest AI-specific
-Intent/Spec/Plan problems. This is a qualitative prioritization for small
-teams making brownfield changes through GitHub, based on impact, recurrence
-suggested by the literature, and the cost of discovering a mistake late.
-It is not a measured frequency ranking or an overall coverage percentage.
+<a id="1-research-method-and-evidence-boundaries"></a>
+## 1. 研究方法与证据边界
 
-The evidence has four different strengths:
+目前没有公认的实证排名，能列出 AI 特有的十大 Intent/Spec/Plan 问题。
+本文面向通过 GitHub 修改存量项目的小团队，
+按影响、文献所反映的反复出现情况，以及晚发现错误的代价进行定性排序。
+它不是基于测量的发生频率排名，也不是总体覆盖百分比。
 
-| Evidence | What it supports | What it does not establish |
+证据具有四种不同强度：
+
+| 证据 | 能支持什么 | 不能证明什么 |
 |---|---|---|
-| NaPiRE requirements-engineering research [S1] | Incomplete requirements and communication failures are longstanding, empirically observed problems | Their frequency in current AI-assisted workflows |
-| DORA user-centric guidance and AI research [S2, S3] | User focus and organizational capabilities remain important when using AI | A causal ranking of the ten problems below |
-| Practitioner trials of spec-driven development [S4] | Concrete examples of excessive specification and failures to use available context correctly | Universal tool behavior or comparative effectiveness |
-| Spec Kit workflow definitions [S5-S8] | First-party designs that explicitly address clarification, consistency, research, and task organization | Proof that those workflows solve these problems in practice |
-| Our implementation, tests, and delivery receipts | Specific mechanisms and observed behavior in this demo | Enterprise-scale discovery capability or effective independent Human review |
+| NaPiRE 需求工程研究 [S1] | 需求不完整和沟通失败是长期存在、已被实证观察到的问题 | 它们在当前 AI 辅助工作流中的发生频率 |
+| DORA 用户中心指导与 AI 研究 [S2, S3] | 使用 AI 时，用户关注与组织能力仍然重要 | 下文十个问题的因果排名 |
+| 规格驱动开发的实践者试用 [S4] | 规格过度膨胀、无法正确使用现有上下文的具体案例 | 工具的普遍行为或比较有效性 |
+| Spec Kit 工作流定义 [S5-S8] | 显式处理澄清、一致性、研究与任务组织的第一方设计 | 这些工作流在实践中解决了问题的证明 |
+| 我们的实现与测试 | 本演示中的具体机制与测试覆盖的行为 | 企业级发现能力或有效的独立人工评审 |
 
-Many problems predate AI. AI amplifies them by making assumptions look
-authoritative, propagating them across artifacts, and producing material
-faster than Humans can review it. General coding-productivity results are
-not used as evidence of early-stage requirement quality.
+许多问题早于 AI 出现。
+AI 会让假设显得权威、在多个产物间传播假设，并以超过人工评审能力的速度生成材料，
+从而放大这些问题。
+本文不把一般编码生产力结果用作早期需求质量的证据。
 
-### Assessment baseline
+<a id="assessment-baseline"></a>
+### 评估基线
 
-- Source inspection:
-  [`huangyingting/ai-native-sdlc` at `462a044`](https://github.com/huangyingting/ai-native-sdlc/tree/462a0441874a3299882086741496c3c7d5da57e4).
-- Fourteen targeted early-stage tests passed during the preceding research
-  pass. This is a point-in-time observation, not a fresh full-suite result
-  for this documentation change.
-- Two in-memory probes examined structural validation limits. They did not
-  modify repository files, GitHub comments, approvals, or persisted run state.
+- 源码检查：
+  [`huangyingting/ai-native-sdlc` 的 `462a044`](https://github.com/huangyingting/ai-native-sdlc/tree/462a0441874a3299882086741496c3c7d5da57e4)。
+- 前一轮研究中，十四个针对早期阶段的定向测试通过。
+  这是当时的观测，不是本次文档变更新运行的全套测试结果。
+- 两个内存内探针检查了结构验证的边界。
+  它们没有修改仓库文件、GitHub 评论、批准或持久化运行状态。
 
-This remains a dated source-code assessment, not a progress report for the
-current demo. Links to the deleted repository incarnation have been removed;
-its former Issue numbers must not be reused as evidence. The
-[current case](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.en.md)
-has its own decisions, versions and acceptance and does not retroactively
-change this research baseline.
+这仍是一份带日期的源码评估，而不是当前演示的进度报告。
+[当前案例](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+拥有自己的决策、版本和验收，不会追溯改变本研究基线。
 
-## 2. Ten high-impact pain points and current coverage
+<a id="2-ten-high-impact-pain-points-and-current-coverage"></a>
+## 2. 十个高影响痛点与当前覆盖
 
-**Coverage terms:** "strong within scope" means an implemented and exercised
-mechanism, not a complete solution. "Partial" means relevant support exists
-but a material gap remains. A required heading is not semantic enforcement.
+**覆盖术语：**“范围内较强”表示机制已经实现并演练，并不代表完整解决方案。
+“部分覆盖”表示已有相关支持，但仍存在实质缺口。
+强制要求某个标题，并不等于强制保证语义。
 
-| # | Pain point and stage | How AI amplifies it | Current demo coverage and remaining gap |
+| # | 痛点与阶段 | AI 如何放大问题 | 当前演示覆盖与剩余缺口 |
 |---|---|---|---|
-| 1 | **Solving the requested feature rather than the underlying problem.** Intent | A feature request can become a coherent Spec and Plan without establishing that the feature is valuable. | **Limited.** The form asks for a problem, outcome, users, and constraints, but not user evidence, a baseline/target, alternatives, or a reason not to act. |
-| 2 | **Missing brownfield and implicit domain context.** Spec / Plan | Generic solutions can ignore existing components, historical constraints, and integration contracts. Reading context does not guarantee correct interpretation. | **Partial.** Generation reads a pinned source checkout and discussion. Important claims do not need source citations, and external constraints or context freshness are not verified. |
-| 3 | **Plausible assumptions becoming confirmed requirements.** Spec | Fluent prose can hide uncertainty; downstream plans and tests then reinforce an invented decision. | **Partial.** Prompts require visible questions and prohibit invented Human decisions. There is no typed assumption/decision register or readiness gate for unresolved blockers. |
-| 4 | **Acceptance criteria that are not objectively decidable.** Spec | Words such as "fast," "safe," and "compatible" sound complete without conditions, thresholds, or counterexamples. | **Partial.** AC IDs and Given/When/Then markers are enforced, and the sample includes concrete outcomes. Semantic completeness and measurable quality are not established by validation. |
-| 5 | **Unresolved stakeholder conflicts and decision authority.** Intent / Spec | AI can smooth contradictory opinions into apparently consistent prose instead of exposing a trade-off. | **Partial.** Reviewer identity, team membership, quorum, and version gates exist. Conflict arbitration, decision rationale, and independent multi-role review have not been demonstrated. |
-| 6 | **Missing nonfunctional requirements and exceptional behavior.** Spec | Happy paths are easy to describe; recovery, concurrency, accessibility, permissions, migration, and performance require deliberate discovery. | **Partial.** Prompts and the sample address invalid input, migration, and compatibility. There is no systematic quality-attribute assessment or general quantitative NFR gate. |
-| 7 | **Change propagation and cross-artifact drift.** Spec to Plan | Individually plausible documents can describe different versions of the requirement, while old approvals remain visible. | **Strong within one Intent.** Spec revisions invalidate approvals and Plan; stale approvals fail; Plan binds the exact Spec; frozen blobs are preserved. Cross-Intent impact analysis after sealing is not implemented. |
-| 8 | **Unverified feasibility presented as a certain plan.** Plan | A plausible architecture or API assumption can become a task list without testing the premise. | **Partial.** Tasks include surfaces and validation, with risks and migrations documented. No required feasibility evidence, alternative comparison, or bounded experiment exists. |
-| 9 | **Incorrect task slicing, dependencies, and parallelism.** Plan | A tidy DAG can hide oversized tasks, missing increments, shared-file conflicts, and unrealistic sequencing. | **Strong structural support; partial practical coverage.** Unknown task/AC references, cycles, and unmapped ACs are rejected. Task usefulness, sizing, real dependencies, and safe parallel execution are not verified. |
-| 10 | **Document inflation and reviewer fatigue.** Across stages | Generation scales faster than reading, comparison, and decision-making, creating approval without understanding. | **Partial.** Rendered Issue revisions, a progress hub, and revision summaries reduce navigation cost. There is no structured impact diff, decision inbox, or measured review-effort evidence. |
+| 1 | **解决被提出的功能，而非底层问题。** Intent | 功能请求可以变成连贯的 Spec 和 Plan，却没有先证明功能有价值。 | **有限。** 表单询问问题、结果、用户和约束，但不询问用户证据、基线/目标、替代方案或不采取行动的理由。 |
+| 2 | **缺少存量项目与隐含领域上下文。** Spec / Plan | 通用方案可能忽视已有组件、历史约束和集成契约。读过上下文不保证理解正确。 | **部分覆盖。** 生成会读取固定源码检出与讨论。重要主张不要求源码引用，外部约束或上下文新鲜度也不验证。 |
+| 3 | **看似合理的假设变成已确认需求。** Spec | 流畅文字会隐藏不确定性；下游计划和测试继续强化虚构决策。 | **部分覆盖。** 提示词要求显式展示问题，禁止编造人工决策。但没有带类型的假设/决策登记册，也没有针对未解决阻塞项的就绪门禁。 |
+| 4 | **验收条件无法客观判定。** Spec | “快速”“安全”“兼容”等词，即使没有条件、阈值或反例，也显得完整。 | **部分覆盖。** 强制要求 AC ID 与 Given/When/Then 标记，示例也包含具体结果。但验证不能证明语义完整和质量可测量。 |
+| 5 | **利益相关方冲突与决策权限未解决。** Intent / Spec | AI 可能把矛盾意见润色成表面一致的文字，而不暴露取舍。 | **部分覆盖。** 已有评审人身份、团队成员资格、人数要求和版本门禁。尚未演示冲突仲裁、决策理由或独立多角色评审。 |
+| 6 | **遗漏非功能需求和异常行为。** Spec | 正常路径容易描述；恢复、并发、无障碍、权限、迁移和性能需要刻意发现。 | **部分覆盖。** 提示词和示例涉及非法输入、迁移与兼容性。但没有系统性的质量属性评估或通用量化 NFR 门禁。 |
+| 7 | **变更传播与跨产物漂移。** Spec 到 Plan | 各自看似合理的文档可能描述不同需求版本，旧批准却仍然可见。 | **单个 Intent 内较强。** Spec 修订使批准和 Plan 失效；过期批准失败；Plan 绑定精确 Spec；冻结 blob 被保留。封存后的跨 Intent 影响分析尚未实现。 |
+| 8 | **未经验证的可行性被呈现为确定计划。** Plan | 看似合理的架构或 API 假设，可能未经验证就变成任务清单。 | **部分覆盖。** 任务包括涉及面和验证，并记录风险与迁移。但不强制要求可行性证据、替代方案比较或有界实验。 |
+| 9 | **任务切分、依赖与并行安排不正确。** Plan | 整齐的 DAG 可能隐藏过大任务、缺失增量、共享文件冲突和不现实的顺序。 | **结构支持较强；实际覆盖部分具备。** 未知任务/AC 引用、循环和未映射 AC 会被拒绝。任务是否有用、大小是否合适、依赖是否真实、并行执行是否安全，仍未验证。 |
+| 10 | **文档膨胀与评审疲劳。** 跨阶段 | 生成速度超过阅读、比较与决策能力，导致不理解便批准。 | **部分覆盖。** 渲染的 Issue 修订、进度中心和修订摘要减少了导航成本。但没有结构化影响差异、决策收件箱或测量过的评审投入证据。 |
 
-The research basis is complementary: [S1-S3] motivate goals and communication;
-[S4] exposes context and review-burden risks; [S5-S6] describe ambiguity,
-quality, and consistency checks; [S7-S8] describe research and task planning.
-These sources do not establish that any one product solves all ten problems.
+研究依据相互补充：[S1-S3] 说明目标与沟通的重要性；
+[S4] 揭示上下文和评审负担风险；
+[S5-S6] 描述歧义、质量与一致性检查；
+[S7-S8] 描述研究和任务规划。
+这些来源并不能证明任何单一产品解决了全部十个问题。
 
-## 3. What our demo actually establishes
+<a id="3-what-our-demo-actually-establishes"></a>
+## 3. 我们的演示实际证明了什么
 
-### Intent and generation
+<a id="intent-and-generation"></a>
+### 意图与生成
 
-The [Intent form](../../.github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml)
-has five required fields: problem, outcome, affected users/systems,
-constraints/non-goals, and open questions. The original Intent is retained as
-a snapshot rather than silently rewritten after review begins.
+[Intent 表单](../../.github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml)
+有五个必填字段：问题、结果、受影响用户/系统、约束/非目标、待解问题。
+原始 Intent 作为快照保留，而不是在评审开始后静默重写。
 
-The active Issue-review prompts are
+当前使用的 Issue 评审提示词是
 [`spec-issue.md`](../../.github/brownfield-human-gated-delivery/prompts/spec-issue.md)
-and
-[`plan-issue.md`](../../.github/brownfield-human-gated-delivery/prompts/plan-issue.md),
-not the legacy document-PR prompts. They request code grounding, visible
-unresolved questions, revision summaries, and separation of proposals from
-Human decisions.
+和 [`plan-issue.md`](../../.github/brownfield-human-gated-delivery/prompts/plan-issue.md)，
+而非旧版文档 PR 提示词。
+它们要求以代码为依据、显式展示未解问题、提供修订摘要，
+并区分提案与人工决策。
 
-The [document workflow](../../.github/workflows/brownfield-human-gated-delivery-documents.yml)
-separates read-only generation from trusted publication. Copilot receives
-`view`, `glob`, and `rg`, not shell or write tools. It cannot interactively ask
-the reviewer questions during generation. The
-[orchestrator](../../.github/brownfield-human-gated-delivery/scripts/documents.mjs)
-supplies discussion and prior revisions, rejecting oversized context rather
-than silently truncating it. Ordinary discussion is not approval and does not
-automatically request regeneration.
+[文档工作流](../../.github/workflows/brownfield-human-gated-delivery-documents.yml)
+将只读生成与可信发布分开。
+Copilot 只获得 `view`、`glob` 和 `rg`，没有 shell 或写工具。
+它无法在生成过程中交互式询问评审人。
+[编排器](../../.github/brownfield-human-gated-delivery/scripts/documents.mjs)
+提供讨论和历史修订，拒绝过大的上下文，而不是静默截断。
+普通讨论不是批准，也不会自动请求重新生成。
 
-This is a good trust boundary. It is not a structured discovery conversation.
+这是良好的信任边界，但不是结构化的发现对话。
 
-### Approvals and change propagation
+<a id="approvals-and-change-propagation"></a>
+### 批准与变更传播
 
-The [document state logic](../../.github/brownfield-human-gated-delivery/scripts/document-core.mjs)
-binds approvals to document version, content hash, reviewer-policy hash, and
-Human identity. A Spec revision invalidates the Plan; Plan approval requires
-the exact approved Spec. Full Plan approval seals the documents.
+[文档状态逻辑](../../.github/brownfield-human-gated-delivery/scripts/document-core.mjs)
+将批准绑定到文档版本、内容哈希、评审人策略哈希和人工身份。
+Spec 修订会使 Plan 失效；Plan 批准要求精确匹配已批准 Spec。
+Plan 获得全部批准后，文档封存。
 
-Validate this behavior with the document-state regression tests and an explicitly
-planned Spec-revision scenario. The current ownership delivery's decision-driven
-revisions are not evidence that an already-approved Spec was revoked.
-Version governance also does not establish that an approved requirement is the
-best business choice.
+请通过文档状态回归测试和明确规划的 Spec 修订场景验证这一行为。
+仅有决策驱动修订，不能证明已经批准的 Spec 曾被撤销。
+版本治理也不能证明已批准需求是最佳业务选择。
 
-### Structural validation is not semantic validation
+<a id="structural-validation-is-not-semantic-validation"></a>
+### 结构验证不是语义验证
 
-The [core validators](../../.github/brownfield-human-gated-delivery/scripts/core.mjs)
-check required sections, AC identifiers, Given/When/Then markers, task fields,
-known references, acyclic dependencies, and AC-to-task coverage.
+[核心验证器](../../.github/brownfield-human-gated-delivery/scripts/core.mjs)
+检查必需章节、AC 标识符、Given/When/Then 标记、任务字段、
+已知引用、无环依赖，以及 AC 到任务的覆盖。
 
-Two in-memory research probes made the boundary visible:
+两个内存内研究探针揭示了边界：
 
-- A Spec with an explicitly unresolved question still passed structural
-  validation and could receive a synthetic configured-reviewer approval.
-- A Plan whose task surfaces were replaced with
-  `imaginary/component/that-does-not-exist.ts` still passed structural
-  validation.
+- 包含明确未解决问题的 Spec，仍能通过结构验证，
+  并收到合成的已配置评审人批准。
+- 将任务涉及面替换为 `imaginary/component/that-does-not-exist.ts` 的 Plan，
+  仍能通过结构验证。
 
-These observations are not arguments for rejecting every open question or
-every new file. Humans may consciously defer a question, and a new file is a
-legitimate plan surface. The missing distinctions are **blocking versus
-deferred**, and **existing evidence versus proposed change**.
+这些观测并不意味着应拒绝每个待解问题或每个新文件。
+人可以有意识地推迟问题，新文件也可以是合法的计划涉及面。
+缺失的区分是**阻塞还是延期**，以及**现有证据还是拟议变更**。
 
-Relevant regression coverage lives in
+相关回归覆盖位于
 [`documents.test.mjs`](../../.github/brownfield-human-gated-delivery/tests/documents.test.mjs)
-and
-[`core.test.mjs`](../../.github/brownfield-human-gated-delivery/tests/core.test.mjs).
-The semantic probes were exploratory checks, not committed regression tests
-for new readiness rules.
+和 [`core.test.mjs`](../../.github/brownfield-human-gated-delivery/tests/core.test.mjs)。
+语义探针只是探索性检查，不是为新就绪规则提交的回归测试。
 
-## 4. Proposed experience: decisions before document volume
+<a id="4-proposed-experience-decisions-before-document-volume"></a>
+## 4. 拟议体验：先看决策，再看文档篇幅
 
-### Implementation status
+<a id="implementation-status"></a>
+### 实现状态
 
-The first slice now provides:
+第一个切片现在提供：
 
-- A structured discovery brief and stable Q-n questions inside the Spec.
-- Trusted version-bound `/sdlc decide spec vN Q-n` and
-  `/sdlc defer spec vN Q-n` commands from configured Spec reviewers.
-- Explicit deferment rationale, owner, follow-up, and accepted risk.
-- Automatic Spec revision and invalidation of existing Spec approval/Plan.
-- Required mapping of latest Human decision receipts to ACs or an explanation
-  of why no AC changes are needed.
-- Approval and handoff blocking for unanswered questions, and decision-context
-  hashes on Spec/Plan approvals.
-- A compact readiness packet with all question statuses and bound-record links.
-- Persisted new-run enrollment; existing Issue and legacy PR runs are not
-  migrated.
+- Spec 内的结构化发现简报，以及稳定的 Q-n 问题。
+- 来自已配置 Spec 评审人、可信且绑定版本的
+  `/sdlc decide spec vN Q-n` 和 `/sdlc defer spec vN Q-n` 命令。
+- 显式延期理由、负责人、跟进点和已接受风险。
+- 自动 Spec 修订，以及现有 Spec 批准/Plan 失效。
+- 强制把最新人工决策回执映射到 AC，或解释为什么不需要修改 AC。
+- 未回答问题阻止批准与交接；Spec/Plan 批准包含决策上下文哈希。
+- 紧凑的就绪信息包，包含全部问题状态和绑定记录链接。
+- 持久化记录新运行的启用状态；不迁移已有 Issue 或旧版 PR 运行。
 
-See the [operator contract](../guides/brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
-and [walkthrough](../guides/brownfield-human-gated-delivery-walkthrough.md#resolve-discovery-questions-first).
-The original coverage table describes the inspected pre-change baseline, not
-the current implementation.
+见[操作契约](../guides/brownfield-human-gated-delivery.md#discovery-and-decision-readiness)
+和[演练指南](../guides/brownfield-human-gated-delivery-walkthrough.md#resolve-discovery-questions-first)。
+原始覆盖表描述的是检查时的变更前基线，不是当前实现。
 
-The [subsequent executed example](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-discovery-maintenance-rehearsal.md)
-now supplies live GitHub and runtime evidence for this slice. It also records
-a maintenance Plan that invented an existing HTTP test harness; direct source
-inspection caught that assumption before approval. This supports the need for
-grounded review, not a claim that semantic plan validation is now automated.
+这刻意比完整设计更窄：问题目前只属于 Spec；
+在人工处置前全部阻塞；
+没有独立 Plan 问题登记册、AI 质量评审作业、语义影响差异、
+路径/可行性门禁、自动跟进或测量过的评审改善。
+引用决策和 AC 映射不能证明理解正确。
+发现新问题仍依赖 AI 和人工评审。
 
-This is deliberately narrower than the full design: questions currently
-belong to Spec; all are blocking until a Human disposition; there is no
-separate Plan question register, AI quality-review job, semantic impact diff,
-path/feasibility gate, automated follow-up, or measured review improvement.
-Referenced decisions and AC mappings do not prove correct interpretation.
-New question discovery still depends on AI and Human review.
-
-The sections below remain the design and rollout goals. Parts of Increment 1
-and its minimal readiness packet are implemented as described above. Only the
-linked rehearsal's explicitly observed results are demonstrated; later
-increments, deferment follow-up, and independent Human scenario results must
-not be inferred.
+以下章节仍是设计与上线目标。
+增量 1 的部分能力及其最小就绪信息包已按上文实现。
+不能仅凭实现状态，就推断后续增量、延期跟进或独立人工场景结果已经具备。
 
 ```text
 Human Intent
@@ -226,281 +205,273 @@ Human Intent
   -> Existing Tests -> Implementation -> Verification -> Human acceptance
 ```
 
-Discovery remains inside the Spec review loop. The Human still authors the
-Intent; there is no new mandatory Intent-approval ceremony. Provisional drafts
-may be published with blockers visible, but must not appear ready to approve.
-A Plan that exposes a Spec-level conflict sends the reviewer back through an
-explicit Spec revision and the existing downstream invalidation behavior.
+发现仍发生在 Spec 评审闭环内部。
+Intent 仍由人编写；不会新增强制的 Intent 批准仪式。
+临时草案可以带着可见阻塞项发布，但不得呈现为已可批准。
+若 Plan 暴露 Spec 层面的冲突，应让评审人回到显式 Spec 修订，
+并沿用既有的下游失效行为。
 
-### GitHub's responsibilities
+<a id="githubs-responsibilities"></a>
+### GitHub 承担的职责
 
-| Surface | Proposed responsibility |
+| 界面或载体 | 拟议职责 |
 |---|---|
-| Parent Intent Issue | Human discussion, proposed options, explicit decisions, and versioned approval commands |
-| One bot-maintained progress hub | Current blockers, decisions needed, changed ACs/tasks, and links to the latest immutable review packet |
-| Full revision comments | Complete readable Spec/Plan, with a short review packet first |
-| Document branch and trusted ledger | Durable revisions, decision receipts, provenance, and approval-bound evidence |
-| GitHub Actions | Validate structure and readiness, reject stale/unauthorized actions, publish truthful outcomes |
-| Tests and Implementation PRs | Preserve approved inputs and continue the existing controlled Red/Green gates |
-| Replay and readiness tooling | Show the same decisions, bindings, and unresolved limitations rather than reconstructing them from summaries |
+| 父 Intent Issue | 人工讨论、拟议选项、显式决策和带版本批准命令 |
+| 一个机器人维护的进度中心 | 当前阻塞项、待决策事项、已变化的 AC/任务，以及最新不可变评审包链接 |
+| 完整修订评论 | 可完整阅读的 Spec/Plan，前置简短评审包 |
+| 文档分支与可信账本 | 持久化修订、决策回执、来源证明，以及与批准绑定的证据 |
+| GitHub Actions | 验证结构与就绪状态，拒绝过期/未授权动作，如实发布结果 |
+| Tests 和 Implementation PR | 保留已批准输入，继续既有受控 Red/Green 门禁 |
+| 回放与就绪工具 | 展示相同的决策、绑定与未解决限制，而不是从摘要重新拼凑 |
 
-Do not create a separate Issue for every question by default. Do not turn
-checkboxes, labels, reactions, or AI analysis into approval authority.
-Start with the existing Issue, Markdown rendering, and dependency-free
-automation; a separate UI should require evidence that GitHub cannot support
-the interaction.
+默认不要为每个问题单独创建 Issue。
+不要把复选框、标签、表情反应或 AI 分析变成批准权。
+从已有 Issue、Markdown 渲染和无依赖自动化做起；
+只有证据表明 GitHub 无法支持所需交互时，才考虑独立 UI。
 
-## 5. Four implementation increments
+<a id="5-four-implementation-increments"></a>
+## 5. 四个实施增量
 
-### Increment 1 (P0): discovery and explicit decision readiness
+<a id="increment-1-p0-discovery-and-explicit-decision-readiness"></a>
+### 增量 1（P0）：发现与显式决策就绪
 
-**Addresses:** pain points 1, 3, and 5; contributes to 4 and 6.
+**解决：**痛点 1、3、5；也有助于 4、6。
 
-Extend the Intent guidance to request evidence and success measures while
-allowing "unknown" answers. AI proposes a short discovery brief in the Spec:
+扩展 Intent 指导，要求提供证据和成功衡量方式，同时允许回答“不知道”。
+AI 在 Spec 中提出简短发现简报：
 
-- User/problem and source of the observation.
-- Current baseline, intended outcome, and how improvement would be observed.
-- Alternatives, including a smaller change or doing nothing.
-- Confirmed constraints, non-goals, assumptions, and unresolved questions.
+- 用户/问题，以及观察来源。
+- 当前基线、预期结果，以及如何观察改进。
+- 替代方案，包括更小的变更或不采取行动。
+- 已确认约束、非目标、假设和待解问题。
 
-Do not require an invented ROI or unsupported numerical target. A missing
-business baseline can become an explicit measurement task or a consciously
-accepted limitation; it must not be represented as measured evidence.
+不要要求虚构 ROI 或没有依据的数值目标。
+缺少业务基线可以成为显式测量任务，或有意识接受的限制；
+不能将其描述为测量证据。
 
-Use a small typed review record alongside the existing document-state fields,
-not a new database. Questions and assumptions need stable IDs, scope
-(`spec` or `plan`), responsible person, evidence/source, options, impact,
-blocking status, and disposition. A Human decision additionally records the
-chosen outcome, rationale, actor, time, original command, and exact reviewed
-context. AI may propose entries but cannot author trusted decision receipts.
+在现有文档状态字段旁加入一个小型、带类型的评审记录，而不是新建数据库。
+问题与假设需要稳定 ID、范围（`spec` 或 `plan`）、负责人、
+证据/来源、选项、影响、阻塞状态和处置结果。
+人工决策还记录所选结果、理由、执行者、时间、原始命令和精确的已审上下文。
+AI 可以提出条目，但不能编写可信决策回执。
 
-**Proposed readiness rules:**
+**拟议就绪规则：**
 
-- Unresolved blockers prevent the affected stage's approval and handoff.
-- A deferment requires an authorized Human, rationale, owner, follow-up point,
-  and explicit acknowledgment of the remaining risk. It is not "resolved."
-- AI cannot mark its own assumption confirmed or silently downgrade a blocker.
-- Decisions follow existing stage-reviewer authorization; an assigned question
-  owner does not automatically gain approval rights. Final stage quorum remains.
-- A question response records a decision, not blanket Spec/Plan approval.
-- A behavior-changing answer produces a new reviewable document revision.
-  Changed decision context invalidates affected approval even if prose did not
-  change. Plan-only investigation must not invalidate an unchanged approved Spec.
-- Substantive Spec changes retain the existing Spec-to-Plan invalidation.
-- Decision commands must bind the published context, reject stale or edited
-  submissions, and be idempotent under retries. Plain comments remain discussion.
+- 未解决阻塞项阻止受影响阶段的批准与交接。
+- 延期要求已授权人员、理由、负责人、跟进点，
+  以及明确确认剩余风险。延期不等于“已解决”。
+- AI 不能把自己的假设标成已确认，也不能静默降低阻塞等级。
+- 决策沿用既有阶段评审人授权；被指定为问题负责人不自动获得批准权。
+  最终阶段仍保留人数要求。
+- 回答问题记录的是一项决策，不是对 Spec/Plan 的整体批准。
+- 改变行为的回答产生新的可评审文档修订。
+  决策上下文改变时，即使文字未变，受影响批准也应失效。
+  仅限 Plan 的调查不得使未变的已批准 Spec 失效。
+- 实质 Spec 变更保留现有 Spec 到 Plan 的失效机制。
+- 决策命令必须绑定已发布上下文，拒绝过期或编辑过的提交，
+  并在重试时保持幂等。普通评论仍是讨论。
 
-Persist the original Intent unchanged. Bind each approval to a canonical,
-versioned digest of its relevant decision/evidence context as well as the
-document hash. Exclude mutable processing cursors and approval receipts from
-that digest. Trusted code, not generated text, validates and writes state.
+原始 Intent 原样持久化。
+每次批准除绑定文档哈希外，还绑定其相关决策/证据上下文的规范化、版本化摘要。
+该摘要不包含可变处理游标和批准回执。
+验证与写入状态由可信代码负责，而不是生成文本。
 
-**Exit demonstration:** a draft containing an unanswered owner-roster question
-cannot advance; a real authorized response creates a traceable decision;
-revised Spec approval is still required; a conflicting answer invalidates the
-affected approval. Automated and scripted tests remain labeled as such.
+**完成演示：**含有未回答负责人名册问题的草案无法推进；
+真实已授权回答创建可追溯决策；
+修订后的 Spec 仍须批准；
+冲突回答使受影响批准失效。
+自动化与脚本测试仍应按其性质明确标注。
 
-### Increment 2 (P1): concise review packets and quality challenges
+<a id="increment-2-p1-concise-review-packets-and-quality-challenges"></a>
+### 增量 2（P1）：简明评审包与质量质疑
 
-**Addresses:** pain points 4, 5, 6, 7, and 10.
+**解决：**痛点 4、5、6、7、10。
 
-Publish a compact packet before the full document:
+在完整文档前发布紧凑的信息包：
 
-1. Decisions needed now, including who must act.
-2. What changed and why, compared with the previous revision.
-3. Added, changed, and removed ACs/tasks and affected decisions.
-4. Readiness blockers, deferred risks, and advisory findings.
-5. Links to evidence and complete immutable artifacts.
+1. 现在需要哪些决策，包括谁必须行动。
+2. 相较上一修订，改变了什么、为什么改变。
+3. 新增、改变、移除的 AC/任务及受影响决策。
+4. 就绪阻塞项、延期风险与建议性发现。
+5. 证据与完整不可变产物链接。
 
-Compute ID/reference/hash changes deterministically. Label an AI-written
-semantic summary as assistance, not authoritative evidence. Removing or
-renumbering an AC must be visible even if the summary omits it. A packet must
-name its exact document and context versions; stale packets cannot authorize
-newer content. Preserve explicit size limits and link to details rather than
-silently dropping blockers.
+以确定性方式计算 ID/引用/哈希变化。
+AI 撰写的语义摘要应标为辅助信息，而非权威证据。
+即使摘要遗漏，也必须让 AC 删除或重新编号可见。
+信息包必须标明精确文档与上下文版本；过期信息包不能授权较新内容。
+保留显式大小限制，通过链接提供详情，而不是静默丢弃阻塞项。
 
-Add a proportionate quality assessment for migration/data integrity, error
-handling, access/privacy, concurrency, performance, accessibility, recovery,
-and observability. Each area is applicable, not applicable with a reason, or
-unknown. Do not force every small change to implement every quality attribute.
-An applicable requirement should describe observable behavior or a measurable
-condition and validation approach.
+适度增加对迁移/数据完整性、错误处理、访问/隐私、并发、
+性能、无障碍、恢复和可观测性的质量评估。
+每个领域标为适用、不适用并说明理由，或未知。
+不要强迫每个小变更实现所有质量属性。
+适用需求应描述可观测行为或可测量条件，以及验证方法。
 
-Optional AI analysis can flag ambiguity, contradiction, unsupported assumptions,
-and weak acceptance criteria. Findings have IDs and an explicit Human
-disposition; a model's "pass" is never approval. A required analysis that fails
-must report failure, not fabricate a clean result. An advisory analysis that
-was not run must be shown as not run.
+可选 AI 分析可以指出歧义、矛盾、无依据假设和薄弱验收条件。
+发现项应有 ID 和显式人工处置；模型的“通过”绝不是批准。
+必需分析失败时，必须报告失败，不能编造无问题的结果。
+建议性分析未运行时，必须显示为未运行。
 
-**Exit demonstration:** a revision changes filter semantics and removes an AC;
-the packet exposes both and their task impact without requiring a reviewer to
-compare two full documents manually. A vague quality requirement remains a
-visible concern until the reviewer makes its outcome explicit or records a
-justified disposition.
+**完成演示：**某次修订改变过滤语义并删除一个 AC；
+信息包同时暴露两项变化及其任务影响，不要求评审人手工比较两份完整文档。
+模糊的质量需求保持为可见问题，直到评审人明确其结果或记录有理由的处置。
 
-### Increment 3 (P1): grounded and feasible plans
+<a id="increment-3-p1-grounded-and-feasible-plans"></a>
+### 增量 3（P1）：有依据且可行的计划
 
-**Addresses:** pain points 2, 6, 8, and 9.
+**解决：**痛点 2、6、8、9。
 
-Require important Plan claims to distinguish:
+要求重要 Plan 主张区分：
 
-- **Existing:** repository-relative path and immutable baseline reference,
-  optionally a symbol/range and a claim explaining its relevance.
-- **New:** proposed path/component and why existing code cannot satisfy it.
-- **External:** source/version, observation date, and unresolved verification.
-- **Hypothesis:** a technical assumption and how it will be checked.
+- **现有：**仓库相对路径和不可变基线引用，可选符号/行范围，
+  以及解释其相关性的主张。
+- **新增：**拟议路径/组件，以及为何现有代码无法满足。
+- **外部：**来源/版本、观察日期，以及未完成的验证。
+- **假设：**技术假设及其检查方式。
 
-Trusted validation can check paths and references at the pinned commit.
-It cannot prove that a cited function supports the proposed interpretation.
-Evidence existence and semantic relevance must be reported separately.
+可信验证可以检查固定提交上的路径和引用，
+但不能证明被引函数支持拟议解释。
+证据是否存在与语义是否相关，必须分别报告。
 
-Tasks retain AC mappings and dependencies, and add a clear verifiable outcome.
-Shared surfaces should trigger review of possible execution conflicts, not an
-automatic claim that tasks can run in parallel. Reference evidence that must
-be revisited if its underlying decision changes. Do not silently rebase a run
-to newer source; stale-baseline concerns need an explicit disposition, with a
-new Intent when necessary.
+任务保留 AC 映射与依赖，并增加清晰可验证的结果。
+共享涉及面应触发潜在执行冲突评审，而不是自动宣称任务可以并行。
+标明哪些引用证据需要在底层决策改变时重新检查。
+不要静默把运行变基到更新源码；
+对基线过时的担忧需要显式处置，必要时新建 Intent。
 
-High-risk feasibility assumptions need a bounded experiment before Plan
-approval or an authorized, visible risk acceptance where policy permits it.
-Do not give the document generator shell/write access to achieve this. Initially,
-a Human can attach a reviewed evidence reference. Any later automated probe
-must use a separate constrained job with approved execution, isolated fixtures,
-timeouts, and no production mutation or arbitrary commands from generated prose.
+高风险可行性假设需要在 Plan 批准前完成有界实验，
+或在策略允许时显式接受风险并由授权人员确认。
+不要为此给文档生成器 shell/写权限。
+初期可以由人附上已审证据引用。
+后续若有自动探针，必须使用独立受限作业，
+具有已批准执行、隔离夹具、超时限制，
+不得修改生产，也不得执行生成文字中的任意命令。
 
-**Exit demonstration:** an existing surface with a nonexistent baseline path
-is rejected; an explicitly new path is accepted as a proposal; a claimed
-migration behavior without evidence remains unverified; a pinned experiment
-records what was actually tested and does not claim broader feasibility.
+**完成演示：**声称已有、但基线路径不存在的涉及面被拒绝；
+显式新路径作为提案被接受；
+没有证据的迁移行为主张仍标为未验证；
+固定版本实验记录实际测试内容，不宣称更广可行性。
 
-### Increment 4 (P2): evidence-driven demo scenarios and review measurement
+<a id="increment-4-p2-evidence-driven-demo-scenarios-and-review-measurement"></a>
+### 增量 4（P2）：证据驱动的演示场景与评审测量
 
-**Addresses:** all ten through observable exercises rather than new headings.
+**解决：**通过可观测演练覆盖全部十个痛点，而不是增加新标题。
 
-Keep the ownership-free source and use fresh isolated demo repositories.
-Retain the current completed run as historical evidence, not a resettable
-fixture. Add the following scenarios only after their required mechanisms
-exist:
+保留不含负责人功能的源应用，使用全新隔离演示仓库。
+将已完成运行的证据与可重置夹具分开。
+只有所需机制具备后，才添加以下场景：
 
-| Scenario | Failure deliberately exposed | Required observable result |
+| 场景 | 故意暴露的失败 | 必需的可观测结果 |
 |---|---|---|
-| Ambiguous ownership goal | "Make handoffs better" with no agreed outcome | Discovery separates the problem, proposed solution, evidence, and unanswered success questions |
-| Conflicting ownership policies | One role requires an owner; another needs an unassigned queue | Conflict remains visible until an authorized decision records the trade-off; AI does not reconcile it silently |
-| Unsupported technical assumption | Plan assumes a component or migration guarantee that is not established | Existing/new distinction and evidence checks identify the unsupported claim before implementation |
-| Spec change after approval | Clear-filter behavior changes and affects Plan tasks | Old approval is rejected, affected task mappings are shown, and a new review is required |
-| Reviewer-overload comparison | A small semantic change is buried in a long revision | Reviewer receives a faithful decision/impact packet, with complete artifacts still accessible |
+| 模糊的负责人目标 | “让交接更好”，却没有约定结果 | 发现过程区分问题、拟议方案、证据和未回答的成功问题 |
+| 冲突的负责人策略 | 一个角色要求必须有负责人；另一个需要未分配队列 | 冲突持续可见，直到授权决策记录取舍；AI 不得静默调和 |
+| 无依据的技术假设 | Plan 假定某组件或迁移保证已经存在，但尚未证实 | 现有/新增区分与证据检查在实现前识别无依据主张 |
+| 批准后的 Spec 变更 | 清除过滤行为改变并影响 Plan 任务 | 旧批准被拒绝，受影响任务映射可见，必须重新评审 |
+| 评审过载比较 | 小型语义变化埋在长修订中 | 评审人获得忠实的决策/影响包，完整产物仍可访问 |
 
-Use fictional, clearly labeled role cards for scripted demonstrations. To
-claim independent multi-stakeholder review, recruit real participants with
-the relevant authority; one account playing several roles does not qualify.
+脚本演示使用虚构、明确标注的角色卡。
+要宣称独立多方评审，必须招募具有相关权限的真实参与者；
+一个账号扮演多个角色不算。
 
-Record review effort separately from Issue-open-to-close wall time:
+评审投入与 Issue 从打开到关闭的墙钟时间分开记录：
 
-- Seeded contradictions or unsupported assumptions found before approval.
-- Missed defects and false-positive findings.
-- Revisions caused by late discovery, with reasons.
-- Active reviewer time, using consented self-report or explicit timing.
-- Unauthorized/stale decisions correctly rejected.
-- Post-handoff corrections attributable to missed early-stage decisions.
+- 批准前发现的预置矛盾或无依据假设。
+- 漏掉的缺陷与误报发现。
+- 因晚发现问题而产生的修订及原因。
+- 通过经同意的自报或显式计时获取的主动评审时间。
+- 正确拒绝的未授权/过期决策。
+- 可归因于早期决策遗漏的交接后修正。
 
-Use equivalent but different scenarios, counterbalance presentation order,
-and report participant/sample limitations. Do not derive a productivity
-percentage from one rehearsal or infer active review time from comment gaps.
-Business impact requires post-delivery observation beyond this workflow.
+使用等价但不同的场景，平衡展示顺序，并报告参与者和样本限制。
+不要从一次演练推导生产力百分比，也不要从评论时间间隔推断主动评审时间。
+业务影响需要在本工作流之外进行交付后观察。
 
-## 6. Integration and compatibility requirements
+<a id="6-integration-and-compatibility-requirements"></a>
+## 6. 集成与兼容要求
 
-Prompt changes alone cannot implement this design. Readiness must be enforced
-at command processing, publication, approval, and engineering handoff, and
-verified again by downstream artifact checks.
+仅修改提示词无法实现本设计。
+就绪约束必须在命令处理、发布、批准和工程交接中强制执行，
+并由下游产物检查再次验证。
 
-| Existing surface | Required implementation work |
+| 现有模块或载体 | 所需实现工作 |
 |---|---|
-| [Intent form](../../.github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml) and [Issue prompts](../../.github/brownfield-human-gated-delivery/prompts) | Discovery questions, proposed decisions, evidence classification, and size-bounded output contracts |
-| [Document core](../../.github/brownfield-human-gated-delivery/scripts/document-core.mjs) | Versioned typed records, readiness transitions, stage-scoped context bindings, and decision authorization |
-| [Document orchestrator](../../.github/brownfield-human-gated-delivery/scripts/documents.mjs) | Trusted ingestion, version-bound command receipts, atomic publication, hub/packet rendering, and handoff validation |
-| [Core validators](../../.github/brownfield-human-gated-delivery/scripts/core.mjs) and [stage validation](../../.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs) | Evidence/reference checks, conditional artifact contracts, and preservation of every approved input |
-| [GitHub adapter](../../.github/brownfield-human-gated-delivery/scripts/github.mjs) and [document workflow](../../.github/workflows/brownfield-human-gated-delivery-documents.yml) | Consistent mode/version routing, trust boundaries, failure reporting, and retry behavior |
-| [Demo toolkit](../../tools/brownfield-demo) | Preparation/preflight compatibility, replay of bound decision evidence, and truthful readiness reporting |
-| [Scenario manifests](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios) and [walkthrough](../guides/brownfield-human-gated-delivery-walkthrough.md) | New exercises, expected outcomes, operator instructions, and explicit live-versus-scripted evidence |
+| [Intent 表单](../../.github/ISSUE_TEMPLATE/brownfield-human-gated-delivery-intent.yml) 与 [Issue 提示词](../../.github/brownfield-human-gated-delivery/prompts) | 发现问题、拟议决策、证据分类，以及大小受限的输出契约 |
+| [文档核心](../../.github/brownfield-human-gated-delivery/scripts/document-core.mjs) | 版本化类型记录、就绪转换、按阶段限定的上下文绑定与决策授权 |
+| [文档编排器](../../.github/brownfield-human-gated-delivery/scripts/documents.mjs) | 可信接入、绑定版本的命令回执、原子发布、中心/信息包渲染及交接验证 |
+| [核心验证器](../../.github/brownfield-human-gated-delivery/scripts/core.mjs) 与 [阶段验证](../../.github/brownfield-human-gated-delivery/scripts/validate-stage.mjs) | 证据/引用检查、条件式产物契约，以及保留每一份已批准输入 |
+| [GitHub 适配器](../../.github/brownfield-human-gated-delivery/scripts/github.mjs) 与 [文档工作流](../../.github/workflows/brownfield-human-gated-delivery-documents.yml) | 一致的模式/版本路由、信任边界、失败报告与重试行为 |
+| [演示工具包](../../tools/brownfield-demo) | 准备/预检兼容性、绑定决策证据的回放，以及如实的就绪报告 |
+| [场景清单](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios) 与 [演练指南](../guides/brownfield-human-gated-delivery-walkthrough.md) | 新演练、预期结果、操作说明，以及明确区分真实与脚本证据 |
 
-The current handoff permits exactly Spec, Plan, and the approval-state file.
-The initial design should extend the versioned state record rather than add
-many independently editable artifacts. If separate evidence files become
-necessary, update the handoff allowlist, approved-blob checks, replay, and
-readiness readers together; never relax the allowlist to an unrestricted
-directory.
+当前交接只允许 Spec、Plan 和批准状态文件。
+初始设计应扩展版本化状态记录，而不是增加许多可独立编辑的产物。
+若将来确需单独证据文件，应一起更新交接允许列表、已批准 blob 检查、
+回放和就绪读取器；绝不能将允许列表放宽为不受限制的目录。
 
-Introduce the new readiness semantics only for newly opted-in runs with a
-persisted, versioned review profile. Existing `issue-v1` and legacy document-PR
-runs must retain their established contract, and completed evidence must stay
-readable. A repository setting change must not retroactively change a run's
-approval meaning. Unsupported profiles should fail explicitly, not fall back
-to a weaker mode. Disabling new enrollment must not disable gates for runs
-already enrolled.
+新就绪语义只应用于新选择启用的运行，并持久化版本化评审配置。
+现有 `issue-v1` 与旧版文档 PR 运行必须保留既有契约，
+已完成证据必须仍可读取。
+仓库设置变化不能追溯改变某次运行的批准含义。
+不支持的配置应显式失败，而不是回退到更弱模式。
+关闭新运行的启用入口，不能关闭已启用运行的门禁。
 
-Before enabling the profile:
+启用配置之前：
 
-- Add state-machine tests for blocker/defer/resolve transitions, stale
-  contexts, unauthorized actors, duplicate commands, changed policy, and
-  Spec/Plan-scoped invalidation.
-- Add integration tests proving that generation cannot forge decisions and
-  that every approval/handoff path enforces the same readiness rules.
-- Test failure recovery between state persistence and comment publication;
-  retries must neither duplicate decisions nor advance unpublished content.
-- Test deterministic added/changed/removed ID reporting and advisory-failure
-  display; a summary must not conceal missing evidence.
-- Test existing/new paths at the pinned baseline and evidence invalidation.
-- Run regression fixtures for current Issue review, legacy PR review,
-  approved-file preservation, replay, and readiness.
-- Run the root `npm test`. If application code is affected, also run the
-  application's tests, lint, and build as required by repository guidance.
-- Rehearse on a fresh isolated target, preserving required PR checks and
-  Human acceptance. Do not rewrite the historical development-test run.
+- 添加状态机测试，覆盖阻塞/延期/解决转换、过期上下文、未授权执行者、
+  重复命令、策略变化，以及 Spec/Plan 范围内失效。
+- 添加集成测试，证明生成不能伪造决策，
+  每条批准/交接路径都执行相同就绪规则。
+- 测试状态持久化与评论发布之间的失败恢复；
+  重试既不能重复决策，也不能推进未发布内容。
+- 测试确定性的新增/改变/移除 ID 报告和建议性分析失败显示；
+  摘要不得掩盖缺失证据。
+- 测试固定基线上的现有/新增路径与证据失效。
+- 运行当前 Issue 评审、旧版 PR 评审、已批准文件保留、回放和就绪的回归夹具。
+- 运行根目录 `npm test`。
+  若涉及应用代码，还要按仓库指导运行应用测试、lint 和构建。
+- 在全新隔离目标上演练，保留必需 PR 检查和人工验收。
+  不要改写已完成运行的证据。
 
-Roll out one increment at a time. The first end-to-end slice should be:
-**ambiguous Intent -> explicit blocking question -> recorded Human decision ->
-revised Spec -> valid approval**. It offers a clearer improvement than adding
-all ten categories to a template and calling them solved.
+一次上线一个增量。
+第一个端到端切片应是：
+**模糊 Intent -> 显式阻塞问题 -> 已记录人工决策 -> 修订 Spec -> 有效批准**。
+相比把十个类别都加进模板就宣布已解决，这样的改进更清晰。
 
-## 7. What this proposal does not solve
+<a id="7-what-this-proposal-does-not-solve"></a>
+## 7. 本提案不解决什么
 
-- GitHub cannot supply missing customer research or legitimate decision
-  authority. Humans must provide both.
-- Structured decisions can still be wrong. Provenance makes them reviewable,
-  not true.
-- Path validation and experiments cannot prove a whole architecture feasible.
-- An AI critique is not an independent Human review or proof of completeness.
-- Cross-repository knowledge, organization-wide prioritization, capacity
-  planning, and cross-Intent impact graphs remain outside the initial scope.
-- No new effectiveness, business-value, or Demo Ready claim is justified
-  until the corresponding observations and live rehearsals exist.
+- GitHub 无法补齐缺失的客户研究或合法决策权，两者都必须由人提供。
+- 结构化决策仍可能错误。来源可追溯使其可评审，不会使其自动为真。
+- 路径验证与实验不能证明整个架构可行。
+- AI 质疑不是独立人工评审，也不是完整性证明。
+- 跨仓库知识、组织级优先级、容量规划和跨 Intent 影响图仍在初始范围之外。
+- 在相应观测与真实演练出现之前，
+  不能提出新的有效性、业务价值或 Demo Ready 声明。
 
-## 8. Sources
+<a id="8-sources"></a>
+## 8. 来源
 
-Sources were consulted during the September 2026 research pass. Spec Kit
-references are pinned to commit `c00dc0551583428a10a94443c58c6a41e5e0138c`
-to distinguish reviewed workflow design from future behavior.
+这些来源查阅于 2026 年 9 月的研究轮次。
+Spec Kit 引用固定在提交 `c00dc0551583428a10a94443c58c6a41e5e0138c`，
+以区分当时审阅的工作流设计与未来行为。
 
-- **S1.** [Naming the Pain in Requirements Engineering: Contemporary Problems,
-  Causes, and Effects in Practice](https://arxiv.org/html/1611.10288v1),
-  2016 preprint, especially the problem results and discussion. Empirical
-  requirements-engineering baseline; not an AI-specific study.
-- **S2.** [DORA: User-centric focus](https://dora.dev/capabilities/user-centric-focus/).
-  Guidance on connecting software work to user needs.
-- **S3.** [2025 DORA AI Capabilities Model](https://services.google.com/fh/files/misc/2025_dora_ai_capabilities_model.pdf).
-  Survey and qualitative evidence on capabilities that support AI adoption;
-  not a randomized early-stage intervention study.
-- **S4.** Birgitta Bockeler,
-  [Understanding Spec-Driven-Development: Kiro, spec-kit, and Tessl](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html),
-  2025-10-15. Practitioner observations, including specification expansion
-  and failures to use existing-code context; limited trials, not a benchmark.
-- **S5.** [Spec Kit: Clarify](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/clarify.md).
-  Structured ambiguity, edge-case, and quality-attribute questions.
-- **S6.** [Spec Kit: Analyze](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/analyze.md).
-  Ambiguity, omissions, coverage, and cross-artifact consistency.
-- **S7.** [Spec Kit: Plan](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/plan.md).
-  Research of unknowns and technical planning.
-- **S8.** [Spec Kit: Tasks](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/tasks.md).
-  Task organization, dependencies, and independently verifiable increments.
+- **S1.** [《需求工程痛点：实践中的当代问题、原因与影响》](https://arxiv.org/html/1611.10288v1)，
+  2016 年预印本，尤其是问题结果与讨论。
+  属于实证需求工程基线，不是 AI 专项研究。
+- **S2.** [DORA：以用户为中心](https://dora.dev/capabilities/user-centric-focus/)。
+  关于将软件工作与用户需求联系起来的指导。
+- **S3.** [2025 DORA AI 能力模型](https://services.google.com/fh/files/misc/2025_dora_ai_capabilities_model.pdf)。
+  关于支持 AI 采用的能力的调查与定性证据，
+  不是针对早期阶段干预的随机试验。
+- **S4.** Birgitta Bockeler，
+  [《理解规格驱动开发：Kiro、spec-kit 与 Tessl》](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)，
+  2025-10-15。实践者观察，包括规格膨胀与未能利用已有代码上下文；
+  是有限试用，不是基准测试。
+- **S5.** [Spec Kit：Clarify](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/clarify.md)。
+  结构化的歧义、边界情况与质量属性问题。
+- **S6.** [Spec Kit：Analyze](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/analyze.md)。
+  歧义、遗漏、覆盖与跨产物一致性。
+- **S7.** [Spec Kit：Plan](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/plan.md)。
+  对未知项的研究与技术规划。
+- **S8.** [Spec Kit：Tasks](https://github.com/github/spec-kit/blob/c00dc0551583428a10a94443c58c6a41e5e0138c/templates/commands/tasks.md)。
+  任务组织、依赖和可独立验证的增量。

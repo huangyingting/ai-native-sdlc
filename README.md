@@ -1,69 +1,66 @@
-# AI-native SDLC: guides and tooling
+# AI 原生软件交付：指南与工具
 
-Guides and reusable tools for AI-assisted software delivery: clarify requirements,
-review specifications and tests, verify implementation, accept an exact artifact,
-and learn from operational feedback.
+[English](README.en.md)
 
-本仓库保存 **Guide 和可复用工具**。具体演示、案例记录及截图统一放在
+本仓库介绍如何在软件交付中使用 AI：澄清需求、审查规格和测试、验证实现、
+验收指定版本的交付物，再根据运行反馈持续改进。
+
+这里保存**方法指南和可复用工具**。具体演示、案例记录及截图统一放在
 [`ai-native-sdlc-demo`](https://github.com/huangyingting/ai-native-sdlc-demo)，
 不在两个仓库中维护重复文档。
 
-## Start here / 从这里开始
+## 从这里开始
 
-| Goal / 目的 | Entry / 入口 |
+| 目的 | 入口 |
 |---|---|
-| Learn the method / 理解方法 | **[AI-native SDLC guide: English / 中文](docs/guides/ai-native-sdlc/README.md)** |
-| Find an operator reference / 查找操作说明 | **[Documentation index / 文档导航](docs/README.md)** |
-| Present the completed example / 讲解已完成的案例 | **[Demo documentation / 演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md)** |
-| Run a new delivery / 从头完成一次交付 | [Step-by-step walkthrough](docs/guides/brownfield-human-gated-delivery-walkthrough.md) |
-| Configure approvals or recover a failed stage / 配置审批、恢复失败阶段 | [Delivery reference](docs/guides/brownfield-human-gated-delivery.md) |
-| Develop the repository / 开发与扩展 | [Repository guide](docs/guides/repository-guide.md) |
+| 理解方法 | **[AI 原生软件交付指南](docs/guides/ai-native-sdlc/README.md)** |
+| 查找操作说明 | **[文档导航](docs/README.md)** |
+| 讲解已完成的案例 | **[演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md)** |
+| 从头完成一次交付 | [分步操作指南](docs/guides/brownfield-human-gated-delivery-walkthrough.md) |
+| 配置审批、恢复失败阶段 | [交付参考](docs/guides/brownfield-human-gated-delivery.md) |
+| 开发与扩展仓库 | [仓库维护指南](docs/guides/repository-guide.md) |
 
-The source service desk is an **ownership-free baseline**. The demo repository
-already contains the accepted ownership feature. For a new run, export the
-source into a new isolated repository; do not reset the completed demo.
+源仓库中的服务台保留**尚未实现工单负责人的基线**。演示仓库已经交付该功能，
+适合查看结果和过程；重新实践时，应从源仓库导出到另一个独立仓库，不要重置已完成的演示。
 
-源仓库中的服务台保留未实现工单负责人的起点。新演示仓库已经交付该功能，
-适合查看结果和过程；重新实践时，应从源仓库导出到另一个独立仓库。
+## 项目
 
-## Projects
+- [demos/it-service-desk/](demos/it-service-desk/)：独立的 Next.js／SQLite 应用。
+- [demos/engineering-lab/](demos/engineering-lab/)：不依赖第三方包的工程实验应用。
+- [tools/brownfield-demo/](tools/brownfield-demo/README.md)：准备环境、执行预检、展示镜像和只读回放交付证据。
+- [tools/engineering-demo/](tools/engineering-demo/README.md)：限定范围的影响分析、故障诊断和策略评估。
+- [tools/trace-viewer/](tools/trace-viewer/README.md)：调用追踪模型、渲染器和 GitHub Pages 客户端。
+- [.github/](.github/)：自动化工作流与适配脚本。
 
-- [demos/it-service-desk/](demos/it-service-desk/) — independent Next.js/SQLite application.
-- [demos/engineering-lab/](demos/engineering-lab/) — dependency-free engineering fixture.
-- [tools/brownfield-demo/](tools/brownfield-demo/README.md) — preparation, preflight, image presentation and read-only evidence replay.
-- [tools/engineering-demo/](tools/engineering-demo/README.md) — bounded impact analysis, diagnosis and strategy evaluation.
-- [tools/trace-viewer/](tools/trace-viewer/) — trace model, renderer and GitHub Pages client.
-- [.github/](.github/) — workflow automation and adapters.
+各演示应用独立管理依赖和锁文件，不使用 npm workspaces。
 
-Each demo owns its dependencies and lockfile; these are not npm workspaces.
+## 验证
 
-## Validate
-
-Use Node.js 24:
+使用 Node.js 24，在仓库根目录执行：
 
 ```sh
 npm test
 npm --prefix demos/engineering-lab test
 ```
 
-The service desk has its own [test, lint and build commands](demos/it-service-desk/README.md).
-Offline checks do not run real Copilot experiments.
+服务台另有自己的[测试、静态检查和构建命令](demos/it-service-desk/README.md)。
+离线检查不会运行真实的 Copilot 实验。
 
-## Running a delivery
+## 开展一次交付
 
-Follow the [ordered preparation steps](docs/guides/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository):
-prepare an ownership-free baseline, inspect it, publish the isolated repository,
-configure access, then run preflight. Preparation alone does not create a remote.
+按[准备步骤](docs/guides/brownfield-human-gated-delivery-walkthrough.md#1-prepare-the-repository)
+依次操作：准备未实现目标功能的基线、检查导出内容、发布独立仓库、配置访问权限、
+执行预检。仅执行准备命令不会创建远程仓库。
 
-AI proposes documents and code. Configured reviewers make product decisions and
-approve specific versions; Actions checks boundaries and preserves records.
-For Issue-based runs, image verification leaves the Intent open until explicit,
-digest-bound acceptance. A successful workflow is not itself an approval.
+AI 提出文档和代码；配置中的审查者作出产品决定，并批准具体版本；
+GitHub Actions 检查变更边界并保存记录。采用 Issue 文档审查的交付，
+即使镜像验证通过，也要等到明确提交绑定镜像摘要的验收决定后才关闭需求。
+工作流成功不等于已经批准。
 
-Review [setup permissions and single-owner mode](docs/guides/brownfield-human-gated-delivery.md#single-owner-demo-mode)
-before applying changes. Do not apply full demo setup to this source repository
-without agreement, put credentials in commands or chat, or bypass required checks.
+应用配置前，请先阅读[权限与单人审查模式](docs/guides/brownfield-human-gated-delivery.md#single-owner-demo-mode)。
+未经确认，不要在源仓库执行完整的演示环境配置，不要将凭据写入命令或聊天，
+也不要绕过必需检查。
 
-The [readiness policy](docs/guides/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)
-requires three distinct Human-led scenarios before a **Demo Ready** claim.
-The current completed case does not establish all three or production readiness.
+按照[演示就绪要求](docs/guides/brownfield-human-gated-delivery-walkthrough.md#presenter-runbook-and-readiness)，
+只有三种由人实际参与决策的独立场景均完成后，才能宣布达到 **Demo Ready**。
+当前已完成的案例不代表这三个场景全部完成，也不证明已经具备生产条件。

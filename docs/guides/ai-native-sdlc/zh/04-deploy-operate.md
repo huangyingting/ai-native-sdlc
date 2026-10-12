@@ -3,8 +3,8 @@
 [指南目录](../README.md) · [English](../en/04-deploy-operate.md) ·
 [上一章](03-build-verify.md) · [下一章：工程判断](05-engineering-judgment.md)
 
-本章先用当前案例说明怎样验收一个明确的镜像版本，再通过独立的历史案例，
-讲解就绪检查、故障恢复和预防措施。后半部分不是当前演示仓库已经完成的维护工作。
+本章先用当前案例说明怎样验收一个明确的镜像版本，再介绍就绪检查、
+故障恢复和预防措施的方法。后半部分不是当前演示仓库已经完成的维护工作。
 
 ## 4.1 合并、发布、验收是三件不同的事
 
@@ -87,40 +87,15 @@ Artifacts 表里的 SHA-256 标识工作流下载包，**不是 GHCR 镜像的�
 
 ## 4.3 从运行问题中提出维护需求
 
-以下转到归档中的 Discovery 案例，不是当前演示仓库的新结果。
-该案例在临时副本中配置了非法数据库路径，得到以下结果：
+当前案例尚未完成数据库就绪检查。下面介绍如何提出这类维护需求，不代表已交付。
 
-| 请求 | 观察 | 含义 |
-|---|---|---|
-| `/api/health` | 200，`{"status":"ok"}` | 进程仍存活 |
-| `/` | 500 | 用户无法正常打开应用 |
-| `/api/ready` | 404 | 尚无检查依赖是否就绪的端点 |
+进程存活（liveness）不等于依赖可用（readiness），两者也不能代替用户操作验证。
+若运行观察发现缺口，应另建维护 Intent，记录实际请求、配置、响应和用户影响，
+区分观察事实与待验证假设，不改写此前的批准和验收记录。
 
-这是隔离环境中的故障注入，不是生产事故。工单归属的交付验证也检查了首页，
-因此不能据此推断不可用的副本曾通过验收。
-这里发现的是另一项需求：liveness 只能说明进程存活，还需要 readiness
-判断数据库等依赖是否就绪。
-
-于是，团队另建就绪检查维护 Intent，约定：
-
-- 保留现有 liveness。
-- 每次 readiness 请求都访问数据库。
-- 健康：200，精确返回 `{"status":"ready"}`。
-- 不可用：503，精确返回 `{"status":"unavailable"}`。
-- 两者都带 `Cache-Control: no-store`。
-- 日志只写固定通用消息，不输出路径、异常细节或堆栈。
-- 修正配置后验证服务恢复，并确认数据保留。
-
-[![就绪检查后续任务：运行观察和测试工具缺陷的处理记录](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/archive/assets/maintenance-continuation.png)](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17)
-
-**图 G。**
-[huangyingting/ai-native-sdlc-discovery-demo#17](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17)
-记录了就绪检查后续任务的范围，也保留了首次尝试被取消的原因。
-第 3 章已介绍其中的测试工具缺陷及处理方式。
-
-后续任务的验收覆盖了正常和非法路径下的 readiness 响应、保持不变的 liveness、
-脱敏日志、50 次重复 readiness 请求、完整数据保留，以及使用同一数据卷重启。
-配置修正通过重新创建临时实例完成，并非修改运行中进程的环境变量。
+就绪检查的规格应明确：检查哪些依赖、何时检查、成功和失败的响应、
+缓存控制、日志脱敏，以及如何验证配置修复后的恢复和数据保留。
+故障注入只在隔离资源中执行，验收应覆盖正常、异常和恢复路径。
 
 ## 4.4 三个小而完整的可靠性闭环
 
@@ -136,37 +111,26 @@ flowchart LR
   W --> M["审查维护草稿，落实预防措施"]
 ```
 
-1. **测试可信度：** 先运行 13 项测试，再注入六个指定变异，最后还原代码并复测，
-   检查 readiness 测试能否识别这些错误。
+以下是可复用的实验流程，不是当前演示的完成记录。
+
+1. **测试可信度：** 先验证原实现，再逐项注入指定变异，最后还原代码并复测，
+   检查测试能否识别这些错误。
 2. **流量切换与恢复：** 拒绝配置错误的实例，让健康实例接收流量；暂停该实例后，
    先确认稳定实例可用，再回退流量。
 3. **运行反馈：** 记录故障和恢复过程，生成维护草稿。经审查确定预防措施后，
    实施变更并重复检查，再关闭任务。
 
-[![GitHub Actions 中的可靠性演练任务与产物](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/archive/assets/reliability-run.png)](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388446065)
-
-**图 H。** [GitHub Actions 可靠性演练 36388446065](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388446065)，
-截图日期：2026 年 10 月 12 日。可从摘要进入各任务，详细结果见
-[测量报告](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-reliability-rehearsal.md)。
-
-两次本地演练均拒绝了错误配置，且各回退一次；回退后，另行采集的五个样本均确认服务恢复。
-观察到的检测时间为 4,208／4,207 毫秒，恢复确认时间为 733／882 毫秒。
-GitHub Actions 演练的数据在报告中单独列出。
-
-这些实验使用相同镜像，通过只读网关在短时间内主动注入故障。因此，结果不能
-直接用于推算生产环境的平均恢复时间（MTTR）或服务等级目标（SLO），
-也未验证写流量、跨版本回滚和备份恢复。数据哈希检查覆盖的是本场景中的
-完整表结构和数据行。
+执行前应声明检测与恢复的计时方式、采样窗口和数据比较范围，
+操作步骤见[可靠性指南](../../brownfield-reliability-loops.md)。
+同镜像、只读网关的短时故障演练不能直接证明生产环境的平均恢复时间（MTTR）
+或服务等级目标（SLO），也不能替代写流量、跨版本回滚和备份恢复验证。
 
 ## 4.5 恢复不等于预防工作完成
 
 流量回到稳定实例，只说明只读操作恢复了。要防止问题再次发生，还需要后续工作。
 
-普通维护任务
-[huangyingting/ai-native-sdlc-discovery-demo#25](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/25)
-记录了审查范围，并关联
-[huangyingting/ai-native-sdlc-discovery-demo#26](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/26)。
-该任务在 PR 合并、GitHub Actions 演练完成之后才关闭，而不是生成草稿后就算完成。
+维护任务应关联经过审查的范围、实现 PR 和变更后的验证记录，
+而不是生成草稿后就算完成。
 
 团队实践中，应指定运维负责人，区分已观察到的事实与尚待验证的假设，
 记录预防方案、验收方法和变更后的结果。根因尚未查明时，就明确保留为待查问题。
@@ -181,6 +145,6 @@ GitHub Actions 演练的数据在报告中单独列出。
 
 进入生产前，还应按系统风险补充：独立审批、制品签名与来源验证、部署准入、
 权限和隐私审查、容量与负载测试、跨版本数据库兼容、备份恢复演练、
-值班安排、SLO 及业务效果测量。这些不在本组演练的完成范围内。
+值班安排、SLO 及业务效果测量。这些不在当前案例的完成范围内。
 
 [下一章：分析变更影响、诊断故障并评估 Agent 策略](05-engineering-judgment.md)。

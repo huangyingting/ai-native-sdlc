@@ -1,6 +1,6 @@
 # 1. The operating model: proposals, decisions and evidence
 
-[Guide index](../README.md) · [中文](../zh/01-operating-model.md) ·
+[Guide index](../README.en.md) · [中文](../zh/01-operating-model.md) ·
 [Next: Intent, Spec and Plan](02-intent-spec-plan.md)
 
 ## 1.1 What makes this AI-native?
@@ -62,19 +62,18 @@ silent edit to make an existing approval appear valid.
 | Deploy | Is this the artifact we intend to use? | Exercise and accept/reject it | Assist packaging and evidence summaries | Merge SHA, digest, run/attempt, observed behavior |
 | Operate | Is service usable, and what should change next? | Own recovery and preventive scope | Correlate evidence, draft maintenance | Probe windows, recovery/data checks, linked follow-up |
 
-## 1.3 The main case and focused exercises
+## 1.3 The main case and method topics
 
 Chapters 2–4 follow **ticket ownership in the current demo repository**:
 product decisions become specifications, tests, implementation and acceptance.
-Readiness, reliability and engineering experiments are separate historical
-references, not completed work in the current demonstration.
+Readiness, reliability and engineering sections explain methods, not completed
+work in the current demonstration.
 
 | Example | Teaching role | Observed outcome and boundary |
 |---|---|---|
 | Ticket ownership delivery, [huangyingting/ai-native-sdlc-demo#1](https://github.com/huangyingting/ai-native-sdlc-demo/issues/1) | Main Intent → Spec → Plan → engineering story | Four product decisions, Spec v5, Plan v1, 38 passing tests and user-confirmed image acceptance |
-| Readiness maintenance, [huangyingting/ai-native-sdlc-discovery-demo#8](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/8) → [huangyingting/ai-native-sdlc-discovery-demo#17](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17) | Learn from operation and failed verification | First attempt cancelled; corrected continuation delivered readiness while preserving the failed attempt |
-| Reliability exercises | Test qualification, admission and recovery | Six declared mutants detected; isolated same-image recovery and maintenance follow-up |
-| Engineering judgment exercises | Change impact, diagnosis and strategy comparison | Proxy change passed 15 legacy + 35 independent checks; all six repairs passed, but exact-evidence gate rejected all six pilot cells |
+| Readiness and reliability methods | Operational feedback, test qualification and recovery verification | Method guidance; not completed in the current demo |
+| Engineering judgment methods | Change impact, diagnosis and strategy comparison | Experiment design; not completed in the current demo |
 | Agent trace exercise | Inspect execution and usage with Trace Viewer | A separate direct-execution example |
 | Current case screenshots | Decisions, reviews, handoffs, filters and acceptance | 14 captures in the demo repository; application captures use the published image |
 
@@ -86,7 +85,7 @@ readiness has not been started there. Start a delivery exercise from the baselin
 application that already implements the requested feature.
 
 Dates, screenshot sources and verification scope are in the
-[evidence register](../evidence.md).
+[evidence register](../evidence.en.md).
 
 ## 1.4 Know which page has authority
 

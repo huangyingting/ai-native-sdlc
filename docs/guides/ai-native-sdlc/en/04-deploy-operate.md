@@ -1,11 +1,11 @@
 # 4. Deploy, Operate and learn: close the loop beyond merge
 
-[Guide index](../README.md) · [中文](../zh/04-deploy-operate.md) ·
+[Guide index](../README.en.md) · [中文](../zh/04-deploy-operate.md) ·
 [Previous](03-build-verify.md) · [Next: engineering judgment](05-engineering-judgment.md)
 
 First, this chapter explains exact-image acceptance using the current case.
-Separate historical examples then illustrate readiness, recovery and preventive
-work; those are not completed maintenance in the current demo repository.
+It then introduces readiness, recovery and preventive methods, not completed
+maintenance in the current demo repository.
 
 ## 4.1 Merge, publication and acceptance are different events
 
@@ -57,7 +57,7 @@ distinct. This capture uses the published image, not a source preview.
 [![Combined owner, status, priority and reference filters](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/cases/assets/ownership/owner-filter.png)](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/assets/ownership/owner-filter.png)
 
 **Combined filters, October 12, 2026.** Sam Rivera, Open, High and `inc-1`
-intersect using AND semantics. See the [evidence register](../evidence.md).
+intersect using AND semantics. See the [evidence register](../evidence.en.md).
 
 To accept the ownership feature:
 
@@ -93,41 +93,19 @@ hosted service or production certification; eight baseline dependency advisories
 
 ## 4.3 Turn an operational observation into maintenance
 
-The following archived Discovery example is not a new result from the current demo.
-A disposable replica with an invalid database path
-returned:
+Database readiness is not completed in the current case. This section explains
+how to define that maintenance work, not an already delivered capability.
 
-| Request | Observation | Interpretation |
-|---|---|---|
-| `/api/health` | 200, `{"status":"ok"}` | Process liveness remained true |
-| `/` | 500 | The user journey was unusable |
-| `/api/ready` | 404 | No dependency-readiness endpoint existed |
+Process liveness does not establish dependency readiness, and neither replaces
+user-journey verification. When observations reveal a gap, create a separate
+maintenance Intent with the actual requests, configuration, responses and user
+impact. Separate observations from hypotheses without rewriting prior approvals
+or acceptance records.
 
-This was deliberate fault injection, not a production outage. The prior
-delivery verifier also checked the dashboard; it was not shown accepting this
-broken replica. Liveness was doing its intended job, but operation needed a
-separate readiness signal.
-
-The readiness requirement became a separate maintenance Intent:
-
-- Keep existing liveness unchanged.
-- Check the database on every readiness request.
-- Healthy: 200 and exactly `{"status":"ready"}`.
-- Unavailable: 503 and exactly `{"status":"unavailable"}`.
-- Both responses: `Cache-Control: no-store`.
-- Log a fixed generic message rather than paths, exception details or stacks.
-- Verify recovery after repair and preserve data.
-
-[![Maintenance continuation explaining observed evidence and the failed prior harness](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/archive/assets/maintenance-continuation.png)](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17)
-
-**Figure G.** [huangyingting/ai-native-sdlc-discovery-demo#17](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17)
-records the readiness continuation's scope and why the first attempt was
-cancelled. Chapter 3 explains the harness defect and its resolution.
-
-The continuation's real acceptance checked healthy readiness, invalid-path
-readiness, unchanged liveness, sanitized logs, 50 repeated readiness requests,
-full data preservation and same-volume restart. The configuration repair
-recreated a disposable instance; it did not edit a running process's environment.
+A readiness specification should define dependencies, check timing, success
+and failure responses, cache control, sanitized logging, and verification of
+recovery and data preservation after configuration repair. Inject faults only
+in isolated resources; acceptance should cover healthy, failed and recovered paths.
 
 ## 4.4 Three small reliability loops
 
@@ -143,41 +121,29 @@ flowchart LR
   W --> M["Review maintenance draft and preventive work"]
 ```
 
-1. **Trustworthy verification:** original/restored 13-test controls and six
-   deliberate mutants establish a narrow readiness-test capability.
+These are reusable experiment procedures, not completion records for the current demo.
+
+1. **Trustworthy verification:** run passing controls, inject each declared
+   mutation, then restore and retest to check whether tests detect those errors.
 2. **Safe local admission and recovery:** reject a misconfigured candidate;
    admit a healthy candidate; pause it; recheck stable before fallback.
 3. **Operational feedback:** record incident/recovery observations, generate
    an unapproved maintenance draft, review and implement preventive scope,
    repeat relevant checks before closure.
 
-[![Actual hosted reliability rehearsal with its execution and artifact](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/archive/assets/reliability-run.png)](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388446065)
-
-**Figure H.** [GitHub Actions reliability run 36388446065](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/actions/runs/36388446065),
-captured October 12, 2026. Open individual jobs from the summary; the
-[measured report](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-reliability-rehearsal.md) records the results.
-
-Two local repetitions rejected bad configuration, performed exactly one
-fallback and passed separate five-sample recovery windows. Observed detection
-times were 4,208/4,207 ms and recovery confirmations 733/882 ms. The actual
-hosted repetition is recorded separately in the report.
-
-These are short, deliberately faulted **same-image, read-only-gateway exercises**.
-They do not establish production MTTR, an SLO, arbitrary write-traffic safety,
-cross-version rollback or backup restoration. The data hash comparison covers
-the full controlled schema/rows for this scenario only.
+Declare detection and recovery timing, sampling windows and data comparison
+scope before execution. Follow the
+[reliability guide](../../brownfield-reliability-loops.en.md) for procedures.
+Short same-image, read-only-gateway drills do not establish production MTTR,
+an SLO, write-traffic safety, cross-version rollback or backup restoration.
 
 ## 4.5 Recovery is not preventive closure
 
 Returning traffic to stable answers “is the read journey working again?”
 It does not answer “have we prevented recurrence?”
 
-The normal maintenance follow-up
-[huangyingting/ai-native-sdlc-discovery-demo#25](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/25)
-linked reviewed scope and
-[huangyingting/ai-native-sdlc-discovery-demo#26](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/26).
-Closure followed an actual post-merge hosted rehearsal, not merely creation of
-an AI-generated draft.
+Maintenance work should link reviewed scope, an implementation PR and
+post-change verification. Creating a draft alone does not establish completion.
 
 For your own team, require an operational owner, observations separated from
 hypotheses, proposed prevention, acceptance checks and a post-change result.

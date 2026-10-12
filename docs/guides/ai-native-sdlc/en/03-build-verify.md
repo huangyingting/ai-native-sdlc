@@ -1,11 +1,11 @@
 # 3. Build and Verify: make the executable contract trustworthy
 
-[Guide index](../README.md) · [中文](../zh/03-build-verify.md) ·
+[Guide index](../README.en.md) · [中文](../zh/03-build-verify.md) ·
 [Previous](02-intent-spec-plan.md) · [Next: Deploy and Operate](04-deploy-operate.md)
 
-This chapter continues **the current ticket ownership delivery**, then examines
-a separate **historical readiness maintenance** failure. How can tests constrain implementation
-effectively, and what should happen when the tests themselves are defective?
+This chapter continues **the current ticket ownership delivery** and explains
+harness qualification: how can tests constrain implementation effectively,
+and what should happen when the tests themselves are defective?
 
 ## 3.1 Build starts with a boundary
 
@@ -83,7 +83,6 @@ After reviewed Tests merge, AI proposes the implementation. Reviewers inspect:
 The [ownership implementation](https://github.com/huangyingting/ai-native-sdlc-demo/pull/9)
 passed Stage Green and application CI: **38 tests, lint, build and container
 smoke**. All nine Red tests passed and nine frozen files were unchanged.
-The 50-test result below belongs to a separate historical readiness case.
 
 | Required surface | What to inspect |
 |---|---|
@@ -95,52 +94,22 @@ The 50-test result below belongs to a separate historical readiness case.
 New commits require renewed applicable review. A successful coordination
 workflow is not a substitute for the application checks it coordinates.
 
-## 3.5 The most important counterexample: a flawed frozen harness
+## 3.5 Do not change the product to accommodate a faulty harness
 
-The archived readiness case demonstrates why Red alone is insufficient.
-It used development-test mode and is not a continuation delivered in the current demo.
+Red establishes an observed failure, not the correctness of every deeper
+assertion or the test harness. Review whether tests reach meaningful behavior,
+and distinguish product defects, harness defects and environment failures.
 
-```text
-Missing readiness route
-  -> guarded tests fail as expected
-  -> Tests approved and frozen
-  -> real implementation reaches deeper assertions
-  -> harness defects surface
-  -> Green fails; implementation is not merged
-```
-
-The first maintenance implementation,
-[huangyingting/ai-native-sdlc-discovery-demo#14](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/14),
-produced **44 passes and four failures**. Two harness problems had been hidden
-behind the missing-route guards:
-
-1. A concise `beforeEach` returned a mock function. Vitest treated that returned
-   function as cleanup and invoked it.
-2. A long-lived SQLite observer retained stale column metadata after another
-   connection changed the schema.
-
-The Tests review missed these defects. The team did **not** add test-aware
-production hacks or quietly edit frozen tests. The operator cancelled
-[huangyingting/ai-native-sdlc-discovery-demo#8](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/8)
-and created the explicit
-[continuation](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/issues/17).
-
-Before freezing the continuation's tests, an **isolated harness experiment**
-combined the new tests with the prior unmerged route candidate and ran all
-48 tests successfully. That experiment exercised deeper assertions; it was
-not stage Green and did not place production code in the Tests branch.
-
-Later implementation review found an attempt to sanitize an error by mutating
-its properties. Frozen errors could make that operation throw. Two new
-supplemental tests reproduced the defect; removing the mutation led to
-**50 passing tests** while preserving the approved originals.
-
-This is a disciplined feedback loop, not autonomous perfection.
+Qualify a harness in isolation, with explicit inputs and results; do not
+present that experiment as stage Green. If a defect affects frozen tests,
+create explicitly scoped follow-up work and obtain renewed review rather
+than adding product hacks or silently editing approved files.
 
 ## 3.6 Qualify the verifier itself
 
-The reliability exercises asked whether the final readiness tests would detect
-specific wrong implementations:
+Verify that tests detect wrong implementations as well as accept correct ones.
+For a readiness contract, consider the following controlled mutations.
+This is an experiment design example, not verification completed in the current case.
 
 | Deliberate mutation | Why it should be caught |
 |---|---|
@@ -150,15 +119,14 @@ specific wrong implementations:
 | Log the raw exception | Readiness diagnostics could disclose sensitive details |
 | Mutate a caught frozen error | Error handling can introduce a new failure |
 
-In the executed qualification: **13 original tests passed → all six declared
-mutants were detected → 13 restored tests passed**. Test blobs stayed unchanged.
-The frozen-error mutant has a specifically allowed application TypeError in
-known test bodies; it is not falsely described as assertion-only. Import,
-hook and timeout errors are not valid kills.
+Run passing controls, inject each mutation and record its result, then restore
+the implementation and rerun the controls. Keep test files unchanged and
+declare valid failure types in advance. Import, hook and timeout errors do
+not establish detection of a product defect.
 
-This is six named checks of a narrow contract, **not a project-wide mutation
-score**. Read the [qualification evidence](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-reliability-rehearsal.md#2-trustworthy-verification)
-before generalizing.
+Limit conclusions to the mutations actually checked, rather than claiming
+a project-wide mutation score. See the
+[reliability guide](../../brownfield-reliability-loops.en.md) for procedures.
 
 ## 3.7 A failure-triage decision table
 

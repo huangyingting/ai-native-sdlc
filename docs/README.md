@@ -1,48 +1,51 @@
-# Documentation / 文档导航
+# 文档导航
 
-**This repository explains how to work. The demo repository records what was delivered.**
+[English](README.en.md)
+
+**指南讲“怎么做”，演示文档讲“这次做了什么”。**
 
 本仓库保存方法和操作指南；演示仓库保存具体案例、讲解路线、交付记录和截图。
 同一份内容只维护一处，通过链接关联，不再复制整套文档。
+中文为默认版本，英文另设独立页面，可通过页首入口切换。
+操作命令、代码、原始截图、实验输入和已冻结的交付文件保留原文，
+不为了统一语言而改写可执行内容或证据。
 
-## Choose a path / 按目的阅读
+## 按目的阅读
 
-| Goal / 目的 | Entry / 入口 |
+| 目的 | 入口 |
 |---|---|
-| Understand the method / 理解方法 | [AI-native SDLC guide / 中英文指南](guides/ai-native-sdlc/README.md) |
-| Present the completed example / 讲解已完成的案例 | [Demo documentation / 演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md) |
-| Run a delivery from scratch / 从头完成一次交付 | [Step-by-step walkthrough / 分步操作](guides/brownfield-human-gated-delivery-walkthrough.md) |
-| Configure approvals and troubleshoot / 配置审批与排查问题 | [Delivery reference / 交付参考](guides/brownfield-human-gated-delivery.md) |
-| Validate release and recovery behavior / 验证发布与恢复 | [Reliability guide / 可靠性指南](guides/brownfield-reliability-loops.md) |
-| Analyze changes and evaluate agents / 变更分析与 Agent 评估 | [Engineering experiments / 工程实验指南](guides/engineering-judgment-demos.md) |
-| Choose an orchestration pattern / 选择编排模式 | [Orchestration guide / 编排指南](guides/copilot-cli-agent-orchestration-patterns.md) |
-| Develop or extend the repository / 开发与扩展仓库 | [Repository guide / 仓库维护指南](guides/repository-guide.md) |
+| 理解方法 | [AI 原生软件交付指南](guides/ai-native-sdlc/README.md) |
+| 讲解已完成的案例 | [演示文档](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/README.md) |
+| 从头完成一次交付 | [分步操作指南](guides/brownfield-human-gated-delivery-walkthrough.md) |
+| 配置审批与排查问题 | [交付参考](guides/brownfield-human-gated-delivery.md) |
+| 验证发布与恢复 | [可靠性指南](guides/brownfield-reliability-loops.md) |
+| 变更分析与 Agent 评估 | [工程实验指南](guides/engineering-judgment-demos.md) |
+| 选择编排模式 | [编排指南](guides/copilot-cli-agent-orchestration-patterns.md) |
+| 开发与扩展仓库 | [仓库维护指南](guides/repository-guide.md) |
 
-## Where content belongs / 内容放在哪里
+## 内容放在哪里
 
 ```text
 ai-native-sdlc/docs/
-  README.md                 documentation entry point
-  guides/                   methods, procedures and references
-    ai-native-sdlc/          six matching Chinese/English chapters
-  research/                 dated analysis and design rationale
-  assets/traces/            images used by the trace guide
+  README.md                 中文文档入口
+  README.en.md              英文文档入口
+  guides/                   方法、操作步骤和参考说明
+    ai-native-sdlc/          分开维护的中英文六章指南
+  research/                 注明日期的分析和设计依据
+  assets/traces/            追踪指南使用的配图
 
 ai-native-sdlc-demo/docs/
-  README.md                 demonstration entry point
-  presenter.md              presentation route
-  cases/                    completed cases and their screenshots
-  delivery-runs/            workflow-managed, versioned delivery artifacts
-  archive/                  separate, still-verifiable historical examples
+  README.md                 中文演示入口
+  README.en.md              英文演示入口
+  presenter.md              中文演示路线
+  presenter.en.md           英文演示路线
+  cases/                    案例正文与截图
+  delivery-runs/            工作流管理的版本化交付文件
 ```
 
-### Supporting research / 延伸阅读
+## 延伸阅读
 
-- [Intent, Spec and Plan](research/ai-native-sdlc-early-stage-research.md)
-- [Build, Verify, Deploy and Operate](research/ai-native-sdlc-delivery-operations-research.md)
+- [需求意图、规格与计划的研究](research/ai-native-sdlc-early-stage-research.md)
+- [开发、验证、部署与运行的研究](research/ai-native-sdlc-delivery-operations-research.md)
 
-These are dated assessments, not the current demo's progress report.
-研究文档保留其评估日期，不作为演示进度或验收结论。
-需要查阅历史案例时，从演示仓库的
-[归档索引](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/README.md)进入。
-已失效仓库的案例与截图不再作为文档维护对象。
+研究文档保留其评估日期，不作为当前演示的进度或验收结论。

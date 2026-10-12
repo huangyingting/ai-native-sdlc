@@ -1,141 +1,134 @@
-# Build, Verify, Deploy, and Operate: Research and Demo Improvement Design
+<a id="build-verify-deploy-and-operate-research-and-demo-improvement-design"></a>
+# 构建、验证、部署与运维：研究及演示改进设计
 
-Assessment date: 2026-09-28.
+[English](ai-native-sdlc-delivery-operations-research.en.md)
 
-This complements the [Intent/Spec/Plan research](ai-native-sdlc-early-stage-research.md).
-The table below is a **dated baseline**, before the three reliability loops.
-The [reliability walkthrough](../guides/brownfield-reliability-loops.md) records the
-implemented commands, their scope, and separately identified execution evidence.
-Improvements do not retrospectively change this assessment or earlier approvals.
-The [actual reliability rehearsal](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-reliability-rehearsal.md) records
-the completed local qualification and two successful fresh runtime exercises.
+评估日期：2026-09-28。
 
-## Executive summary
+本文补充 [Intent/Spec/Plan 研究](ai-native-sdlc-early-stage-research.md)。
+下表是三个可靠性闭环实施前的**带日期基线**。
+[可靠性演练指南](../guides/brownfield-reliability-loops.md)记录已实现命令和适用范围。
+后续改进不会追溯改变本评估或此前批准。
 
-The principal later-stage risk is not slow code generation. It is accelerating
-an insufficiently verified implementation into a running environment.
+<a id="executive-summary"></a>
+## 执行摘要
 
-Our existing demo is strongest at traceable decisions, protected contracts,
-real Red/Green results, immutable delivery identity, and operator-led acceptance.
-It is weaker at proving the adequacy of tests, limiting deployment impact,
-recovering safely, and continuously detecting and learning from operational
-failures. AI-generated explanations are not substitutes for runtime evidence.
+后期阶段的主要风险不是代码生成太慢，
+而是把验证不足的实现更快地送入运行环境。
 
-Prioritize three small, complete loops:
+现有演示在可追溯决策、受保护契约、受控 Red/Green 门禁、
+不可变交付身份和操作员主导验收方面最强。
+较弱的方面是证明测试充分性、限制部署影响、安全恢复，
+以及持续发现并从运行故障中学习。
+AI 生成的解释不能替代运行时证据。
 
-1. **Trustworthy verification:** establish a passing control, deliberately
-   introduce bounded behavioral defects, require assertion-based detection,
-   restore the control, and test the actual delivered image under a fault.
-2. **Safe release and recovery:** deny an unhealthy candidate traffic, admit a
-   qualified candidate, exercise recovery, and verify persistent data.
-3. **Operational feedback:** detect repeated failures, preserve sanitized
-   evidence, produce a reviewable maintenance handoff, execute an authorized
-   response, and measure the recovery window.
+优先实施三个小而完整的闭环：
 
-Do not start by adding a production platform, autonomous approvals, or more
-code-generation agents.
+1. **可信验证：**建立通过的对照，故意引入范围受限的行为缺陷，
+   要求通过断言发现缺陷，恢复对照，并在故障条件下测试实际交付镜像。
+2. **安全发布与恢复：**拒绝不健康候选承接流量，准入合格候选，
+   演练恢复，并验证持久化数据。
+3. **运维反馈：**检测重复失败，保留脱敏证据，形成可评审的维护交接，
+   执行已授权响应，并测量恢复窗口。
 
-## 1. Method and evidence boundaries
+不要一开始就添加生产平台、自主批准或更多代码生成智能体。
 
-There is no authoritative universal ranking of the ten most common AI-specific
-Build/Verify/Deploy/Operate problems. This is a qualitative prioritization for
-small teams making brownfield changes through GitHub, based on impact,
-recurrence in delivery practice, and the cost of discovering mistakes late.
-It is not a measured frequency ranking or a numerical coverage score.
+<a id="1-method-and-evidence-boundaries"></a>
+## 1. 方法与证据边界
 
-| Source | What it supports | What it cannot establish |
+没有权威的通用排名能列出 AI 特有的十大构建/验证/部署/运维问题。
+本文面向通过 GitHub 修改存量项目的小团队，
+按影响、交付实践中的反复出现情况，以及晚发现错误的代价进行定性排序。
+它不是基于测量的发生频率排名，也不是数值化覆盖分数。
+
+| 来源 | 能支持什么 | 不能证明什么 |
 |---|---|---|
-| DORA 2025 [S1] | AI amplifies the strengths and weaknesses of the underlying organizational system | A universal causal ranking or this demo's effectiveness |
-| DORA test automation [S2] | Fast, reliable tests, developer ownership, realistic journeys, and intolerance of flaky feedback | That passing a particular suite proves semantic completeness |
-| Google SRE release engineering and canarying [S3, S4] | Reproducible artifacts, controlled rollout, observable release evaluation and recovery | Production safety of an isolated Docker exercise |
-| Google SRE monitoring and postmortems [S5, S6] | User-visible symptoms, actionable signals, evidence-based diagnosis and preventive follow-up | That a readiness endpoint constitutes an SLO or an on-call system |
-| DORA database change management [S7] | Data changes must be versioned, coordinated and evaluated across environments | That reverting an image reverses a schema or restores data |
-| NIST SSDF 1.1 [S8] | Secure development belongs throughout the lifecycle | That this repository implements every framework practice |
-| Repository code and actual rehearsal receipts [E1] | Specific implemented mechanisms and observed outcomes | Independent Human approval, production incidents or long-term business value |
+| DORA 2025 [S1] | AI 会放大底层组织系统的优势与弱点 | 通用因果排名，或本演示的有效性 |
+| DORA 测试自动化 [S2] | 快速可靠的测试、开发者责任、真实用户流程，以及不容忍不稳定反馈 | 某套测试通过即可证明语义完整 |
+| Google SRE 发布工程与金丝雀发布 [S3, S4] | 可复现产物、受控发布、可观测的发布评估与恢复 | 隔离 Docker 演练的生产安全性 |
+| Google SRE 监控与事后复盘 [S5, S6] | 用户可见症状、可行动信号、基于证据的诊断与预防跟进 | 就绪端点等同于 SLO 或值班系统 |
+| DORA 数据库变更管理 [S7] | 数据变更必须版本化、协调并跨环境评估 | 回退镜像会逆转数据库结构或恢复数据 |
+| NIST SSDF 1.1 [S8] | 安全开发应贯穿整个生命周期 | 本仓库实现了框架的每项实践 |
+| 仓库代码与测试 | 具体已实现机制和测试覆盖的行为 | 独立人工批准、生产事件或长期业务价值 |
 
-The baseline is source commit `0bade0d1189c8e435ebf74789d33912409a983bf`
-and completed discovery-demo documentation commit
-`66847955b04560b1fa7d701d7f2c306ba1429400`.
-The accepted readiness application came from merge
-`d361ce032b0f729f62b165c23c4f79bb56f29b92`.
-All associated rehearsals were explicitly `development-test`.
+源码评估基线为提交 `0bade0d1189c8e435ebf74789d33912409a983bf`。
 
-## 2. Ten high-impact pain points
+<a id="2-ten-high-impact-pain-points"></a>
+## 2. 十个高影响痛点
 
-"Strong within scope" describes an exercised mechanism, not an eliminated risk.
-"Partial" means relevant support exists but material gaps remain.
+“范围内较强”表示已有相关实现机制，并不表示风险被消除。
+“部分覆盖”表示有相关支持，但仍存在实质缺口。
 
-| # | Pain point | AI amplification | Baseline coverage and remaining gap |
+| # | 痛点 | AI 如何放大问题 | 基线覆盖与剩余缺口 |
 |---|---|---|---|
-| 1 | **Compiling code that violates intended behavior or scope.** Build | Plausible additional logic is produced faster than it can be reviewed. | **Partial.** Approved Spec/Plan, stage boundaries and exact-head review constrain changes, but do not automatically establish semantic correctness. Review caught unnecessary exception mutation in the readiness implementation. |
-| 2 | **Environment drift, unreliable feedback and irreproducible builds.** Build / Verify | Generated code assumes the wrong runtime/dependency behavior; retries can hide rather than resolve failures. | **Partial.** Independent lockfiles, `npm ci`, Node 24, Docker and real CI exist. The base image is a mutable tag, Node's patch version is not fixed, and systematic flaky-test governance is absent. A shared-host timeout occurred during rehearsal. |
-| 3 | **False confidence from tests that do not detect incorrect behavior.** Verify | Implementation and tests can share the same mistaken assumption, overuse mocks, or assert only existence. | **Partial.** Exact Red, run/hook-error rejection, frozen tests, real SQLite and browser checks help. A missing-route assertion nevertheless hid deeper harness defects until implementation. |
-| 4 | **Regressing old behavior, persistent data or nonfunctional requirements.** Verify | A narrow happy path dominates attention; concurrency, compatibility and capacity are omitted. | **Partial.** Existing tests, migration preservation, persistent ownership and non-mutation checks exist. Fifty passing tests do not establish load, concurrency, performance budgets or comprehensive NFR coverage. |
-| 5 | **Functional success with security or supply-chain risk.** Build / Verify | Unnecessary dependencies, insecure code and excessive tool privileges can spread quickly. | **Foundational only.** Scoped workflow permissions, some sanitization and non-root runtime exist. A complete exercised SAST/SCA, image scan, SBOM, signing, verification and admission chain was not established. This is a capability gap, not a finding of an exploitable vulnerability. |
-| 6 | **Reviewing A, testing B and running C.** Verify / Deploy | A generated completion summary or mutable tag can be mistaken for evidence. | **Strong within the demonstrated scope.** Exact-head review, frozen Git blobs, digest pulls and digest-bound acceptance are checked against actual records. CI and post-merge publication still perform separate builds; there is no complete multi-environment build-once promotion system. |
-| 7 | **Deploying without controlled exposure or safe recovery.** Deploy | Deployment instructions omit traffic control, configuration compatibility, persistent state and recovery prerequisites. | **Production-grade capability not established.** Isolated immutable containers are available, but no canary, traffic switch, release abort, previous-version rollback or backup/restore drill was demonstrated. Cancelling an Intent does not roll back a workload. |
-| 8 | **Confusing a live process with user-visible availability.** Operate | A successful health probe or generic HTTP 200 becomes a false success signal. | **Specific fault addressed; broader capability partial.** Readiness distinguishes usable storage from liveness, but continuous monitoring, SLI/SLO, alerting and traffic admission are absent. Automated publish verification still checks health and dashboard, not readiness. |
-| 9 | **Detecting failure without enough evidence to diagnose and recover.** Operate | Fluent root-cause guesses can outrun logs, metrics and actual runtime observations. | **Partial.** CI records, delivery receipts, fixed generic failure logs and a runbook exist. Request/release correlation, diagnostic packets and on-call workflows do not. The Trace Viewer observes agent execution, not complete production application behavior. |
-| 10 | **Repairing symptoms without owned, verified prevention.** Operate to Build | An agent finishes the immediate fix and omits follow-up, recurrence and outcome review. | **Basic loop exercised.** Operational observation became a new Intent, delivery and same-digest acceptance. Automatic incident intake, owned preventive deadlines, recurrence measures and long-term business results were not demonstrated. |
+| 1 | **代码能编译，却违背预期行为或范围。** 构建 | 看似合理的额外逻辑，生成速度超过评审能力。 | **部分覆盖。** 已批准 Spec/Plan、阶段边界和精确头提交评审约束了变更，但不会自动证明语义正确。 |
+| 2 | **环境漂移、反馈不可靠、构建不可复现。** 构建 / 验证 | 生成代码错误假定运行时或依赖行为；重试可能掩盖而非解决失败。 | **部分覆盖。** 已有独立锁文件、`npm ci`、Node 24、Docker 和真实 CI。基础镜像仍是可变标签，Node 补丁版本未固定，也没有系统性不稳定测试治理。 |
+| 3 | **测试无法发现错误行为，却带来虚假信心。** 验证 | 实现与测试可能共享同一错误假设、过度模拟，或只断言存在性。 | **部分覆盖。** 精确 Red、运行/钩子错误拒绝、冻结测试、真实 SQLite 和浏览器检查都有帮助，但不能证明测试工具本身没有缺陷。 |
+| 4 | **旧行为、持久化数据或非功能需求发生回归。** 验证 | 狭窄的正常路径占据注意力，并发、兼容性和容量被遗漏。 | **部分覆盖。** 现有测试有助于保留行为，但测试套件通过，不足以证明负载、并发、性能预算或全面 NFR 覆盖。 |
+| 5 | **功能成功，但存在安全或供应链风险。** 构建 / 验证 | 不必要的依赖、不安全代码和过度工具权限会快速扩散。 | **仅有基础。** 已有范围受限的工作流权限、部分脱敏和非 root 运行时。尚未建立完整且经过演练的 SAST/SCA、镜像扫描、SBOM、签名、验证与准入链。这是能力缺口，不是发现了可利用漏洞。 |
+| 6 | **评审 A、测试 B、运行 C。** 验证 / 部署 | 生成的完成摘要或可变标签可能被误当成证据。 | **结构支持较强。** 精确头提交评审、冻结 Git blob、按摘要拉取，以及绑定摘要的验收，都要求与真实记录核对。但 CI 与合并后发布仍分别构建；没有完整的多环境“一次构建、逐级提升”系统。 |
+| 7 | **部署时没有控制暴露范围，也没有安全恢复。** 部署 | 部署说明忽略流量控制、配置兼容性、持久化状态和恢复前置条件。 | **尚未证明生产级能力。** 已有隔离的不可变容器，但未演示金丝雀、流量切换、中止发布、旧版本回滚或备份恢复演练。取消 Intent 不会回滚工作负载。 |
+| 8 | **把进程存活误认为用户可见的可用性。** 运维 | 健康探测成功或一般 HTTP 200 被当成虚假成功信号。 | **部分覆盖。** 仅凭存活状态不能证明存储可用；基线没有持续监控、SLI/SLO、告警或流量准入。自动发布验证只检查健康状态与看板，不检查就绪状态。 |
+| 9 | **发现故障，却没有足够证据进行诊断和恢复。** 运维 | 流畅的根因猜测可能跑在日志、指标和实际运行观测之前。 | **部分覆盖。** 已有 CI 记录、交付回执、固定通用失败日志和运行手册。没有请求/发布关联、诊断包或值班流程。Trace Viewer 观测的是智能体执行，不是完整的生产应用行为。 |
+| 10 | **修复症状，却没有明确负责人和经过验证的预防工作。** 运维回到构建 | 智能体完成眼前修复后，遗漏跟进、复发和结果评审。 | **已有基础路径。** 运维观测可以形成新 Intent，经过评审交付，并按摘要验收。尚未建立自动事件接入、明确负责人的预防期限、复发指标或长期业务成果。 |
 
-## 3. What the real failures taught us
+<a id="3-what-the-real-failures-taught-us"></a>
+## 3. 验证与运行边界
 
-### Frozen tests prevent changing the answer, not choosing the wrong answer
+<a id="frozen-tests-prevent-changing-the-answer-not-choosing-the-wrong-answer"></a>
+### 冻结测试能防止改答案，却不能防止选错答案
 
-The first readiness maintenance attempt produced valid missing-route Red.
-Green exposed two test-harness defects: a mock returned from `beforeEach` was
-treated as cleanup, and an existing SQLite observer retained stale column
-metadata following another connection's migration.
+冻结测试能防止实现阶段修改已批准断言，
+但不能证明测试工具正确，也不能证明套件能发现选定的行为缺陷。
 
-The response was cancellation and a new reviewed continuation, not modification
-of frozen tests. An isolated, explicitly labelled harness experiment then
-proved that the corrected suite could pass a candidate implementation.
-It was not stage Green or permission to edit production code in the Tests stage.
+如果测试工具缺陷使冻结契约失效，应取消并启动新的、经过评审的后续工作，
+而不是修改冻结测试。
+隔离的测试工具实验必须明确标记；它不是阶段 Green，
+也不意味着获准在 Tests 阶段编辑生产代码。
 
-A later review found exception sanitization that mutated caught errors.
-Supplemental tests using frozen errors failed, the unnecessary mutation was
-removed, and actual Green was rerun. Passing the original assertions had not
-proved that boundary safe.
+异常边界还需要补充负向检查，例如使用冻结错误对象验证脱敏逻辑不会修改输入。
+原始断言通过，不能替代这些检查。
 
-### Identity consistency is necessary, but not deployment safety
+<a id="identity-consistency-is-necessary-but-not-deployment-safety"></a>
+### 身份一致性是必要条件，却不等于部署安全
 
-Digest-bound acceptance proves which image was exercised. It does not prove
-that the release can safely replace a production version or recover compatible
-configuration and data. A known old image is not a database restore strategy.
+绑定摘要的验收证明实际演练的是哪个镜像。
+它不能证明该发布能安全替换生产版本，或恢复兼容的配置和数据。
+已知旧镜像不是数据库恢复策略。
 
-### Readiness is an operational input, not a complete operating model
+<a id="readiness-is-an-operational-input-not-a-complete-operating-model"></a>
+### 就绪状态是运维输入，不是完整运维体系
 
-The final image returned exact 503/no-store/unavailable readiness with unusable
-storage while liveness remained 200. That distinction is intentional.
-The missing capability was using that distinction automatically for admission,
-monitoring and response. The rehearsal's fifty successful readiness probes
-were a bounded observation, not a long-term availability claim.
+就绪状态契约应区分不可用存储与存活进程：
+存储不可用时要求精确的 503/no-store/unavailable 就绪响应，而存活状态仍为 200。
+还需要把该区分用于准入、监控与响应。
+有限次数的成功就绪探测只是有界观测，不是长期可用性声明。
 
-## 4. Three implementable slices
+<a id="4-three-implementable-slices"></a>
+## 4. 三个可实施切片
 
-| Slice | Decisive evidence | Explicit boundary |
+| 切片 | 决定性证据 | 明确边界 |
 |---|---|---|
-| Trustworthy verification | Original suite passes; each chosen behavioral mutant is caught by assertions rather than a broken runner; restored suite passes; healthy and faulted instances of the same digest meet exact HTTP contracts | A bounded qualification of selected readiness tests, not universal mutation coverage or proof of all acceptance criteria |
-| Safe release and recovery | Read-only loopback traffic remains on the good release after rejection; a qualified candidate receives traffic; rechecked fallback restores service without losing controlled fixture writes | A same-image configuration/process recovery rehearsal; no cross-version migration, write-traffic replication, production canary or backup/restore claim |
-| Operational feedback | Repeated samples open one incident; an authorized response runs; a sustained healthy window verifies recovery; evidence produces an owned, reviewable maintenance task | No automatic GitHub publication/approval, no fabricated root cause, and no claim that symptom recovery completes preventive work |
+| 可信验证 | 原始套件通过；每个选定行为变异由断言捕获，而不是因为运行器损坏；恢复后的套件通过；同摘要的健康与故障实例都满足精确 HTTP 契约 | 只对所选就绪测试进行有界资格验证，不代表通用变异覆盖，也不证明全部验收条件 |
+| 安全发布与恢复 | 拒绝后，只读回环流量仍留在正常发布上；合格候选接收流量；重新检查过的回退目标恢复服务，且不丢失受控夹具写入 | 同镜像的配置/进程恢复演练；不宣称跨版本迁移、写流量复制、生产金丝雀或备份恢复能力 |
+| 运维反馈 | 重复采样只开启一个事件；执行已授权响应；持续健康窗口验证恢复；证据形成明确负责人、可评审的维护任务 | 不自动发布或批准 GitHub 内容，不编造根因，也不宣称症状恢复等同于预防工作完成 |
 
-Preserve the ownership-free source application. Reuse the accepted readiness
-image and exact completed-demo source for these exercises rather than copying
-finished features into the baseline. Never attach accepted demonstration volumes
-to fault injection. Never change old lifecycle evidence.
+保留不含负责人功能的源应用。
+这些演练应使用已评审的不可变就绪镜像，以及与之精确匹配的完整应用源码，
+而不是把完成后的功能复制进基线。
+绝不把已验收演示数据卷接入故障注入，绝不改变旧生命周期证据。
 
-Security/supply-chain admission remains a parallel follow-up. These slices do
-not replace security verification, load testing, independent reviews, actual
-customer validation or production operational ownership.
+安全和供应链准入仍是并行的后续工作。
+这些切片不能替代安全验证、负载测试、独立评审、真实客户验证或生产运维责任。
 
-## Sources
+<a id="sources"></a>
+## 来源
 
-- [S1: DORA 2025](https://dora.dev/research/2025/dora-report/)
-- [S2: DORA test automation](https://dora.dev/capabilities/test-automation/)
-- [S3: Google SRE release engineering](https://sre.google/sre-book/release-engineering/)
-- [S4: Google SRE canarying releases](https://sre.google/workbook/canarying-releases/)
-- [S5: Google SRE monitoring distributed systems](https://sre.google/sre-book/monitoring-distributed-systems/)
-- [S6: Google SRE postmortem culture](https://sre.google/sre-book/postmortem-culture/)
-- [S7: DORA database change management](https://dora.dev/capabilities/database-change-management/)
-- [S8: NIST SP 800-218, SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)
-- [E1: Actual discovery-to-maintenance rehearsal](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/brownfield-discovery-maintenance-rehearsal.md)
+- [S1：DORA 2025](https://dora.dev/research/2025/dora-report/)
+- [S2：DORA 测试自动化](https://dora.dev/capabilities/test-automation/)
+- [S3：Google SRE 发布工程](https://sre.google/sre-book/release-engineering/)
+- [S4：Google SRE 金丝雀发布](https://sre.google/workbook/canarying-releases/)
+- [S5：Google SRE 分布式系统监控](https://sre.google/sre-book/monitoring-distributed-systems/)
+- [S6：Google SRE 事后复盘文化](https://sre.google/sre-book/postmortem-culture/)
+- [S7：DORA 数据库变更管理](https://dora.dev/capabilities/database-change-management/)
+- [S8：NIST SP 800-218，SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)

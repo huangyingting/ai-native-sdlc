@@ -1,36 +1,27 @@
 # 5. Change, diagnosis and Agent evaluation
 
-[Guide index](../README.md) · [中文](../zh/05-engineering-judgment.md) ·
+[Guide index](../README.en.md) · [中文](../zh/05-engineering-judgment.md) ·
 [Previous](04-deploy-operate.md) · [Next: workshop](06-workshop.md)
 
 The previous chapters followed a feature delivery. These **engineering judgment
 exercises** address three focused questions: how to identify change impact,
 locate the faulty layer and compare Agent strategies fairly.
 
-Measurements here come from the separate Discovery engineering experiments,
-now in the demo archive. These cases have not been run in the current demo
-repository; they illustrate methods, not additional results of its delivery.
+This chapter explains experiment design and evaluation methods without retaining
+old experiment reports, screenshots or measurements. These cases are not completed
+in the current demo repository; method descriptions are not delivery results.
 
 ## 5.1 Why a separate engineering lab?
 
 Repeated fault injection and strategy comparisons should not modify the
 accepted service desk or its approved contracts.
-The independent [engineering fixture](../../../../demos/engineering-lab) therefore
+The independent [engineering fixture](../../../../demos/engineering-lab/README.en.md) therefore
 provides a dependency-free synthetic Node.js application with its own manifest,
-lockfile and tests. [Reusable tooling](../../../../tools/engineering-demo/README.md)
+lockfile and tests. [Reusable tooling](../../../../tools/engineering-demo/README.en.md)
 runs experiments outside the source checkout.
 
-This is not another live service-desk deployment. The proxy feature exists
-only in the verified experiment candidate; the committed fixture deliberately
-remains proxy-free so each experiment starts from the same baseline.
-
-[![Published engineering PR explicitly distinguishing successful repairs and rejected evidence](https://raw.githubusercontent.com/huangyingting/ai-native-sdlc-demo/main/docs/archive/assets/engineering-results.png)](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/27)
-
-**Figure I.** [huangyingting/ai-native-sdlc-discovery-demo#27](https://github.com/huangyingting/ai-native-sdlc-discovery-demo/pull/27)
-publishes the tooling and actual outcomes, including failure. It is not the
-proxy implementation's delivery PR. Captured October 12, 2026. Read the
-[canonical experiment report](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/archive/engineering-judgment-rehearsal.md) for the
-measurements, hashes and qualification overhead.
+The committed fixture remains proxy-free so each experiment starts from the
+same baseline. Experiment candidates remain separate from the accepted service desk.
 
 ## 5.2 Change impact: what does adding a field affect?
 
@@ -61,16 +52,14 @@ flowchart LR
   X --> L["15 legacy tests + 35 independent checks"]
 ```
 
-The actual accepted run produced **20 exact source quotations**, an explicit
-hash-bound operator receipt and changes to only four allowed files. All
-15 legacy tests and 35 independent checks passed. The receipt says
-`independentHumanReview:false`; do not present it as independent approval.
+Execution should retain exact quotations, a hash-bound approval receipt,
+the actual edit scope and independent check results. Record whether approval
+included independent human review rather than equating operator confirmation
+with independent review.
 
-During preparation, the validator wrongly limited analysis to one quotation per edit file.
-The model had correctly cited multiple facts and unchanged consumers.
-The fix separated **impact coverage** from **permission to edit**:
-analysis can cite supplied consumers without gaining permission to change them.
-The rejected attempt was preserved, not rewritten.
+Separate **impact coverage** from **permission to edit**: analysis can cite
+multiple facts in one file and unchanged consumers without gaining permission
+to change those files.
 
 **Transferable lesson:** impact analysis should include unchanged contracts
 that must survive a change, not only files a model proposes to edit.
@@ -93,8 +82,8 @@ network-disabled, resource-limited Docker, with disposable temporary storage.
 
 The CLI transport is deliberately qualified:
 
-- Structured JSONL preserves exact response content; plain terminal rendering
-  had wrapped strings and broken JSON.
+- Structured JSONL preserves exact response content and avoids terminal wrapping
+  that can break JSON.
 - An empty `--available-tools=` did **not** remove tools in the tested CLI.
   Explicit exclusions and observed zero-tool telemetry were required.
 - Missing/unexpected telemetry or tool requests cause rejection.
@@ -106,43 +95,21 @@ side effects. Requalify changed tool/event behavior before real use.
 
 ## 5.4 Compare strategies, not storytelling
 
-The pilot compared:
+Consider comparing:
 
 - **Direct:** one response containing diagnosis and patch.
 - **Diagnose-first:** one diagnostic response, then a fresh response proposing
   the patch using that handoff.
 
-This is not two independent Human reviewers or necessarily two different models.
-Both strategies had the same maximum allowance: two calls and 300 seconds
-per cell, at most 120 seconds per call. Direct used one; diagnose-first used
-two. The six cells therefore used nine planned calls, with alternating order,
-the same source/fault/oracle and no automatic retry or human repair.
-Equal upper bounds do not imply equal token allocation or actual spending.
+Two calls are not two independent human reviewers or necessarily different models.
+Fix call and time limits before comparing, alternate execution order and use
+the same source, faults and oracle. Declare retry and human-repair rules in
+advance. Equal limits do not imply equal token use or actual spending.
 
-| Pilot measure | Direct | Diagnose-first |
-|---|---:|---:|
-| Cases | 3 | 3 |
-| Independently verified repairs | 3/3 | 3/3 |
-| Complete evidence acceptance | 0/3 | 0/3 |
-| Actual calls | 3 | 6 |
-| Input tokens | 24,591 | 50,262 |
-| Output tokens | 1,136 | 2,449 |
-| Summed cell wall time | 91,865 ms | 155,140 ms |
-| Reported premium-request units | 3 | 6 |
-| Invoiced dollar cost | Unknown | Unknown |
-
-All six candidates restored the exact baseline and passed **15 visible tests
-and 20 independent checks each**, with correct classifications and scope.
-But the evidence gate rejected every cell:
-
-- Some quotes normalized Markdown punctuation or newlines.
-- Some referenced “Actual failing test output” rather than the validator's
-  reserved `test-output` path, which the original prompt had not clearly specified.
-
-The result was **`completed-with-failures`, exit 2**. Current prompts clarify
-the evidence protocol; the paid pilot was **not rerun after that correction**.
-Do not invent an improved acceptance rate or attribute an underspecified
-protocol entirely to model weakness.
+Record repair correctness, evidence acceptance, scope compliance, actual calls,
+usage, elapsed time and verifiable cost separately. Unknown cost remains unknown,
+not zero. Define exact quotations and source paths in the evidence protocol;
+after changing prompts or validators, rerun before claiming improved results.
 
 Current metrics distinguish:
 
@@ -153,23 +120,18 @@ Current metrics distinguish:
 | `unacceptedCompletionClaims` | Claimed completion did not pass the full gate |
 | `falseCompletionClaims` | Claimed repairs actually failed behavioral verification |
 
-The original report's broader false-completion label was corrected in tooling
-and documented in the report, which preserves the correction and original outcomes.
 **A valid repair with a bad citation is not a false repair claim.**
-
-One trial per three small cases cannot establish a statistically significant
-winner. In this pilot diagnose-first consumed more without changing observed
-repair outcomes. That is useful local evidence, not a universal rule.
+Report sample size and failed attempts. Single trials on a few tasks cannot
+establish a generally superior strategy.
 
 ## 5.5 Use traces to understand execution, not to substitute for quality
 
 [![Actual direct-execution trace showing model/tool spans, elapsed time and estimated cost](../../../assets/traces/trace-detail.png)](https://huangyingting.github.io/ai-native-sdlc/viewer/?run=36092002982)
 
-**Figure J.** The Agent trace exercise's
+**Figure G.** The Agent trace exercise's
 [direct-execution trace](https://huangyingting.github.io/ai-native-sdlc/viewer/?run=36092002982),
-captured October 12, 2026. This example is separate from the strategy pilot.
-The viewer's price-based **estimated cost** is not invoiced spend and must not
-be substituted for the engineering experiment's unknown dollar cost.
+captured October 12, 2026. The viewer's price-based **estimated cost** is not
+invoiced spend and must not substitute for unknown costs in other experiments.
 
 Read the page in this order:
 
@@ -181,7 +143,7 @@ Read the page in this order:
    not extra input to add again.
 6. Ask what product behavior the trace does **not** establish.
 
-The [pattern guide](../../copilot-cli-agent-orchestration-patterns.md) covers
+The [pattern guide](../../copilot-cli-agent-orchestration-patterns.en.md) covers
 direct execution, parallel delegation, critic-reviser loops and sequential
 pipelines. The pictured run illustrates direct execution only. A critic can
 challenge assumptions, but an additional AI voice is not automatically

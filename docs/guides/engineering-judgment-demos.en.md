@@ -49,12 +49,17 @@ The default CLI model is not overridden. A model switch in the environment
 must be disclosed before interpreting comparisons. Missing telemetry is
 reported as unavailable rather than filled with estimates.
 
-The tested CLI is `1.0.89-3`. The adapter uses structured JSONL events rather
+The tested CLI reports `1.0.89` (including the earlier `1.0.89-3` build). The adapter uses structured JSONL events rather
 than terminal-rendered text, explicitly excludes its verified builtin tool
 set, and requires observed zero-tool telemetry before accepting a response.
 An empty `--available-tools=` does not disable the tested CLI's tools. A future
 CLI that changes its tools or event schema must be requalified; missing evidence
 is not silently accepted as compatibility.
+The verified exclusions include both factory and dynamic-workflow tool names.
+The same displayed version was observed exposing new workflow aliases; that
+call was rejected even though it requested no tools. A new attempt verified
+zero available tools after explicit exclusions. Preserve such compatibility
+failures separately; never reuse their rejected output as an accepted proposal.
 
 ## 3. Change-impact and consistency loop
 

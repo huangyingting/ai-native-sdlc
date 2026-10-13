@@ -61,21 +61,38 @@
 
 在源仓库中运行。按自己的机器调整检出目录和证据路径。
 使用包含已评审就绪状态实现的不可变提交，而不是可变的分支名。
+将大写源码及镜像占位符替换为已审查的身份；
+示例不会假定历史演示仓库仍然存在。
 
 ```sh
 mkdir -p "$HOME/brownfield-reliability-evidence"
 
 node tools/brownfield-demo/cli.mjs qualify \
-  --source /absolute/path/to/ai-native-sdlc-discovery-demo \
-  --source-ref d361ce032b0f729f62b165c23c4f79bb56f29b92 \
+  --source /absolute/path/to/readiness-demo \
+  --source-ref FULL_40_HEX_READINESS_SOURCE_COMMIT \
   --dest "$HOME/brownfield-reliability-evidence/qualification-1"
 ```
 
 阅读 `qualification-report.json`。原始测试诊断信息单独保存在私有临时证据中，
 未经审阅不应发布。命令失败不等于成功捕获变异。
+已提交的实现会选择两个有界配置之一：
+
+| 配置 | 精确选择的套件 | 六项变异检查 |
+| --- | --- | --- |
+| `readiness-v1` | 13 项旧版汇总读取及冻结错误断言 | 缺少汇总读取、错误失败状态、成功或失败缓存头缺失、原始日志和冻结错误修改 |
+| `ticket-schema-readiness-v1` | 23 项工单存储、GET/HEAD 就绪及存活断言 | 缺少工单表查询、错误失败状态、成功或失败缓存头缺失、原始日志和缓存成功结果 |
+
+两种配置都要求已提交测试保持不变、名称和实际执行数量精确匹配、
+原始及恢复后的对照通过，并捕获全部六项选定变异。
+工单表配置不允许非断言失败例外。
+它的受控负责人写入使用 Alex Chen / Sam Rivera 的标识；
+旧版汇总配置保留原有 Avery / Jordan 夹具标识。
+不支持或混合的实现会显式失败，不会回退。
+请使用镜像的实际源码修订；应用 README 的变化也会改变应用 Git 树，
+不能静默当成同一份已验证源码。
 原始与恢复后的测试套件都必须通过，不得跳过任何必需测试；
 变异必须在指定的契约断言上失败，不能因为运行、钩子或导入错误而失败。
-唯一明确的例外是冻结错误对象变异：它必须在两个已知测试体中都产生精确预期的应用 TypeError。
+旧版配置唯一明确的例外是冻结错误对象变异：它必须在两个已知测试体中都产生精确预期的应用 TypeError。
 报告会将其标识为预期应用错误，而不是断言失败。
 不得修改任何已批准测试的内容。这只是一个小规模、事先声明的就绪状态变异集合，
 **不是整个项目的变异测试分数**。
@@ -88,9 +105,9 @@ node tools/brownfield-demo/cli.mjs qualify \
 
 ```sh
 node tools/brownfield-demo/cli.mjs rehearse \
-  --image ghcr.io/huangyingting/ai-native-sdlc-discovery-demo-it-service-desk@sha256:1fab5706994daec051dbd183ea42a23ab0e74e2caeefeef1e48454fe17aaa5bb \
+  --image ghcr.io/OWNER/READINESS_REPO-it-service-desk@sha256:FULL_64_HEX_PUBLISHED_DIGEST \
   --qualification "$HOME/brownfield-reliability-evidence/qualification-1/qualification-report.json" \
-  --repo huangyingting/ai-native-sdlc-discovery-demo \
+  --repo OWNER/READINESS_REPO \
   --owner YOUR_GITHUB_LOGIN \
   --dest "$HOME/brownfield-reliability-evidence/runtime-1"
 ```
@@ -168,7 +185,7 @@ node tools/brownfield-demo/cli.mjs rehearse \
 
 ```sh
 node tools/brownfield-demo/cli.mjs verify-image \
-  --image ghcr.io/huangyingting/ai-native-sdlc-discovery-demo-it-service-desk@sha256:1fab5706994daec051dbd183ea42a23ab0e74e2caeefeef1e48454fe17aaa5bb \
+  --image ghcr.io/OWNER/READINESS_REPO-it-service-desk@sha256:FULL_64_HEX_PUBLISHED_DIGEST \
   --profile readiness \
   --dest "$HOME/brownfield-reliability-evidence/image-1"
 ```

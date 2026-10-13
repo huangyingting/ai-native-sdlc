@@ -65,22 +65,39 @@ Do not stop or attach them to a fault drill.
 Run from the source repository. Adapt the checkout and evidence paths to your
 machine. Use an immutable commit containing the reviewed readiness implementation,
 not a mutable branch name.
+Replace the uppercase source/image placeholders with the reviewed identities;
+examples do not assume a historical demo repository still exists.
 
 ```sh
 mkdir -p "$HOME/brownfield-reliability-evidence"
 
 node tools/brownfield-demo/cli.mjs qualify \
-  --source /absolute/path/to/ai-native-sdlc-discovery-demo \
-  --source-ref d361ce032b0f729f62b165c23c4f79bb56f29b92 \
+  --source /absolute/path/to/readiness-demo \
+  --source-ref FULL_40_HEX_READINESS_SOURCE_COMMIT \
   --dest "$HOME/brownfield-reliability-evidence/qualification-1"
 ```
 
 Read `qualification-report.json`. Raw test diagnostics are kept separately in
 the private scratch evidence and should not be published without review.
+A committed implementation selects one of two bounded profiles:
+
+| Profile | Exact selected suites | Six mutation checks |
+| --- | --- | --- |
+| `readiness-v1` | 13 legacy summary-read and frozen-error assertions | Missing summary read, wrong failure status, missing success/failure cache headers, raw logging and frozen-error mutation |
+| `ticket-schema-readiness-v1` | 23 ticket-store, GET/HEAD readiness and liveness assertions | Missing ticket-schema read, wrong failure status, missing success/failure cache headers, raw logging and cached success |
+
+Both profiles require unchanged committed tests, exact executed names/counts,
+passing original/restored controls and all six selected mutants detected.
+The ticket-schema profile permits no non-assertion failure exception. Its
+controlled ownership writes use Alex Chen / Sam Rivera identifiers; legacy
+summary-profile writes retain their original Avery / Jordan fixture identifiers.
+Unsupported or mixed implementations fail explicitly, rather than falling back.
+Use the image's actual source revision: application README changes also change
+the application Git tree and cannot be silently treated as the same qualified tree.
 A command failure is not a successful mutant kill.
 The original and restored suites must pass, no required tests may be skipped,
 and mutants must fail their named contract assertions without run/hook/import
-errors. One explicit exception is the frozen-error mutant: it must produce the
+errors. The legacy profile's one explicit exception is the frozen-error mutant: it must produce the
 precise expected application TypeError in both known test bodies. The report
 identifies those as expected application errors, not assertion failures.
 No approved test content may change. The mutations are a small, declared
@@ -94,9 +111,9 @@ Implementation-stage approval.
 
 ```sh
 node tools/brownfield-demo/cli.mjs rehearse \
-  --image ghcr.io/huangyingting/ai-native-sdlc-discovery-demo-it-service-desk@sha256:1fab5706994daec051dbd183ea42a23ab0e74e2caeefeef1e48454fe17aaa5bb \
+  --image ghcr.io/OWNER/READINESS_REPO-it-service-desk@sha256:FULL_64_HEX_PUBLISHED_DIGEST \
   --qualification "$HOME/brownfield-reliability-evidence/qualification-1/qualification-report.json" \
-  --repo huangyingting/ai-native-sdlc-discovery-demo \
+  --repo OWNER/READINESS_REPO \
   --owner YOUR_GITHUB_LOGIN \
   --dest "$HOME/brownfield-reliability-evidence/runtime-1"
 ```
@@ -179,7 +196,7 @@ For a standalone digest check:
 
 ```sh
 node tools/brownfield-demo/cli.mjs verify-image \
-  --image ghcr.io/huangyingting/ai-native-sdlc-discovery-demo-it-service-desk@sha256:1fab5706994daec051dbd183ea42a23ab0e74e2caeefeef1e48454fe17aaa5bb \
+  --image ghcr.io/OWNER/READINESS_REPO-it-service-desk@sha256:FULL_64_HEX_PUBLISHED_DIGEST \
   --profile readiness \
   --dest "$HOME/brownfield-reliability-evidence/image-1"
 ```

@@ -3,66 +3,64 @@
 
 [English](brownfield-human-gated-delivery-walkthrough.en.md)
 
-本指南用于在现有 IT 服务台上，演示一轮完整、由人工逐关把关的功能交付。
-所有生命周期决策都在 GitHub 网页中完成。
-最终验收前，必须由人实际操作经过验证的镜像；
-工具包可以在本地展示该镜像，无需创建托管部署。
+本指南旨在指导技术人员在现有 IT 服务台系统中，完整演练一轮严谨的、由人类专家逐关把关（Human-Gated）的端到端功能交付。所有生命周期的架构决策均在 GitHub 页面上交互完成。在最终验收关闭前，必须由业务人员在经过独立验证的容器镜像上亲身体验并核验功能；本地工具包可在离线环境下直接拉起该镜像，无需复杂的公网托管部署。
 
 <a id="start-here"></a>
 ## 从这里开始
 
-- **先了解整体方法：**阅读 [AI 原生 SDLC 图解手册](ai-native-sdlc/README.md)，
-  其中包含概念、真实示例、截图及逐页工作坊。本演练指南仍作为详细的命令与配置参考。
-- **查看或展示已有成果：**阅读
-  [当前工单负责人案例](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
-  和[演示路线](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md)。
-  案例记录了 2026 年 10 月 12 日由用户确认的决策、助手执行的浏览器检查，以及对实际已发布镜像的验收。
-- **从零运行负责人场景：**操作人员按顺序完成下方[第 1 步](#1-prepare-the-repository)，
-  然后由请求人和已配置的人工评审者执行[第 2 至第 9 步](#2-show-the-existing-application)。
-- **继续已配置但尚无负责人功能的运行：**核对[预检清单](#15-preflight-and-handoff)，
-  再从对应阶段继续。对于中断的运行，使用[运行控制](#run-controls-during-presentation)
-  与[故障排查](#troubleshooting-during-the-demo)，不要重新配置一套运行。
+- **先了解整体方法论：**阅读 [AI 原生软件交付系统指南](ai-native-sdlc/README.md)，
+  深入理解核心概念、实战范式、高清过程截图及逐页工作坊。本演练指南作为详细的操作手册与命令参考。
+- **观摩已完成的交付成果：**阅读演示仓库中的
+  [工单负责人图文案例实录](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+  与[30 分钟标准演示路线](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md)。
+  案例详实记录了 2026 年 10 月 12 日由用户确认的核心决策、助手执行的浏览器核验，以及基于实际发布镜像签署的最终验收。
+- **从零开始启动演练：**操作人员按顺序完成下文中的[第 1 步：准备代码仓库](#1-prepare-the-repository)，
+  随后由需求发起人与已配置的审查者依序执行[第 2 至第 9 步](#2-show-the-existing-application)。
+- **恢复中断或已配置的流程：**严格核对[预检清单](#15-preflight-and-handoff)，
+  再从对应阶段平稳接续。对于中途暂停的运行，使用[演示控制命令](#run-controls-during-presentation)
+  与[排障指南](#troubleshooting-during-the-demo)，避免盲目重置全套环境。
 
-不要重置已经完成的 `ai-native-sdlc-demo` 仓库，
-也不要对已实现该功能的应用再次提交相同负责人请求。
-应从尚未实现负责人功能的源版本准备一个新的隔离仓库。
+请勿重置已经完成交付的 `ai-native-sdlc-demo` 演示仓库，
+亦切勿对已交付该功能的应用再次提交相同的工单负责人需求。
+演练应从源仓库中尚未实现负责人功能的初始版本导出，建立一个全新的隔离仓库。
 
-示例从**工单负责人不明确**这一问题开始。
-人撰写 Intent，AI 提出 Spec 和 Plan；在批准进入下一阶段之前，人可以按需要求任意多轮修订。
-新的 Intent 流程中，人始终在父 Issue 上阅读完整渲染的 Spec/Plan 修订评论、展开讨论，并提交带版本号的批准命令。
-只有工程阶段使用 PR 评审。
+实战从**工单责任归属不明确**这一核心业务痛点出发。
+由人类业务人员发起 Intent（业务需求意图），AI 负责起草 Spec（规格说明）与 Plan（实施计划）；在正式批准进入下一阶段前，人类决策者可按需进行任意多轮反馈与修订。在全新的 Intent 流程中，决策者始终停留在主 Issue 讨论区，直接查阅完整渲染的 Spec/Plan 修订评论、展开针对性讨论，并提交带版本号的精确批准指令。只有在后续工程开发阶段（Tests 与 Implementation），流程才会流转至 PR 进行代码级同行审查。
 
 ```text
-Human Intent
-  -> AI Spec <-> Human feedback and revision
-  -> AI Plan <-> Human feedback and revision
-  -> AI tests: controlled Red -> Human approval
-  -> AI implementation: Green -> Human approval
-  -> Merge -> Publish image -> Smoke verification
-  -> Human exercises exact digest -> Human acceptance -> Close Intent
+Human Intent (人类业务意图)
+  -> AI Spec <-> 人类反馈与多轮修订
+  -> AI Plan <-> 人类反馈与多轮修订
+  -> AI tests: 受控 Red 状态 -> 人类审查批准
+  -> AI implementation: 全绿 Green 状态 -> 人类代码审查
+  -> 合并入库 -> 构建发布生产镜像 -> 自动化冒烟验证
+  -> 人类在确切 Digest 镜像上操作验证 -> 签署验收 -> 关闭 Intent
 ```
 
-本指南介绍 Issue 文档评审工作流。
-所有基于 Issue 的运行（`issue-v1`）都使用最终人工验收，包括验收机制升级前已经启动的运行。
-只有[旧版 Spec/Plan PR 模式](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)
-仍在冒烟验证后自动关闭，而且不会迁移。
-现场演示前，务必确认新工作流已经部署到远程 `main`；
-本指南本身不能证明部署已经完成。
-配置详情请参阅[配置与策略参考](brownfield-human-gated-delivery.md)。
-文档生成通过 Actions 中的只读 Copilot CLI 完成，与仓库中的编排模式演示、
-以及稍后的 Coding Agent PR 工作相互独立。
+本指南重点介绍基于 Issue 讨论区驱动的文档评审工作流。
+所有基于 Issue 驱动的交付（`issue-v1`）均强制要求最终的人工现场验收，包含在验收升级机制前已启动的运行。
+仅有[历史遗留的旧版 Spec/Plan PR 模式](brownfield-human-gated-delivery.md#legacy-specplan-pr-mode)
+会在冒烟测试通过后自动关闭，且该模式不提供数据迁移。
+在现场演示前，务必确认全新的工作流已经合入远程 `main` 主干；本指南本身不代表远端部署已经生效。
+配置详情请参阅[交付流程与配置参考指南](brownfield-human-gated-delivery.md)。
+文档生成通过 GitHub Actions 中的只读 Copilot CLI 运行，与仓库中的 CLI 编排模式、以及后续的 Coding Agent 编码工作相互物理隔离。
 
 <a id="presenter-runbook-and-readiness"></a>
-## 演示者操作手册与就绪标准
+## 演示者操作手册与演示就绪标准 (Demo Ready)
 
-**当前证据边界：**[案例研究](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
-记录了一次完整的真实交付，其中每项决策及验收都分别获得用户确认。
-它不是独立的多人评审，也不能证明下列三个场景全部完成。
-在所有必需的隔离场景都由人真实作出决策并完成之前，不得宣告 **Demo Ready（演示就绪）**。
+**当前证据边界声明：**[案例实录](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+忠实记录了一次完整的真实交付，其中每一项决策与验收均获得了人类审查者的确认。
+这属于单人主审模式下的真实交付闭环，不代表多人跨团队的复杂评审，亦不能证明下述三个演练场景均已完成。
+在所有必需的隔离场景均由人类真实完成决策并闭环前，不得对外宣称达成 **Demo Ready（演示就绪）**。
 
 在根目录执行 `npm run demo:brownfield -- help`，并通过
-[工具包 README](../../tools/brownfield-demo/README.md)获取准确命令。
-演示项目自己的[场景清单](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios)
+[工具包 README](../../tools/brownfield-demo/README.md) 获取准确的命令参考。
+演示项目自带的[场景清单](../../demos/it-service-desk/.github/brownfield-human-gated-delivery/scenarios)
+严格定义了各演练场景的规范；切勿随意臆造 CLI 参数或 Issue 模板选项。
+
+演示前准备事项：
+
+1. 固定一个尚未具备该场景能力的源提交。
 定义了演练案例；不要杜撰 CLI 参数或 Issue 表单选择项。
 
 演示前：

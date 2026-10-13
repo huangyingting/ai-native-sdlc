@@ -8,7 +8,7 @@
 关于更完整的交付方法及这些实验的双语说明，请参阅[图解手册](ai-native-sdlc/README.md)
 及其[工程判断章节](ai-native-sdlc/zh/05-engineering-judgment.md)。
 
-**状态：**可执行的开发测试实验。这些命令确实调用 Copilot；离线单元测试不会。
+**状态**：可执行的开发测试实验。这些命令确实调用 Copilot；离线单元测试不会。
 实验成功只能证明声明的夹具与检查得到满足，不能说明智能体普遍更优。
 
 <a id="1-what-each-demo-proves"></a>

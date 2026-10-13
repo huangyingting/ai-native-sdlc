@@ -64,7 +64,7 @@ flowchart LR
 
 | 实战案例 | 核心演示与方法价值 | 关键落地成果与指标 |
 |---|---|---|
-| **工单负责人完整交付：**[huangyingting/ai-native-sdlc-demo#1](https://github.com/huangyingting/ai-native-sdlc-demo/issues/1) | 从需求澄清、架构审批到端到端生产验收的全周期闭环 | 沉淀 4 项核心产品决策、Spec v5、Plan v1、38 项测试全部通过，以及基于指定发布镜像的人工现场验收 |
+| **工单负责人完整交付**：[huangyingting/ai-native-sdlc-demo#1](https://github.com/huangyingting/ai-native-sdlc-demo/issues/1) | 从需求澄清、架构审批到端到端生产验收的全周期闭环 | 沉淀 4 项核心产品决策、Spec v5、Plan v1、38 项测试全部通过，以及基于指定发布镜像的人工现场验收 |
 | **数据库就绪与可靠性演练** | 如何精准区分进程存活与数据库健康、检验测试有效性并实施自动回滚 | 严密的可靠性架构方法论；详见演示仓库的后续实践 |
 | **工程决策与 Agent 评测** | 如何受控开展变更影响分析、故障根因诊断并公平评测 Agent 策略 | 严密的判定器（Oracle）与度量实验设计；详见工程专题 |
 | **Agent 执行追踪（Trace Viewer）** | 如何系统化观测大模型调用时序、并发拓扑与 Token 开销 | 基于无外部依赖的标准工具套件，深入解析模型调用的真实执行流 |

@@ -8,15 +8,15 @@
 <a id="start-here"></a>
 ## 从这里开始
 
-- **先了解整体方法论：**阅读 [AI 原生软件交付系统指南](ai-native-sdlc/README.md)，
+- **先了解整体方法论**：阅读 [AI 原生软件交付系统指南](ai-native-sdlc/README.md)，
   深入理解核心概念、实战范式、高清过程截图及逐页工作坊。本演练指南作为详细的操作手册与命令参考。
-- **观摩已完成的交付成果：**阅读演示仓库中的
+- **观摩已完成的交付成果**：阅读演示仓库中的
   [工单负责人图文案例实录](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
   与[30 分钟标准演示路线](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/presenter.md)。
   案例详实记录了 2026 年 10 月 12 日由用户确认的核心决策、助手执行的浏览器核验，以及基于实际发布镜像签署的最终验收。
-- **从零开始启动演练：**操作人员按顺序完成下文中的[第 1 步：准备代码仓库](#1-prepare-the-repository)，
+- **从零开始启动演练**：操作人员按顺序完成下文中的[第 1 步：准备代码仓库](#1-prepare-the-repository)，
   随后由需求发起人与已配置的审查者依序执行[第 2 至第 9 步](#2-show-the-existing-application)。
-- **恢复中断或已配置的流程：**严格核对[预检清单](#15-preflight-and-handoff)，
+- **恢复中断或已配置的流程**：严格核对[预检清单](#15-preflight-and-handoff)，
   再从对应阶段平稳接续。对于中途暂停的运行，使用[演示控制命令](#run-controls-during-presentation)
   与[排障指南](#troubleshooting-during-the-demo)，避免盲目重置全套环境。
 
@@ -48,7 +48,7 @@ Human Intent (人类业务意图)
 <a id="presenter-runbook-and-readiness"></a>
 ## 演示者操作手册与演示就绪标准 (Demo Ready)
 
-**当前证据边界声明：**[案例实录](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
+**当前证据边界声明**：[案例实录](https://github.com/huangyingting/ai-native-sdlc-demo/blob/main/docs/cases/ownership.zh-CN.md)
 忠实记录了一次完整的真实交付，其中每一项决策与验收均获得了人类审查者的确认。
 这属于单人主审模式下的真实交付闭环，不代表多人跨团队的复杂评审，亦不能证明下述三个演练场景均已完成。
 在所有必需的隔离场景均由人类真实完成决策并闭环前，不得对外宣称达成 **Demo Ready（演示就绪）**。
@@ -158,7 +158,7 @@ git clone https://github.com/huangyingting/ai-native-sdlc.git /absolute/path/to/
 git -C /absolute/path/to/source-checkout rev-parse HEAD
 ```
 
-**预期结果：**得到源检出目录和完整提交 SHA。
+**预期结果**：得到源检出目录和完整提交 SHA。
 不要克隆覆盖现有目录，也不要选择已完成演示的实现提交。
 
 <a id="12-prepare-the-isolated-baseline"></a>
@@ -177,7 +177,7 @@ node tools/brownfield-demo/cli.mjs prepare \
   --single-owner
 ```
 
-**预期结果：**生成一个尚无负责人功能的新导出副本，包含当前工作流、选定评审者和 `brownfield-demo-provenance.json`。
+**预期结果**：生成一个尚无负责人功能的新导出副本，包含当前工作流、选定评审者和 `brownfield-demo-provenance.json`。
 此时它还不是 Git 仓库，也不是已发布的演示。
 基线不匹配是阻碍；不要禁用指纹检查，也不要删除负责人代码来勉强通过。
 [工具包准备参考](../../tools/brownfield-demo/README.md#2-prepare-from-a-full-immutable-source-commit)
@@ -218,7 +218,7 @@ gh repo view OWNER/NEW_DEMO_REPO --json defaultBranchRef --jq .defaultBranchRef.
 gh workflow list --repo OWNER/NEW_DEMO_REPO --all
 ```
 
-**预期结果：**`main` 是默认分支，GitHub 已注册包括 **Brownfield Delivery · Documents** 在内的交付工作流。
+**预期结果**：`main` 是默认分支，GitHub 已注册包括 **Brownfield Delivery · Documents** 在内的交付工作流。
 必要时，在仓库设置中将 `main` 设为默认分支，并等待工作流注册。
 邀请其他已配置评审者，并赋予写权限。
 仅发布仓库不会配置令牌、保护规则或 Copilot 访问。
@@ -315,13 +315,13 @@ npm run setup:brownfield -- --repo OWNER/NEW_DEMO_REPO --single-owner &&
 node tools/brownfield-demo/cli.mjs preflight --repo OWNER/NEW_DEMO_REPO --single-owner
 ```
 
-**预期结果：**setup 自动检查通过，preflight 报告 `automatedReady: true`。
+**预期结果**：setup 自动检查通过，preflight 报告 `automatedReady: true`。
 其 `readyForLiveRun` 仍为 `false`，因为工具不会认证人工检查。
 请自行验证凭据范围与有效期、使用资格、计费、Docker daemon 与镜像仓库访问，以及评审者参与情况。
 存在未解决阻碍时应停止。
 不要用新基线预检来评估已经完成的负责人实现；应使用回放。
 
-**何时算已配置：**表单可见、预期评审者已配置、自动化前提及约定的分支保护都已到位。
+**何时算已配置**：表单可见、预期评审者已配置、自动化前提及约定的分支保护都已到位。
 这还不等于 **Demo Ready**；必须完成上文的真实演练。
 在[第 2 步](#2-show-the-existing-application)交给请求人与评审者，
 然后在 **`OWNER/NEW_DEMO_REPO`** 创建 Intent，而不是在源仓库或已完成的演示仓库创建。
@@ -346,7 +346,7 @@ npm run dev
 打开 <http://localhost:3000>。
 在任何功能开发开始前，展示一个已有工单及工单队列。不要删除已有工单数据。
 
-**讲解要点：**这是既有系统开发。
+**讲解要点**：这是既有系统开发。
 目标是在保留现有行为的前提下改进系统，而不是重新生成一个替代品。
 
 <a id="3-submit-the-human-authored-intent"></a>
@@ -375,7 +375,7 @@ npm run dev
 提交人必须是 `OWNER`、`MEMBER` 或 `COLLABORATOR`。
 不要选择 Copilot CLI 演示表单，也不要手动指派全部生命周期阶段。
 
-**预期结果：**一个带有 `brownfield-human-gated-delivery:intent` 标签的父 Intent Issue。
+**预期结果**：一个带有 `brownfield-human-gated-delivery:intent` 标签的父 Intent Issue。
 没有 AI 代写 Intent 的阶段，也没有额外的 Intent 批准关卡。
 立即检查 Issue 的 **Labels**。
 若标签缺失，确认仓库中已创建该标签，将其加到此 Issue，然后按下方手动 kickoff 恢复步骤操作。
@@ -407,7 +407,7 @@ GitHub 不会根据表单定义自动创建标签。
 kickoff 运行完成，不代表 Spec 生成与发布已经完成；也要检查 Documents 运行。
 新 Intent 此时还不应有 `brownfield-delivery/<intent-number>` 分支或 Spec PR。
 
-**预期结果：**只读 Copilot CLI 生成首个 Spec；
+**预期结果**：只读 Copilot CLI 生成首个 Spec；
 受信任自动化验证修订并保存到 Git，然后在 Issue 发布完整文档供人工评审。
 此时不运行应用构建。
 
@@ -506,7 +506,7 @@ the specification for re-review.
 
    如果之后又请求了修订，应使用实际最新版本；旧版本批准会被拒绝。
 
-**预期结果：**批准保存到 Git，内容包括文档版本与哈希、
+**预期结果**：批准保存到 Git，内容包括文档版本与哈希、
 探索运行的决策上下文哈希、批准命令评论 ID 与正文，以及批准人的 ID、登录名和时间，
 而不是另存一份不可变的已渲染修订评论快照。
 达到配置门槛后，Documents 生成链接到已批准 Spec 的 Plan v1。
@@ -576,7 +576,7 @@ its validation. Preserve the approved specification.
 先评审并批准新 Spec，再评审并批准新 Plan 版本。
 Plan 不得悄悄改写已批准的需求。
 
-**预期结果：**最新 Plan 获得配置要求的全部人工批准后，自动化冻结
+**预期结果**：最新 Plan 获得配置要求的全部人工批准后，自动化冻结
 `spec.md`、`plan.md` 与 `document-review.json`，
 从已批准的文档提交创建 `brownfield-delivery/<intent-number>`，
 关闭内部 Spec/Plan 阶段 Issue，并且**只将 TDD Tests** 分配给 Coding Agent。
@@ -600,13 +600,13 @@ Plan 不得悄悄改写已批准的需求。
 - lint 和构建通过；
 - 无关的测试收集、setup/teardown 或运行时错误，都不能被接受为 Red。
 
-**重要：**功能测试有意处于 Red，但 `stage-validation` 检查必须通过。
+**重要**：功能测试有意处于 Red，但 `stage-validation` 检查必须通过。
 它成功表示工作流已验证这些预期失败；不要批准一个验证作业本身已损坏的 PR。
 
 需要时，在同一个 PR 中要求修正。
 只有测试与证据都可靠后，才明确批准最新修订。
 
-**预期结果：**已批准测试合并到生命周期分支，而不是 `main`。
+**预期结果**：已批准测试合并到生命周期分支，而不是 `main`。
 随后工作流指派 Implementation。
 已批准测试文件成为实现阶段不可更改的契约。
 
@@ -635,7 +635,7 @@ Plan 不得悄悄改写已批准的需求。
 可视化演示时，应验证 Spec 评审中选定的行为，包括已有工单的兼容性。
 通用仪表板冒烟测试不能证明每个功能验收场景成立；也要检查功能测试。
 
-**预期结果：**已批准且检查通过的 PR 自动合并到 `main`。
+**预期结果**：已批准且检查通过的 PR 自动合并到 `main`。
 父 Intent 仍保持打开，等待交付验证。
 
 <a id="9-verify-delivery-and-accept-the-result"></a>
@@ -667,7 +667,7 @@ Plan 不得悄悄改写已批准的需求。
    只有此时才应关闭 Intent，并移除工程分支 `brownfield-delivery/<intent-number>`。
    保留 `brownfield-documents/<intent-number>` 和 `brownfield-runs/<intent-number>` 供回放。
 
-**预期结果：**形成一条可追溯链路：
+**预期结果**：形成一条可追溯链路：
 从人工撰写的 Intent，经已批准产物及测试，到已发布、已验证的镜像摘要，
 以及与合并 SHA、运行 ID 和尝试次数绑定的人工验收记录。
 

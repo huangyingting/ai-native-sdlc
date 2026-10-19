@@ -23,6 +23,7 @@ executable inputs or evidence.
 | Configure approvals and troubleshoot | [Delivery reference](guides/brownfield-human-gated-delivery.en.md) |
 | Validate release and recovery behavior | [Reliability guide](guides/brownfield-reliability-loops.en.md) |
 | Analyze changes and evaluate agents | [Engineering experiments](guides/engineering-judgment-demos.en.md) |
+| Benchmark SDD frameworks | [SDD benchmark use cases](guides/sdd-benchmark-use-cases.en.md) |
 | Choose an orchestration pattern | [Orchestration guide](guides/copilot-cli-agent-orchestration-patterns.en.md) |
 | Develop or extend the repository | [Repository guide](guides/repository-guide.en.md) |
 

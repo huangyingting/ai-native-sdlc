@@ -16,6 +16,7 @@
 | 配置人工审批门禁与排错恢复 | [交付流程与配置参考指南](guides/brownfield-human-gated-delivery.md) |
 | 验证版本准入拦截与自动回滚 | [系统发布与恢复可靠性指南](guides/brownfield-reliability-loops.md) |
 | 开展变更影响分析与 Agent 策略评估 | [工程实验设计与判定器指南](guides/engineering-judgment-demos.md) |
+| 横向评测 SDD（规格驱动开发）框架 | [SDD 基准评测用例指南](guides/sdd-benchmark-use-cases.md) |
 | 选择适用的 CLI 智能体编排模式 | [Copilot CLI Agent 编排模式指南](guides/copilot-cli-agent-orchestration-patterns.md) |
 | 参与本仓库工具的开发与扩展维护 | [仓库维护与贡献指南](guides/repository-guide.md) |
 
